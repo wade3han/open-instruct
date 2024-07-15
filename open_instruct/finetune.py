@@ -580,7 +580,8 @@ def main(args: FlatArguments):
         # TensorBoard cannot log Enums, need the raw value
         experiment_config["lr_scheduler_type"] = experiment_config["lr_scheduler_type"]
         accelerator.init_trackers(
-            "open_instruct_sft", experiment_config, init_kwargs={"wandb": {"entity": args.wandb_entity}}
+            os.environ["WANDB_PROJECT"], experiment_config,
+            init_kwargs={"wandb": {"entity": os.environ["WANDB_ENTITY"]}}
         )
 
     # Train!
@@ -717,9 +718,9 @@ def main(args: FlatArguments):
                 completed_steps += 1
                 if args.logging_steps and completed_steps % args.logging_steps == 0:
                     avg_loss = (
-                        accelerator.gather(total_loss).mean().item()
-                        / args.gradient_accumulation_steps
-                        / args.logging_steps
+                            accelerator.gather(total_loss).mean().item()
+                            / args.gradient_accumulation_steps
+                            / args.logging_steps
                     )
                     logger.info(f"  Step: {completed_steps}, LR: {lr_scheduler.get_last_lr()[0]}, Loss: {avg_loss}")
                     if args.with_tracking:
