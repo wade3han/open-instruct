@@ -227,6 +227,9 @@ def main():
 
     accelerator.wait_for_everyone()
 
+    if accelerator.is_main_process:
+        print(f"Arguments: {args}")
+
     if args.dataset_name is not None:
         # Downloading and loading a dataset from the hub.
         raw_datasets = load_dataset(
