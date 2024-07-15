@@ -563,6 +563,14 @@ class FlatArguments:
             "help": "Whether the various states should be saved at the end of every n steps, or 'epoch' for each epoch."  # noqa
         },
     )
+    mask_users: bool = field(
+        default=False,
+        metadata={"help": "Whether to mask user messages during training."},
+    )
+    mask_padding: bool = field(
+        default=False,
+        metadata={"help": "Whether to mask padding tokens during training."},
+    )
 
     def __post_init__(self):
         if self.reduce_loss not in ["mean", "sum"]:
