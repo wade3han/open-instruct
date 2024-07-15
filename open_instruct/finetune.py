@@ -184,8 +184,6 @@ def save_with_accelerate(accelerator, model, tokenizer, output_dir, args):
 
 def main():
     parser = ArgumentParserPlus((FlatArguments))
-    parser.add_argument("--mask_users", action="store_true", help="Mask user messages in the input.")
-    parser.add_argument("--mask_padding", action="store_true", help="Mask padding tokens in the input.")
     args = parser.parse()
 
     # Initialize the accelerator. We will let the accelerator handle device placement for us in this example.
