@@ -677,7 +677,7 @@ def main(args: FlatArguments):
                 lr_scheduler.step()
 
             if accelerator.sync_gradients:
-                if completed_steps % args.validation_every_steps == 0:
+                if completed_steps % 500 == 0:
                     model.eval()
                     with torch.no_grad():
                         eval_loss = 0
