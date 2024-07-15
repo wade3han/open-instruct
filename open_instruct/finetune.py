@@ -79,7 +79,9 @@ def encode_with_prompt_completion_format(example, tokenizer, max_seq_length, add
     }
 
 
-def encode_with_messages_format(example, tokenizer, max_seq_length, add_bos=False):
+def encode_with_messages_format(example, tokenizer, max_seq_length, add_bos=False,
+                                mask_users=True,
+                                mask_padding=False, ):
     """
     Here we assume each example has a 'messages' field Each message is a dict with 'role' and 'content' fields.
     We concatenate all messages with the roles as delimiters and tokenize them together.
@@ -104,34 +106,43 @@ def encode_with_messages_format(example, tokenizer, max_seq_length, add_bos=Fals
     example_text = _concat_messages(messages).strip()
     if add_bos:
         example_text = tokenizer.bos_token + example_text
-    tokenized_example = tokenizer(example_text, return_tensors="pt", max_length=max_seq_length, truncation=True)
-    input_ids = tokenized_example.input_ids
-    labels = input_ids.clone()
+
+    if not mask_padding:
+        tokenized_example = tokenizer(example_text, return_tensors="pt", max_length=max_seq_length, truncation=True)
+        input_ids = tokenized_example.input_ids
+        labels = input_ids.clone()
+    else:
+        tokenized_example = tokenizer(example_text, return_tensors="pt", max_length=max_seq_length, truncation=True,
+                                      padding="max_length")
+        input_ids = tokenized_example.input_ids
+        labels = input_ids.clone()
+        labels[labels == tokenizer.pad_token_id] = -100
 
     # mask the non-assistant part for avoiding loss
-    for message_idx, message in enumerate(messages):
-        if message["role"] != "assistant":
-            if message_idx == 0:
-                message_start_idx = 0
-            else:
-                message_start_idx = tokenizer(
-                    _concat_messages(messages[:message_idx]),
-                    return_tensors="pt",
-                    max_length=max_seq_length,
-                    truncation=True,
+    if mask_users:
+        for message_idx, message in enumerate(messages):
+            if message["role"] != "assistant":
+                if message_idx == 0:
+                    message_start_idx = 0
+                else:
+                    message_start_idx = tokenizer(
+                        _concat_messages(messages[:message_idx]),
+                        return_tensors="pt",
+                        max_length=max_seq_length,
+                        truncation=True,
+                    ).input_ids.shape[1]
+                if message_idx < len(messages) - 1 and messages[message_idx + 1]["role"] == "assistant":
+                    # here we also ignore the role of the assistant
+                    messages_so_far = _concat_messages(messages[: message_idx + 1]) + "<|assistant|>\n"
+                else:
+                    messages_so_far = _concat_messages(messages[: message_idx + 1])
+                message_end_idx = tokenizer(
+                    messages_so_far, return_tensors="pt", max_length=max_seq_length, truncation=True
                 ).input_ids.shape[1]
-            if message_idx < len(messages) - 1 and messages[message_idx + 1]["role"] == "assistant":
-                # here we also ignore the role of the assistant
-                messages_so_far = _concat_messages(messages[: message_idx + 1]) + "<|assistant|>\n"
-            else:
-                messages_so_far = _concat_messages(messages[: message_idx + 1])
-            message_end_idx = tokenizer(
-                messages_so_far, return_tensors="pt", max_length=max_seq_length, truncation=True
-            ).input_ids.shape[1]
-            labels[:, message_start_idx:message_end_idx] = -100
+                labels[:, message_start_idx:message_end_idx] = -100
 
-            if message_end_idx >= max_seq_length:
-                break
+                if message_end_idx >= max_seq_length:
+                    break
 
     attention_mask = torch.ones_like(input_ids)
     return {
@@ -172,6 +183,7 @@ def save_with_accelerate(accelerator, model, tokenizer, output_dir, args):
 
 
 def main(args: FlatArguments):
+
     # Initialize the accelerator. We will let the accelerator handle device placement for us in this example.
     # If we're using tracking, we also need to initialize it here and it will by default pick up all supported trackers
     # in the environment
@@ -427,6 +439,8 @@ def main(args: FlatArguments):
     elif "messages" in raw_datasets["train"].column_names:
         encode_function = partial(
             encode_with_messages_format,
+            mask_users=args.mask_users,
+            mask_padding=args.mask_padding,
             tokenizer=tokenizer,
             max_seq_length=args.max_seq_length,
             add_bos=args.add_bos,
@@ -451,7 +465,7 @@ def main(args: FlatArguments):
         lm_datasets = lm_datasets.filter(lambda example: (example["labels"] != -100).any())
 
     with accelerator.main_process_first():
-        TEST_DATASET_PATH = "/net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/tulu-v2-sft-mixture-held-out.jsonl"
+        TEST_DATASET_PATH = "/net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/tulu-v2-sft-mixture_test_v2.jsonl"
         data_files = {"test": TEST_DATASET_PATH}
         raw_datasets_test = load_dataset(
             "json",
@@ -460,7 +474,9 @@ def main(args: FlatArguments):
         encode_function_mask_non_assistant = partial(
             encode_with_messages_format,
             tokenizer=tokenizer,
-            max_seq_length=8192,  # HARD-CODED
+            mask_padding=True,
+            mask_users=True,
+            max_seq_length=2048,  # HARD-CODED
             add_bos=args.add_bos,
         )
         lm_datasets_test = raw_datasets_test.map(
@@ -664,6 +680,8 @@ def main(args: FlatArguments):
                     # Enable model parallelism
                     shift_labels = shift_labels.to(shift_logits.device)
                     loss = loss_fct(shift_logits, shift_labels)
+                    # We scale the loss based on the batch size and sequence length
+                    loss = loss / (args.per_device_train_batch_size * args.max_seq_length)
                 # We keep track of the loss at each logged step
                 total_loss += loss.detach().float()
                 accelerator.backward(loss)
@@ -678,28 +696,14 @@ def main(args: FlatArguments):
                 lr_scheduler.step()
 
             if accelerator.sync_gradients:
-                if completed_steps % 500 == 0:
+                if completed_steps % 100 == 0:
                     model.eval()
                     with torch.no_grad():
                         eval_loss = 0
                         loss_count = 0
                         for eval_step, eval_batch in enumerate(test_data_loader):
                             outputs = model(**eval_batch, use_cache=False)
-                            if args.reduce_loss == 'mean':
-                                eval_loss += outputs.loss
-                            else:
-                                logits = outputs.logits
-                                labels = eval_batch["labels"]
-                                # Shift so that tokens < n predict n
-                                shift_logits = logits[..., :-1, :].contiguous()
-                                shift_labels = labels[..., 1:].contiguous()
-                                # Flatten the tokens
-                                loss_fct = torch.nn.CrossEntropyLoss(reduction='sum')
-                                shift_logits = shift_logits.view(-1, embedding_size)
-                                shift_labels = shift_labels.view(-1)
-                                # Enable model parallelism
-                                shift_labels = shift_labels.to(shift_logits.device)
-                                eval_loss += loss_fct(shift_logits, shift_labels)
+                            eval_loss += outputs.loss
                             loss_count += 1
                         eval_loss = accelerator.gather(eval_loss).mean().item() / loss_count
                         logger.info(f"Validation loss: {eval_loss}")
