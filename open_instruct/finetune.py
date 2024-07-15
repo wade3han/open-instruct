@@ -450,7 +450,35 @@ def main(args: FlatArguments):
         lm_datasets.set_format(type="pt")
         lm_datasets = lm_datasets.filter(lambda example: (example["labels"] != -100).any())
 
+    with accelerator.main_process_first():
+        TEST_DATASET_PATH = "/net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/tulu-v2-sft-mixture-held-out.jsonl"
+        data_files = {"test": TEST_DATASET_PATH}
+        raw_datasets_test = load_dataset(
+            "json",
+            data_files=data_files,
+        )
+        encode_function_mask_non_assistant = partial(
+            encode_with_messages_format,
+            tokenizer=tokenizer,
+            max_seq_length=8192,  # HARD-CODED
+            add_bos=args.add_bos,
+        )
+        lm_datasets_test = raw_datasets_test.map(
+            encode_function_mask_non_assistant,
+            batched=False,
+            num_proc=args.preprocessing_num_workers,
+            load_from_cache_file=not args.overwrite_cache,
+            remove_columns=[name for name in raw_datasets_test["test"].column_names if
+                            name not in ["input_ids", "labels", "attention_mask"]],
+            desc="Tokenizing and reformatting instruction data",
+        )
+        lm_datasets_test.set_format(type="pt")
+
+        print(f"Dataset size: {len(lm_datasets_test['test'])}")
+
     train_dataset = lm_datasets["train"]
+    test_dataset = lm_datasets_test["test"]
+
     # debugging tool for fewer samples
     if args.max_train_samples is not None:
         max_train_samples = min(len(train_dataset), args.max_train_samples)
@@ -467,6 +495,12 @@ def main(args: FlatArguments):
         shuffle=True,
         collate_fn=DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="longest"),
         batch_size=args.per_device_train_batch_size,
+    )
+    test_data_loader = DataLoader(
+        test_dataset,
+        shuffle=False,
+        collate_fn=DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="longest"),
+        batch_size=8,
     )
 
     # Optimizer
@@ -523,8 +557,8 @@ def main(args: FlatArguments):
         num_warmup_steps=int(num_training_steps_for_scheduler * args.warmup_ratio),
     )
     # Prepare everything with `accelerator`.
-    model, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
-        model, optimizer, train_dataloader, lr_scheduler
+    model, optimizer, train_dataloader, test_data_loader, lr_scheduler = accelerator.prepare(
+        model, optimizer, train_dataloader, test_data_loader, lr_scheduler
     )
 
     # We need to recalculate our total training steps as the size of the training dataloader may have changed.
@@ -635,9 +669,47 @@ def main(args: FlatArguments):
                 # clip gradient norm. don't do this with deepspeed
                 if accelerator.sync_gradients and args.clip_grad_norm > 0:
                     accelerator.clip_grad_norm_(model.parameters(), args.clip_grad_norm)
+                total_norm = model.get_global_grad_norm()
+                if hasattr(total_norm, "item"):
+                    total_norm = total_norm.item()
                 optimizer.step()
                 optimizer.zero_grad()
                 lr_scheduler.step()
+
+            if accelerator.sync_gradients:
+                if completed_steps % args.validation_every_steps == 0:
+                    model.eval()
+                    with torch.no_grad():
+                        eval_loss = 0
+                        loss_count = 0
+                        for eval_step, eval_batch in enumerate(test_data_loader):
+                            outputs = model(**eval_batch, use_cache=False)
+                            if args.reduce_loss == 'mean':
+                                eval_loss += outputs.loss
+                            else:
+                                logits = outputs.logits
+                                labels = eval_batch["labels"]
+                                # Shift so that tokens < n predict n
+                                shift_logits = logits[..., :-1, :].contiguous()
+                                shift_labels = labels[..., 1:].contiguous()
+                                # Flatten the tokens
+                                loss_fct = torch.nn.CrossEntropyLoss(reduction='sum')
+                                shift_logits = shift_logits.view(-1, embedding_size)
+                                shift_labels = shift_labels.view(-1)
+                                # Enable model parallelism
+                                shift_labels = shift_labels.to(shift_logits.device)
+                                eval_loss += loss_fct(shift_logits, shift_labels)
+                            loss_count += 1
+                        eval_loss = accelerator.gather(eval_loss).mean().item() / loss_count
+                        logger.info(f"Validation loss: {eval_loss}")
+                        if args.with_tracking:
+                            accelerator.log(
+                                {
+                                    "eval_loss": eval_loss,
+                                },
+                                step=completed_steps,
+                            )
+                    model.train()
 
             # Checks if the accelerator has performed an optimization step behind the scenes
             if accelerator.sync_gradients:
@@ -655,6 +727,7 @@ def main(args: FlatArguments):
                             {
                                 "learning_rate": lr_scheduler.get_last_lr()[0],
                                 "train_loss": avg_loss,
+                                "total_norm": total_norm,
                             },
                             step=completed_steps,
                         )
