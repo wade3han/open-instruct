@@ -448,7 +448,7 @@ def main():
         lm_datasets = lm_datasets.filter(lambda example: (example["labels"] != -100).any())
 
     with accelerator.main_process_first():
-        TEST_DATASET_PATH = "/net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/tulu-v2-sft-mixture_test_v2.jsonl"
+        TEST_DATASET_PATH = "/net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/tulu-v2-sft-mixture-held-out.jsonl"
         data_files = {"test": TEST_DATASET_PATH}
         raw_datasets_test = load_dataset(
             "json",
