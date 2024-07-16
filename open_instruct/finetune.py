@@ -112,11 +112,12 @@ def encode_with_messages_format(example, tokenizer, max_seq_length, add_bos=Fals
         input_ids = tokenized_example.input_ids
         labels = input_ids.clone()
     else:
-        tokenized_example = tokenizer(example_text, return_tensors="pt", max_length=max_seq_length, truncation=True,
-                                      padding="max_length")
-        input_ids = tokenized_example.input_ids
-        labels = input_ids.clone()
-        labels[labels == tokenizer.pad_token_id] = -100
+        raise NotImplementedError("This is deprecated.")
+        # tokenized_example = tokenizer(example_text, return_tensors="pt", max_length=max_seq_length, truncation=True,
+        #                               padding="max_length")
+        # input_ids = tokenized_example.input_ids
+        # labels = input_ids.clone()
+        # labels[labels == tokenizer.pad_token_id] = -100
 
     # mask the non-assistant part for avoiding loss
     if mask_users:
@@ -477,9 +478,9 @@ def main(args: FlatArguments):
         encode_function_mask_non_assistant = partial(
             encode_with_messages_format,
             tokenizer=tokenizer,
-            mask_padding=True,
+            mask_padding=False,
             mask_users=True,
-            max_seq_length=2048,  # HARD-CODED
+            max_seq_length=8192,  # HARD-CODED
             add_bos=args.add_bos,
         )
         lm_datasets_test = raw_datasets_test.map(
