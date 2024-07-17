@@ -7,7 +7,7 @@ echo "Training llama model ${MODEL_SIZE} using $NUM_GPUS GPUs, $BATCH_SIZE_PER_G
 # You can also set --gradient_checkpointing or use `stage3_offloading_accelerate.conf` to save memory,
 # but it will trade off speed.
 # sweep learning rate from 2e-5 to 1e-6
-NAME=wildtagger_batch4_seq8192_v0_1_best_lr1e-6
+NAME=wildtagger_batch4_seq8192_v0_1_lr1e-6
 
 gantry run --beaker-image seungjuh/open-instruct-public-240711 --venv base \
   --name $NAME \
@@ -36,8 +36,8 @@ gantry run --beaker-image seungjuh/open-instruct-public-240711 --venv base \
   --model_name_or_path mistralai/Mistral-7B-v0.3 \
   --use_flash_attn \
   --tokenizer_name mistralai/Mistral-7B-v0.3 \
-  --train_file /net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/tulu-v2-sft-mixture_train_tagging_success_formatted_topic_success_formatted_skill_success_best_train.jsonl \
-  --validation_file /net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/tulu-v2-sft-mixture_train_tagging_success_formatted_topic_success_formatted_skill_success_test.jsonl \
+  --train_file /net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/tulu-v2-sft-mixture_train_tagging_success_formatted_topic_success_formatted_skill_success_best_train_v011.jsonl \
+  --validation_file /net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/tulu-v2-sft-mixture_train_tagging_success_formatted_topic_success_formatted_skill_success_test_v011.jsonl \
   --validation_per_steps 10 \
   --max_seq_length 8192 \
   --preprocessing_num_workers 128 \

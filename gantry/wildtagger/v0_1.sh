@@ -31,12 +31,14 @@ gantry run --beaker-image seungjuh/open-instruct-public-240711 --venv base \
   --use_deepspeed \
   --main_process_port 2950 \
   --deepspeed_config_file configs/ds_configs/stage3_no_offloading_accelerate.conf \
-  open_instruct/finetune.py \
+  open_instruct/finetune_tagger.py \
   --mask_users \
   --model_name_or_path mistralai/Mistral-7B-v0.3 \
   --use_flash_attn \
   --tokenizer_name mistralai/Mistral-7B-v0.3 \
   --train_file /net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/tulu-v2-sft-mixture_train_tagging_success_formatted_topic_success_formatted_skill_success_train.jsonl \
+  --validation_file /net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/tulu-v2-sft-mixture_train_tagging_success_formatted_topic_success_formatted_skill_success_test.jsonl \
+  --validation_per_steps 10 \
   --max_seq_length 8192 \
   --preprocessing_num_workers 128 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
@@ -45,9 +47,8 @@ gantry run --beaker-image seungjuh/open-instruct-public-240711 --venv base \
   --lr_scheduler_type linear \
   --warmup_ratio 0.03 \
   --weight_decay 0. \
-  --num_train_epochs 2 \
+  --num_train_epochs 10 \
   --output_dir /results/$NAME \
-  --checkpointing_steps "epoch" \
   --with_tracking \
   --report_to wandb \
   --gradient_checkpointing \

@@ -449,7 +449,7 @@ def main():
         lm_datasets = lm_datasets.filter(lambda example: (example["labels"] != -100).any())
 
     with accelerator.main_process_first():
-        TEST_DATASET_PATH = "/net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/tulu-v2-sft-mixture_train_tagging_success_formatted_topic_success_formatted_skill_success_test.jsonl"
+        TEST_DATASET_PATH = args.validation_file
         data_files = {"test": TEST_DATASET_PATH}
         raw_datasets_test = load_dataset(
             "json",
@@ -680,7 +680,7 @@ def main():
                 lr_scheduler.step()
 
             if accelerator.sync_gradients:
-                if completed_steps % 100 == 0:
+                if completed_steps % args.validation_per_steps == 0:
                     model.eval()
                     with torch.no_grad():
                         eval_loss = 0

@@ -25,7 +25,6 @@ from transformers import MODEL_FOR_CAUSAL_LM_MAPPING, HfArgumentParser
 MODEL_CONFIG_CLASSES = list(MODEL_FOR_CAUSAL_LM_MAPPING.keys())
 MODEL_TYPES = tuple(conf.model_type for conf in MODEL_CONFIG_CLASSES)
 
-
 DataClassType = NewType("DataClassType", Any)
 
 """
@@ -349,7 +348,7 @@ class FlatArguments:
         default=False,
         metadata={
             "help": "Use paged optimizer from bitsandbytes."
-            " Not compatible with deepspeed (use deepspeed config instead)."
+                    " Not compatible with deepspeed (use deepspeed config instead)."
         },
     )
     dpo_beta: float = field(
@@ -410,6 +409,14 @@ class FlatArguments:
     train_file: Optional[str] = field(
         default=None, metadata={"help": "The input training data file (a json/jsonl file)."}
     )
+    validation_file: Optional[str] = field(
+        default=None,
+        metadata={"help": "An optional input evaluation data file to evaluate the perplexity on (a json/jsonl file)."}
+    )
+    validation_per_steps: int = field(
+        default=500,
+        metadata={"help": "The number of steps between each evaluation run."},
+    )
     max_train_samples: Optional[int] = field(
         default=None,
         metadata={
@@ -439,7 +446,7 @@ class FlatArguments:
         default=False,
         metadata={
             "help": "Forcibly add bos token to the beginning of the input sequence."
-            " Use only when tokenizer does not add bos token by default."
+                    " Use only when tokenizer does not add bos token by default."
         },
     )
     clip_grad_norm: float = field(
@@ -513,14 +520,14 @@ class FlatArguments:
         default=1800,
         metadata={
             "help": "Timeout for the training process in seconds."
-            "Useful if tokenization process is long. Default is 1800 seconds (30 minutes)."
+                    "Useful if tokenization process is long. Default is 1800 seconds (30 minutes)."
         },
     )
     reduce_loss: str = field(
         default="mean",
         metadata={
             "help": "How to reduce loss over tokens. Options are 'mean' or 'sum'."
-            "Using 'sum' can improve chat model performance."
+                    "Using 'sum' can improve chat model performance."
         },
     )
     wandb_entity: Optional[str] = field(
@@ -560,7 +567,8 @@ class FlatArguments:
     checkpointing_steps: Optional[str] = field(
         default=None,
         metadata={
-            "help": "Whether the various states should be saved at the end of every n steps, or 'epoch' for each epoch."  # noqa
+            "help": "Whether the various states should be saved at the end of every n steps, or 'epoch' for each epoch."
+            # noqa
         },
     )
     mask_users: bool = field(
