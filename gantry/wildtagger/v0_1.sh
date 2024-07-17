@@ -20,7 +20,7 @@ gantry run --beaker-image seungjuh/open-instruct-public-240711 --venv base \
   --preemptible \
   --env-secret WANDB_API_KEY=WANDB_API_KEY \
   --env-secret HF_TOKEN=HUGGING_FACE_HUB_TOKEN \
-  --env WANDB_PROJECT=llama2-finetuning \
+  --env WANDB_PROJECT=wildtagger_v0_1 \
   --env WANDB_ENTITY=seungjuhan3 \
   --env WANDB_NAME=$NAME \
   --env-secret OPENAI_API_KEY=openai_api_key \
