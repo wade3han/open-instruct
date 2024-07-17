@@ -7,7 +7,7 @@ echo "Training llama model ${MODEL_SIZE} using $NUM_GPUS GPUs, $BATCH_SIZE_PER_G
 # You can also set --gradient_checkpointing or use `stage3_offloading_accelerate.conf` to save memory,
 # but it will trade off speed.
 # sweep learning rate from 2e-5 to 1e-6
-NAME=wildtagger_batch4_seq8192_v0_1
+NAME=wildtagger_batch4_seq8192_v0_1_lr1e-6
 
 gantry run --beaker-image seungjuh/open-instruct-public-240711 --venv base \
   --name $NAME \
@@ -41,7 +41,7 @@ gantry run --beaker-image seungjuh/open-instruct-public-240711 --venv base \
   --preprocessing_num_workers 128 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
-  --learning_rate 2e-5 \
+  --learning_rate 1e-6 \
   --lr_scheduler_type linear \
   --warmup_ratio 0.03 \
   --weight_decay 0. \
