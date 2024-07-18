@@ -38,7 +38,7 @@ gantry run --beaker-image seungjuh/open-instruct-public-240711 --venv base \
   --tokenizer_name mistralai/Mistral-7B-v0.3 \
   --train_file /net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/tulu-v2-sft-mixture_train_tagging_success_formatted_topic_success_formatted_skill_success_train_v013.jsonl \
   --validation_file /net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/tulu-v2-sft-mixture_train_tagging_success_formatted_topic_success_formatted_skill_success_test_v013.jsonl \
-  --validation_per_steps 100 \
+  --validation_per_steps 1000 \
   --max_seq_length 8192 \
   --preprocessing_num_workers 128 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
@@ -47,7 +47,7 @@ gantry run --beaker-image seungjuh/open-instruct-public-240711 --venv base \
   --lr_scheduler_type linear \
   --warmup_ratio 0.03 \
   --weight_decay 0. \
-  --num_train_epochs 10 \
+  --num_train_epochs 2 \
   --output_dir /results/$NAME \
   --with_tracking \
   --report_to wandb \
