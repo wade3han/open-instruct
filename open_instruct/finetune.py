@@ -50,8 +50,13 @@ from open_instruct.utils import ArgumentParserPlus, FlatArguments, get_datasets
 
 logger = get_logger(__name__)
 
+# The flag below controls whether to allow TF32 on matmul. This flag defaults to False
+# in PyTorch 1.12 and later.
 torch.backends.cuda.matmul.allow_tf32 = True
+# The flag below controls whether to allow TF32 on cuDNN. This flag defaults to True.
 torch.backends.cudnn.allow_tf32 = True
+
+torch._dynamo.config.print_graph_break = True
 
 
 def encode_with_prompt_completion_format(example, tokenizer, max_seq_length, add_bos=False):
