@@ -56,8 +56,6 @@ torch.backends.cuda.matmul.allow_tf32 = True
 # The flag below controls whether to allow TF32 on cuDNN. This flag defaults to True.
 torch.backends.cudnn.allow_tf32 = True
 
-torch._dynamo.config.verbose = True
-
 
 def encode_with_prompt_completion_format(example, tokenizer, max_seq_length, add_bos=False):
     """
@@ -120,12 +118,12 @@ def encode_with_messages_format(example, tokenizer, max_seq_length, add_bos=Fals
         input_ids = tokenized_example.input_ids
         labels = input_ids.clone()
     else:
-        raise NotImplementedError("This is deprecated.")
-        # tokenized_example = tokenizer(example_text, return_tensors="pt", max_length=max_seq_length, truncation=True,
-        #                               padding="max_length")
-        # input_ids = tokenized_example.input_ids
-        # labels = input_ids.clone()
-        # labels[labels == tokenizer.pad_token_id] = -100
+        # raise NotImplementedError("This is deprecated.")
+        tokenized_example = tokenizer(example_text, return_tensors="pt", max_length=max_seq_length, truncation=True,
+                                      padding="max_length")
+        input_ids = tokenized_example.input_ids
+        labels = input_ids.clone()
+        labels[labels == tokenizer.pad_token_id] = -100
 
     # mask the non-assistant part for avoiding loss
     if mask_users:
