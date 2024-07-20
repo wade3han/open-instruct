@@ -56,7 +56,7 @@ torch.backends.cuda.matmul.allow_tf32 = True
 # The flag below controls whether to allow TF32 on cuDNN. This flag defaults to True.
 torch.backends.cudnn.allow_tf32 = True
 
-torch._dynamo.config.print_graph_break = True
+torch._dynamo.config.verbose = True
 
 
 def encode_with_prompt_completion_format(example, tokenizer, max_seq_length, add_bos=False):
