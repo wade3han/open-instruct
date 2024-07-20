@@ -668,6 +668,7 @@ def main(args: FlatArguments):
                                  model_num_params)
 
     t0 = time.time()
+    running_emfu = -1.0
     running_mfu = -1.0
     ignore_first_few_steps_num = 4
     effective_num_tokens_per_fwdbwd = 0
@@ -755,15 +756,20 @@ def main(args: FlatArguments):
                 t0 = t1
 
                 if ignore_first_few_steps_num > 0:
+                    emfu = -1.0
                     mfu = -1.0
                     ignore_first_few_steps_num -= 1
                 else:
-                    mfu = mfu_estimator.estimate_mfu(effective_num_tokens_per_fwdbwd,
+                    emfu = mfu_estimator.estimate_mfu(effective_num_tokens_per_fwdbwd,
+                                                      dt,
+                                                      int(seq_length_per_fwdbwd / args.gradient_accumulation_steps))
+                    mfu = mfu_estimator.estimate_mfu(seq_length_per_fwdbwd * args.gradient_accumulation_steps * args.per_device_train_batch_size,
                                                      dt,
                                                      int(seq_length_per_fwdbwd / args.gradient_accumulation_steps))
                 effective_num_tokens_percentage = effective_num_tokens_per_fwdbwd / \
                                                   (seq_length_per_fwdbwd * args.per_device_train_batch_size) \
                                                   * 100
+                running_emfu = emfu if running_emfu == -1.0 else 0.9 * running_emfu + 0.1 * emfu
                 running_mfu = mfu if running_mfu == -1.0 else 0.9 * running_mfu + 0.1 * mfu
 
                 if args.logging_steps and completed_steps % args.logging_steps == 0:
@@ -773,7 +779,8 @@ def main(args: FlatArguments):
                             / args.logging_steps
                     )
                     logger.info(f"  Step: {completed_steps}, LR: {lr_scheduler.get_last_lr()[0]}, Loss: {avg_loss},"
-                                f" MFU: {running_mfu * 100:.2f}%, Total Norm: {total_norm:.2f},"
+                                f" eMFU: {running_emfu * 100:.2f}%, MFU: {running_mfu * 100:.2f},"
+                                f" Total Norm: {total_norm:.2f},"
                                 f" Effective Num Tokens (%): {effective_num_tokens_percentage:.2f},"
                                 f" Effective Num Tokens Per Instance: {effective_num_tokens_per_fwdbwd / (args.per_device_train_batch_size * args.gradient_accumulation_steps):.2f}"
                                 f" Seq Length: {seq_length_per_fwdbwd / args.gradient_accumulation_steps:.2f}")
@@ -783,7 +790,8 @@ def main(args: FlatArguments):
                                 "learning_rate": lr_scheduler.get_last_lr()[0],
                                 "train_loss": avg_loss,
                                 "total_norm": total_norm,
-                                "mfu": running_mfu * 100,
+                                "eMFU": running_emfu * 100,
+                                "MFU": running_mfu * 100,
                                 "effective_num_tokens (%)": effective_num_tokens_percentage,
                                 "effective_num_tokens_per_instance": effective_num_tokens_per_fwdbwd / (args.per_device_train_batch_size * args.gradient_accumulation_steps),
                                 "seq_length": seq_length_per_fwdbwd / args.gradient_accumulation_steps,
