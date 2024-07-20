@@ -694,6 +694,6 @@ class MFUEstimator:
         flops_per_token = 6 * N + 12 * L * H * Q * T
         flops_per_fwdbwd = flops_per_token * effective_num_tokens_per_fwdbwd
         flops_achieved = flops_per_fwdbwd * (1.0 / dt)
-        flops_promised = 312e12
+        flops_promised = 989e12  # H100
         mfu = flops_achieved / flops_promised
         return mfu
