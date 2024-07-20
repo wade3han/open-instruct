@@ -765,8 +765,6 @@ def main(args: FlatArguments):
                                                   (seq_length_per_fwdbwd * args.per_device_train_batch_size) \
                                                   * 100
                 running_mfu = mfu if running_mfu == -1.0 else 0.9 * running_mfu + 0.1 * mfu
-                seq_length_per_fwdbwd = 0
-                effective_num_tokens_per_fwdbwd = 0
 
                 if args.logging_steps and completed_steps % args.logging_steps == 0:
                     avg_loss = (
@@ -776,7 +774,9 @@ def main(args: FlatArguments):
                     )
                     logger.info(f"  Step: {completed_steps}, LR: {lr_scheduler.get_last_lr()[0]}, Loss: {avg_loss},"
                                 f" MFU: {running_mfu * 100:.2f}%, Total Norm: {total_norm:.2f},"
-                                f" Effective Num Tokens (%): {effective_num_tokens_percentage:.2f}")
+                                f" Effective Num Tokens (%): {effective_num_tokens_percentage:.2f},"
+                                f" Effective Num Tokens Per Instance: {effective_num_tokens_per_fwdbwd / (args.per_device_train_batch_size * args.gradient_accumulation_steps):.2f}"
+                                f" Seq Length: {seq_length_per_fwdbwd / args.gradient_accumulation_steps:.2f}")
                     if args.with_tracking:
                         accelerator.log(
                             {
@@ -785,10 +785,15 @@ def main(args: FlatArguments):
                                 "total_norm": total_norm,
                                 "mfu": running_mfu * 100,
                                 "effective_num_tokens (%)": effective_num_tokens_percentage,
+                                "effective_num_tokens_per_instance": effective_num_tokens_per_fwdbwd / (args.per_device_train_batch_size * args.gradient_accumulation_steps),
+                                "seq_length": seq_length_per_fwdbwd / args.gradient_accumulation_steps,
                             },
                             step=completed_steps,
                         )
                     total_loss = 0
+
+                seq_length_per_fwdbwd = 0
+                effective_num_tokens_per_fwdbwd = 0
 
                 if isinstance(checkpointing_steps, int):
                     if completed_steps % checkpointing_steps == 0:
