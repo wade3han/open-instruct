@@ -743,7 +743,7 @@ def main():
                     emfu = mfu_estimator.estimate_mfu(effective_num_tokens_per_fwdbwd,
                                                       dt,
                                                       int(seq_length_per_fwdbwd / args.gradient_accumulation_steps))
-                    mfu = mfu_estimator.estimate_mfu(seq_length_per_fwdbwd * args.gradient_accumulation_steps * args.per_device_train_batch_size,
+                    mfu = mfu_estimator.estimate_mfu(seq_length_per_fwdbwd * args.per_device_train_batch_size,
                                                      dt,
                                                      int(seq_length_per_fwdbwd / args.gradient_accumulation_steps))
                 effective_num_tokens_percentage = effective_num_tokens_per_fwdbwd / \
@@ -770,8 +770,8 @@ def main():
                                 "learning_rate": lr_scheduler.get_last_lr()[0],
                                 "train_loss": avg_loss,
                                 "total_norm": total_norm,
-                                "eMFU": running_emfu * 100,
-                                "MFU": running_mfu * 100,
+                                "eMFU (%)": running_emfu * 100,
+                                "MFU (%)": running_mfu * 100,
                                 "effective_num_tokens (%)": effective_num_tokens_percentage,
                                 "effective_num_tokens_per_instance": effective_num_tokens_per_fwdbwd / (args.per_device_train_batch_size * args.gradient_accumulation_steps),
                                 "seq_length": seq_length_per_fwdbwd / args.gradient_accumulation_steps,
