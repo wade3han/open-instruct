@@ -50,6 +50,9 @@ from open_instruct.utils import ArgumentParserPlus, FlatArguments, get_datasets
 
 logger = get_logger(__name__)
 
+torch.backends.cuda.matmul.allow_tf32 = True
+torch.backends.cudnn.allow_tf32 = True
+
 
 def encode_with_prompt_completion_format(example, tokenizer, max_seq_length, add_bos=False):
     """
@@ -346,7 +349,6 @@ def main(args: FlatArguments):
 
     if args.use_compile:
         model = torch.compile(model)
-        torch.set_float32_matmul_precision("high")
 
     # no default pad token for llama!
     # here we add all special tokens again, because the default ones are not in the special_tokens_map
