@@ -674,3 +674,26 @@ class ArgumentParserPlus(HfArgumentParser):
         if len(output) == 1:
             output = output[0]
         return output
+
+
+####################################################################################################
+class MFUEstimator:
+    def __init__(self,
+                 num_hidden_layers: int,
+                 num_attention_heads: int,
+                 hidden_size: int,
+                 model_num_params: int):
+        self.n_layer = num_hidden_layers
+        self.n_head = num_attention_heads
+        self.n_embd = hidden_size
+        self.model_num_params = model_num_params
+
+    def estimate_mfu(self, effective_num_tokens_per_fwdbwd: int, dt: float, max_seq_length: int):
+        N = self.model_num_params
+        L, H, Q, T = self.n_layer, self.n_head, self.n_embd // self.n_head, max_seq_length
+        flops_per_token = 6 * N + 12 * L * H * Q * T
+        flops_per_fwdbwd = flops_per_token * effective_num_tokens_per_fwdbwd
+        flops_achieved = flops_per_fwdbwd * (1.0 / dt)
+        flops_promised = 312e12
+        mfu = flops_achieved / flops_promised
+        return mfu
