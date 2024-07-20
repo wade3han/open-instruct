@@ -339,6 +339,7 @@ def main():
 
     if args.use_compile:
         model = torch.compile(model)
+        torch.set_float32_matmul_precision("high")
 
     # no default pad token for llama!
     # here we add all special tokens again, because the default ones are not in the special_tokens_map
