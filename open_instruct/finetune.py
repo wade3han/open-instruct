@@ -641,19 +641,7 @@ def main():
     # update the progress_bar if load from checkpoint
     progress_bar.update(completed_steps)
 
-    def get_num_params(model, non_embedding=True):
-        """
-        Return the number of parameters in the model.
-        For non-embedding count (default), the position embeddings get subtracted.
-        The token embeddings would too, except due to the parameter sharing these
-        params are actually used as weights in the final layer, so we include them.
-        """
-        n_params = sum(p.numel() for p in model.parameters())
-        if non_embedding:
-            n_params -= model.transformer.wpe.weight.numel()
-        return n_params
-
-    model_num_params = get_num_params(accelerator.unwrap_model(model))
+    model_num_params = accelerator.unwrap_model(model).num_parameters(exclude_embeddings=True)
     mfu_estimator = MFUEstimator(config.num_hidden_layers,
                                  config.num_attention_heads,
                                  config.hidden_size,
