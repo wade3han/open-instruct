@@ -18,6 +18,7 @@ import logging
 import math
 import os
 import random
+import time
 from datetime import timedelta
 from functools import partial
 
@@ -46,7 +47,7 @@ from transformers import (
     get_scheduler,
 )
 
-from open_instruct.utils import ArgumentParserPlus, FlatArguments
+from open_instruct.utils import ArgumentParserPlus, FlatArguments, MFUEstimator
 
 logger = get_logger(__name__)
 
@@ -640,6 +641,29 @@ def main():
     # update the progress_bar if load from checkpoint
     progress_bar.update(completed_steps)
 
+    def get_num_params(model, non_embedding=True):
+        """
+        Return the number of parameters in the model.
+        For non-embedding count (default), the position embeddings get subtracted.
+        The token embeddings would too, except due to the parameter sharing these
+        params are actually used as weights in the final layer, so we include them.
+        """
+        n_params = sum(p.numel() for p in model.parameters())
+        if non_embedding:
+            n_params -= model.transformer.wpe.weight.numel()
+        return n_params
+
+    model_num_params = get_num_params(accelerator.unwrap_model(model))
+    mfu_estimator = MFUEstimator(config.num_hidden_layers,
+                                 config.num_attention_heads,
+                                 config.hidden_size,
+                                 model_num_params)
+
+    t0 = time.time()
+    running_mfu = -1.0
+    effective_num_tokens_per_fwdbwd = 0
+    seq_length_per_fwdbwd = 0
+
     for epoch in range(starting_epoch, args.num_train_epochs):
         model.train()
         total_loss = 0
@@ -688,6 +712,9 @@ def main():
                 optimizer.zero_grad()
                 lr_scheduler.step()
 
+                seq_length_per_fwdbwd += batch["labels"].shape[-1]
+                effective_num_tokens_per_fwdbwd += (batch["labels"] != -100).detach().sum().item()
+
             if accelerator.sync_gradients:
                 if completed_steps % 100 == 0:
                     model.eval()
@@ -713,19 +740,37 @@ def main():
             if accelerator.sync_gradients:
                 progress_bar.update(1)
                 completed_steps += 1
+
+                t1 = time.time()
+                dt = t1 - t0
+                t0 = t1
+                mfu = mfu_estimator.estimate_mfu(effective_num_tokens_per_fwdbwd,
+                                                 dt,
+                                                 int(seq_length_per_fwdbwd / args.gradient_accumulation_steps))
+                effective_num_tokens_percentage = effective_num_tokens_per_fwdbwd / \
+                                                  (seq_length_per_fwdbwd * args.per_device_train_batch_size * args.gradient_accumulation_steps) \
+                                                  * 100
+                running_mfu = mfu if running_mfu == -1.0 else 0.9 * running_mfu + 0.1 * mfu
+                seq_length_per_fwdbwd = 0
+                effective_num_tokens_per_fwdbwd = 0
+
                 if args.logging_steps and completed_steps % args.logging_steps == 0:
                     avg_loss = (
                             accelerator.gather(total_loss).mean().item()
                             / args.gradient_accumulation_steps
                             / args.logging_steps
                     )
-                    logger.info(f"  Step: {completed_steps}, LR: {lr_scheduler.get_last_lr()[0]}, Loss: {avg_loss}")
+                    logger.info(f"  Step: {completed_steps}, LR: {lr_scheduler.get_last_lr()[0]}, Loss: {avg_loss},"
+                                f" MFU: {running_mfu * 100:.2f}%, Total Norm: {total_norm:.2f},"
+                                f" Effective Num Tokens (%): {effective_num_tokens_percentage:.2f}")
                     if args.with_tracking:
                         accelerator.log(
                             {
                                 "learning_rate": lr_scheduler.get_last_lr()[0],
                                 "train_loss": avg_loss,
                                 "total_norm": total_norm,
+                                "mfu": running_mfu * 100,
+                                "effective_num_tokens (%)": effective_num_tokens_percentage,
                             },
                             step=completed_steps,
                         )
