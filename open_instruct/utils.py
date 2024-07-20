@@ -277,6 +277,10 @@ class FlatArguments:
         default=False,
         metadata={"help": "Whether to mask padding tokens during training."},
     )
+    use_compile: bool = field(
+        default=False,
+        metadata={"help": "Whether to use torch compile."},
+    )
 
     def __post_init__(self):
         if self.reduce_loss not in ["mean", "sum"]:

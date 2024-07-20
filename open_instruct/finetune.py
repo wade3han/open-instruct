@@ -337,6 +337,9 @@ def main():
         logger.info("Training new model from scratch")
         model = AutoModelForCausalLM.from_config(config)
 
+    if args.use_compile:
+        model = torch.compile(model)
+
     # no default pad token for llama!
     # here we add all special tokens again, because the default ones are not in the special_tokens_map
     if isinstance(tokenizer, LlamaTokenizer) or isinstance(tokenizer, LlamaTokenizerFast):
