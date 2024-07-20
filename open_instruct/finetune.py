@@ -669,6 +669,7 @@ def main(args: FlatArguments):
 
     t0 = time.time()
     running_mfu = -1.0
+    ignore_first_few_steps_num = 4
     effective_num_tokens_per_fwdbwd = 0
     seq_length_per_fwdbwd = 0
 
@@ -724,7 +725,7 @@ def main(args: FlatArguments):
                 effective_num_tokens_per_fwdbwd += (batch["labels"] != -100).detach().sum().item()
 
             if accelerator.sync_gradients:
-                if completed_steps % 100 == 0:
+                if completed_steps % 100 == 0 and completed_steps > 0:
                     model.eval()
                     with torch.no_grad():
                         eval_loss = 0
@@ -752,11 +753,16 @@ def main(args: FlatArguments):
                 t1 = time.time()
                 dt = t1 - t0
                 t0 = t1
-                mfu = mfu_estimator.estimate_mfu(effective_num_tokens_per_fwdbwd,
-                                                 dt,
-                                                 int(seq_length_per_fwdbwd / args.gradient_accumulation_steps))
+
+                if ignore_first_few_steps_num > 0:
+                    mfu = -1.0
+                    ignore_first_few_steps_num -= 1
+                else:
+                    mfu = mfu_estimator.estimate_mfu(effective_num_tokens_per_fwdbwd,
+                                                     dt,
+                                                     int(seq_length_per_fwdbwd / args.gradient_accumulation_steps))
                 effective_num_tokens_percentage = effective_num_tokens_per_fwdbwd / \
-                                                  (seq_length_per_fwdbwd * args.per_device_train_batch_size * args.gradient_accumulation_steps) \
+                                                  (seq_length_per_fwdbwd * args.per_device_train_batch_size) \
                                                   * 100
                 running_mfu = mfu if running_mfu == -1.0 else 0.9 * running_mfu + 0.1 * mfu
                 seq_length_per_fwdbwd = 0
