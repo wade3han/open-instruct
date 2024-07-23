@@ -287,7 +287,7 @@ class V2BatchSamplerDataCollatorForSeq2SeqPadding(DataCollatorForSeq2Seq):
                             [concat_arrays, np.zeros(pad_length, dtype=np.int64)]
                         )
                     out_features[i][feature] = concat_arrays
-                else:
+                elif feature == "input_ids":
                     arrays = [
                         np.array(item[feature]) for item in features_ if feature in item
                     ]
@@ -299,8 +299,20 @@ class V2BatchSamplerDataCollatorForSeq2SeqPadding(DataCollatorForSeq2Seq):
                             [concat_arrays, np.zeros(pad_length, dtype=np.int64)]
                         )
                     out_features[i][feature] = concat_arrays
-
-                    # out_features[i][feature] = np.concatenate(arrays)
+                elif feature == "labels":
+                    arrays = [
+                        np.array(item[feature]) for item in features_ if feature in item
+                    ]
+                    concat_arrays = np.concatenate(arrays)
+                    # if shorter than max length, pad
+                    if len(concat_arrays) < self.max_length:
+                        pad_length = self.max_length - len(concat_arrays)
+                        concat_arrays = np.concatenate(
+                            [concat_arrays, np.ones(pad_length, dtype=np.int64) * -100]
+                        )
+                    out_features[i][feature] = concat_arrays
+                else:
+                    raise ValueError(f"Unsupported feature: {feature}")
         return super().__call__(out_features, return_tensors=return_tensors)
 
 
