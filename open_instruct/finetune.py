@@ -583,7 +583,8 @@ def main(args: FlatArguments):
         )
 
         # monkeypatch
-        patch_for_multipack(config.model_type, model_name=config._name_or_path)
+        if args.use_flash_attn:
+            patch_for_multipack(config.model_type, model_name=config._name_or_path)
 
     else:
         train_dataloader = DataLoader(
