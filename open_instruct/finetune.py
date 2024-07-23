@@ -516,7 +516,6 @@ def main():
         )
         train_dataloader = DataLoader(
             train_dataset,
-            shuffle=True,
             sampler=sampler,
             collate_fn=V2BatchSamplerDataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="longest"),
             batch_size=args.per_device_train_batch_size,
