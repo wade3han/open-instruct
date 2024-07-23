@@ -504,6 +504,45 @@ def main():
 
     # DataLoaders creation:
     if args.use_multipack:
+        from torch.utils.data._utils.fetch import _BaseDatasetFetcher
+        from torch.utils.data._utils.worker import _worker_loop
+
+        class _MapDatasetFetcher(_BaseDatasetFetcher):
+            def fetch(self, possibly_batched_index):
+                if isinstance(possibly_batched_index[0], list):
+                    data = [None for i in possibly_batched_index]
+                    for i, possibly_batched_index_ in enumerate(possibly_batched_index):
+                        if self.auto_collation:
+                            if (
+                                    hasattr(self.dataset, "__getitems__")
+                                    and self.dataset.__getitems__
+                            ):
+                                data[i] = self.dataset.__getitems__(possibly_batched_index_)
+                            else:
+                                data[i] = [self.dataset[idx] for idx in possibly_batched_index_]
+                        else:
+                            data[i] = self.dataset[possibly_batched_index_]
+                else:
+                    if self.auto_collation:
+                        if hasattr(self.dataset, "__getitems__") and self.dataset.__getitems__:
+                            data = self.dataset.__getitems__(possibly_batched_index)
+                        else:
+                            data = [self.dataset[idx] for idx in possibly_batched_index]
+                    else:
+                        data = self.dataset[possibly_batched_index]
+                return self.collate_fn(data)
+
+        def patch_fetchers():
+            torch.utils.data._utils.fetch._MapDatasetFetcher = _MapDatasetFetcher
+            torch.utils.data.dataloader._utils.fetch._MapDatasetFetcher = _MapDatasetFetcher
+
+        def patched_worker_loop(*args, **kwargs):
+            patch_fetchers()
+            return _worker_loop(*args, **kwargs)
+
+        torch.utils.data._utils.worker._worker_loop = patched_worker_loop
+        patch_fetchers()
+
         sampler = MultipackBatchSampler(
             RandomSampler(train_dataset),
             lengths=get_dataset_lengths(train_dataset),
@@ -519,8 +558,6 @@ def main():
             batch_sampler=sampler,
             collate_fn=V2BatchSamplerDataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="longest"),
         )
-        import ipdb;
-        ipdb.set_trace();
     else:
         train_dataloader = DataLoader(
             train_dataset,
@@ -528,6 +565,10 @@ def main():
             collate_fn=DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="longest"),
             batch_size=args.per_device_train_batch_size,
         )
+
+    for data in train_dataloader:
+        print(data)
+        break
 
     test_data_loader = DataLoader(
         test_dataset,
