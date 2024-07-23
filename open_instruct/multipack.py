@@ -1,6 +1,8 @@
 """
 Multipack Batch Sampler, implemented in https://github.com/axolotl-ai-cloud/axolotl
+multipack patching for v2 of sample packing
 """
+import importlib
 import logging
 import math
 import os
@@ -9,8 +11,15 @@ from typing import Any, Iterable, List, Union
 
 import numba
 import numpy as np
+import torch
+import torch.nn.functional as F
+import transformers
+from accelerate import init_empty_weights
+# from axolotl.monkeypatch.mixtral import patch_mixtral_moe_forward_zero3
 from torch.utils.data import BatchSampler, Sampler
+from transformers import AutoConfig, AutoModelForCausalLM
 from transformers import DataCollatorForSeq2Seq
+from transformers.integrations import is_deepspeed_zero3_enabled
 
 LOG = logging.getLogger(__name__)
 
@@ -248,3 +257,108 @@ class V2BatchSamplerDataCollatorForSeq2Seq(DataCollatorForSeq2Seq):
                     ]
                     out_features[i][feature] = np.concatenate(arrays)
         return super().__call__(out_features, return_tensors=return_tensors)
+
+
+SUPPORTED_MULTIPACK_MODEL_TYPES = [
+    "llama",
+    "mixtral",
+    "qwen2",
+    "qwen2_moe",
+    "falcon",
+    "phi",
+    "gemma",
+    "gemma2",
+    "gemmoe",
+    "starcoder2",
+    "deepseek_v2",
+]
+
+
+@torch.jit.script
+def get_max_seqlen_in_batch(attention_mask: torch.Tensor) -> torch.Tensor:
+    max_num = int(torch.max(attention_mask).item())
+    batch_size, _ = attention_mask.shape
+    counts = torch.zeros((batch_size, max_num), dtype=torch.int32)
+
+    for i in range(1, max_num + 1):
+        mask = attention_mask == i
+        counts[:, i - 1] = torch.sum(mask, dim=-1).to(dtype=torch.int32)
+
+    result = counts.flatten()
+    nonzero_indices = torch.nonzero(result).squeeze(-1)
+    return result[nonzero_indices]
+
+
+@torch.jit.script
+def get_unpad_data(attention_mask: torch.Tensor):
+    device = attention_mask.device
+    seqlens_in_batch = get_max_seqlen_in_batch(attention_mask)
+    indices = torch.nonzero(attention_mask.flatten()).flatten()
+    max_seqlen_in_batch = seqlens_in_batch.max().item()
+    cu_seqlens = (
+        F.pad(torch.cumsum(seqlens_in_batch, dim=0, dtype=torch.int32), (1, 0))
+        .to(device=device)
+        .detach()
+    )
+    return (
+        indices,
+        cu_seqlens,
+        max_seqlen_in_batch,
+    )
+
+
+def patch_for_multipack(model_type, model_name=None):
+    # if model_type == "mixtral":
+    #     transformers.models.mixtral.modeling_mixtral._get_unpad_data = (  # pylint: disable=protected-access
+    #         get_unpad_data
+    #     )
+    #     if is_deepspeed_zero3_enabled():
+    #         patch_mixtral_moe_forward_zero3()
+    if model_type == "llama":
+        transformers.models.llama.modeling_llama._get_unpad_data = (  # pylint: disable=protected-access
+            get_unpad_data
+        )
+    elif model_type == "qwen2":
+        transformers.models.qwen2.modeling_qwen2._get_unpad_data = (  # pylint: disable=protected-access
+            get_unpad_data
+        )
+    elif model_type == "qwen2_moe":
+        transformers.models.qwen2_moe.modeling_qwen2_moe._get_unpad_data = (  # pylint: disable=protected-access
+            get_unpad_data
+        )
+    elif model_type == "falcon":
+        transformers.models.falcon.modeling_falcon._get_unpad_data = (  # pylint: disable=protected-access
+            get_unpad_data
+        )
+    elif model_type == "phi":
+        transformers.models.phi.modeling_phi._get_unpad_data = (  # pylint: disable=protected-access
+            get_unpad_data
+        )
+    elif model_type == "gemma":
+        transformers.models.gemma.modeling_gemma._get_unpad_data = (  # pylint: disable=protected-access
+            get_unpad_data
+        )
+    elif model_type == "gemma2":
+        transformers.models.gemma2.modeling_gemma2._get_unpad_data = (  # pylint: disable=protected-access
+            get_unpad_data
+        )
+    elif model_type == "starcoder2":
+        transformers.models.starcoder2.modeling_starcoder2._get_unpad_data = (  # pylint: disable=protected-access
+            get_unpad_data
+        )
+    elif model_type == "gemmoe":
+        patch_remote(model_name, ".configuration_gemmoe", ".modeling_gemmoe")
+    elif model_type == "jamba":
+        patch_remote(model_name, ".configuration_jamba", ".modeling_jamba")
+    elif model_type == "deepseek_v2":
+        patch_remote(model_name, ".configuration_deepseek", ".modeling_deepseek")
+
+
+def patch_remote(model_name, config_name, modeling_name):
+    model_config = AutoConfig.from_pretrained(model_name, trust_remote_code=True)
+    # we need to load the model here in order for modeling_* to be available
+    with init_empty_weights():
+        AutoModelForCausalLM.from_pretrained(model_name, trust_remote_code=True)
+    module_name = model_config.__class__.__module__.replace(config_name, modeling_name)
+    modeling_arch = importlib.import_module(module_name)
+    modeling_arch._get_unpad_data = get_unpad_data  # pylint: disable=protected-access
