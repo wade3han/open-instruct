@@ -510,16 +510,17 @@ def main():
             packing_efficiency_estimate=1.0,
             batch_max_len=args.max_seq_length,
             batch_size=args.per_device_train_batch_size,
-            group_size=100_000,
+            group_size=100000,
             bin_size=200,
             drop_last=True,
         )
         train_dataloader = DataLoader(
             train_dataset,
-            sampler=sampler,
+            batch_sampler=sampler,
             collate_fn=V2BatchSamplerDataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="longest"),
-            batch_size=args.per_device_train_batch_size,
         )
+        import ipdb;
+        ipdb.set_trace();
     else:
         train_dataloader = DataLoader(
             train_dataset,

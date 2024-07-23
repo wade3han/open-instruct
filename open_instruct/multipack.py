@@ -15,7 +15,6 @@ from transformers import DataCollatorForSeq2Seq
 LOG = logging.getLogger(__name__)
 
 
-
 def get_dataset_lengths(dataset):
     # helper util to calculate dataset lengths
     if "length" in dataset.data.column_names:
@@ -150,7 +149,7 @@ class MultipackBatchSampler(BatchSampler):
     def set_epoch(self, epoch: int):
         self.epoch = epoch
 
-    def generate_batches(self, set_stats=False) -> list[list[int]]:
+    def generate_batches(self, set_stats=False) -> list[list[list[int]]]:
         indices = [idx for idx in self.sampler]
 
         lengths = self.lengths[indices]
@@ -164,7 +163,7 @@ class MultipackBatchSampler(BatchSampler):
             n=1,
         )
 
-        batches = [
+        generated_batches = [
             [
                 [indices[b_idx] for b_idx in batch]
                 for batch in batches[i: i + self.batch_size]
@@ -172,12 +171,15 @@ class MultipackBatchSampler(BatchSampler):
             for i in range(0, len(batches), self.batch_size)
         ]
 
+        if len(generated_batches[-1]) < self.batch_size:
+            generated_batches.pop()
+
         # statistics
         if set_stats:
             self.eff_total_used += total_used
             self.eff_total_slots += total_slots
 
-        return batches
+        return generated_batches
 
     def __iter__(self):
         batches = self.generate_batches(set_stats=True)
