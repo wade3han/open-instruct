@@ -26,8 +26,9 @@ import datasets
 import deepspeed
 import torch
 import transformers
-from accelerate import Accelerator
+from accelerate import Accelerator, DeepSpeedPlugin
 from accelerate.logging import get_logger
+from accelerate.state import AcceleratorState
 from accelerate.utils import InitProcessGroupKwargs, set_seed
 from datasets import load_dataset
 from peft import LoraConfig, TaskType, get_peft_model, prepare_model_for_kbit_training
@@ -581,7 +582,8 @@ def main(args: FlatArguments):
             batch_sampler=sampler,
             collate_fn=V2BatchSamplerDataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="longest"),
         )
-        train_dataloader.batch_size = args.per_device_train_batch_size
+        accelerator.state.deepspeed_plugin.deepspeed_config[
+            'train_micro_batch_size_per_gpu'] = args.per_device_train_batch_size
 
         # monkeypatch
         if args.use_flash_attn:
