@@ -347,7 +347,7 @@ def main():
         logger.info("Training new model from scratch")
         model = AutoModelForCausalLM.from_config(config)
 
-    model_num_params = accelerator.unwrap_model(model).num_parameters(exclude_embeddings=True)
+    model_num_params = model.num_parameters(exclude_embeddings=True)
     logger.info(f"Model has {model_num_params} parameters.")
     if args.use_compile:
         model = torch.compile(model)
