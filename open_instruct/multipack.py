@@ -291,6 +291,8 @@ def get_max_seqlen_in_batch(attention_mask: torch.Tensor) -> torch.Tensor:
 
 @torch.jit.script
 def get_unpad_data(attention_mask: torch.Tensor):
+    # https://github.com/huggingface/transformers/blob/main/src/transformers/modeling_flash_attention_utils.py
+    # fix for multipack
     device = attention_mask.device
     seqlens_in_batch = get_max_seqlen_in_batch(attention_mask)
     indices = torch.nonzero(attention_mask.flatten()).flatten()
