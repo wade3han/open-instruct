@@ -593,6 +593,12 @@ class FlatArguments:
         default=False,
         metadata={"help": "Whether to use multipack for training."},
     )
+    loss_masking: str = field(
+        default="default",
+        metadata={
+            "help": "The option for masking loss."
+        },
+    )
 
     def __post_init__(self):
         if self.reduce_loss not in ["mean", "sum"]:

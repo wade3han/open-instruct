@@ -782,6 +782,7 @@ def main(args: FlatArguments):
             with accelerator.accumulate(model):
                 outputs = model(**batch, use_cache=False)
                 if args.reduce_loss == "mean":
+                    assert args.loss_masking == "default", "mean loss only works with default loss masking"
                     loss = outputs.loss
                 else:
                     # reduce loss is sum
@@ -796,15 +797,33 @@ def main(args: FlatArguments):
                     # Shift so that tokens < n predict n
                     shift_logits = logits[..., :-1, :].contiguous()
                     shift_labels = labels[..., 1:].contiguous()
-                    # Flatten the tokens
-                    loss_fct = torch.nn.CrossEntropyLoss(reduction="sum")
                     shift_logits = shift_logits.view(-1, embedding_size)
                     shift_labels = shift_labels.view(-1)
                     # Enable model parallelism
                     shift_labels = shift_labels.to(shift_logits.device)
-                    loss = loss_fct(shift_logits, shift_labels)
-                    # We scale the loss based on the batch size and sequence length
-                    loss = loss / (args.per_device_train_batch_size * args.max_seq_length)
+                    if args.loss_masking == "below_median":
+                        loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
+                        loss = loss_fct(shift_logits, shift_labels)
+                        # pick only loss where the value is > 0
+                        loss = loss[shift_labels != -100]
+                        # get the median
+                        loss_median = loss.median().detach()
+                        # pick the loss that has a value higher than the median
+                        loss = loss[loss > loss_median]
+                        loss = loss.mean()
+                    elif args.loss_masking == "none":
+                        loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
+                        loss = loss_fct(shift_logits, shift_labels)
+                        # pick only loss where the value is > 0
+                        loss = loss[shift_labels != -100]
+                        # get the mean
+                        loss = loss.mean()
+                    else:
+                        # Flatten the tokens
+                        loss_fct = torch.nn.CrossEntropyLoss(reduction="sum")
+                        loss = loss_fct(shift_logits, shift_labels)
+                        # We scale the loss based on the batch size and sequence length
+                        loss = loss / (args.per_device_train_batch_size * args.max_seq_length)
                 # We keep track of the loss at each logged step
                 total_loss += loss.detach().float()
                 accelerator.backward(loss)
