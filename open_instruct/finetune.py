@@ -360,8 +360,6 @@ def main(args: FlatArguments):
         logger.info("Training new model from scratch")
         model = AutoModelForCausalLM.from_config(config)
 
-    model_num_params = model.num_parameters()
-    logger.info(f"Model has {model_num_params} parameters.")
     if args.use_compile:
         model = torch.compile(model)
 
@@ -740,7 +738,7 @@ def main(args: FlatArguments):
     mfu_estimator = MFUEstimator(config.num_hidden_layers,
                                  config.num_attention_heads,
                                  config.hidden_size,
-                                 model_num_params)
+                                 model_num_params=12 * config.num_hidden_layers * (config.hidden_size ** 2))
 
     t0 = time.time()
     running_emfu = -1.0
