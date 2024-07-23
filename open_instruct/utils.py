@@ -583,6 +583,10 @@ class FlatArguments:
         default=False,
         metadata={"help": "Whether to use torch compile."},
     )
+    use_multipack: bool = field(
+        default=False,
+        metadata={"help": "Whether to use multipack for training."},
+    )
 
     def __post_init__(self):
         if self.reduce_loss not in ["mean", "sum"]:

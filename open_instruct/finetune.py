@@ -523,7 +523,7 @@ def main(args: FlatArguments):
         logger.info(f"Sample {index} of the training set: {train_dataset[index]}.")
 
     # DataLoaders creation:
-    if args.multipack:
+    if args.use_multipack:
         sampler = MultipackBatchSampler(
             RandomSampler(train_dataset),
             lengths=get_dataset_lengths(train_dataset),
