@@ -31,7 +31,7 @@ from accelerate.logging import get_logger
 from accelerate.utils import InitProcessGroupKwargs, set_seed
 from datasets import load_dataset
 from peft import LoraConfig, TaskType, get_peft_model, prepare_model_for_kbit_training
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, RandomSampler
 from tqdm.auto import tqdm
 from transformers import (
     AutoConfig,
@@ -47,6 +47,7 @@ from transformers import (
     get_scheduler,
 )
 
+from open_instruct.multipack import V2BatchSamplerDataCollatorForSeq2Seq, MultipackBatchSampler, get_dataset_lengths
 from open_instruct.utils import ArgumentParserPlus, FlatArguments, MFUEstimator, get_datasets
 
 logger = get_logger(__name__)
@@ -522,12 +523,32 @@ def main(args: FlatArguments):
         logger.info(f"Sample {index} of the training set: {train_dataset[index]}.")
 
     # DataLoaders creation:
-    train_dataloader = DataLoader(
-        train_dataset,
-        shuffle=True,
-        collate_fn=DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="longest"),
-        batch_size=args.per_device_train_batch_size,
-    )
+    if args.multipack:
+        sampler = MultipackBatchSampler(
+            RandomSampler(train_dataset),
+            lengths=get_dataset_lengths(train_dataset),
+            packing_efficiency_estimate=1.0,
+            batch_max_len=args.max_seq_length,
+            batch_size=args.per_device_train_batch_size,
+            group_size=100_000,
+            bin_size=200,
+            drop_last=True,
+        )
+        train_dataloader = DataLoader(
+            train_dataset,
+            shuffle=True,
+            sampler=sampler,
+            collate_fn=V2BatchSamplerDataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="longest"),
+            batch_size=args.per_device_train_batch_size,
+        )
+    else:
+        train_dataloader = DataLoader(
+            train_dataset,
+            shuffle=True,
+            collate_fn=DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="longest"),
+            batch_size=args.per_device_train_batch_size,
+        )
+
     test_data_loader = DataLoader(
         test_dataset,
         shuffle=False,

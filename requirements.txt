@@ -1,4 +1,4 @@
-# TODO When updating flash-attn or torch in the future, make sure to update the version in the Dockerfile 
+# TODO When updating flash-attn or torch in the future, make sure to update the version in the Dockerfile
 torch<=2.3.0
 scipy
 packaging
@@ -46,3 +46,4 @@ black
 flake8
 isort
 pytest
+numba
