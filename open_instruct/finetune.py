@@ -48,7 +48,7 @@ from transformers import (
 )
 
 from open_instruct.multipack import V2BatchSamplerDataCollatorForSeq2Seq, MultipackBatchSampler, get_dataset_lengths, \
-    patch_for_multipack, SUPPORTED_MULTIPACK_MODEL_TYPES
+    patch_for_multipack, SUPPORTED_MULTIPACK_MODEL_TYPES, V2BatchSamplerDataCollatorForSeq2SeqPadding
 from open_instruct.utils import ArgumentParserPlus, FlatArguments, MFUEstimator, get_datasets
 from open_instruct.wsd_scheduler import get_constant_schedule_with_warmup_and_cooldown
 
@@ -582,15 +582,23 @@ def main(args: FlatArguments):
             bin_size=200,
             drop_last=True,
         )
+        if args.use_compile:
+            collate_fn = V2BatchSamplerDataCollatorForSeq2SeqPadding(
+                tokenizer=tokenizer,
+                model=model,
+                padding="longest",
+                max_length=args.max_seq_length,
+            )
+        else:
+            collate_fn = V2BatchSamplerDataCollatorForSeq2Seq(
+                tokenizer=tokenizer,
+                model=model,
+                padding="longest",
+            )
         train_dataloader = DataLoader(
             train_dataset,
             batch_sampler=sampler,
-            collate_fn=V2BatchSamplerDataCollatorForSeq2Seq(
-                tokenizer=tokenizer,
-                model=model,
-                padding="longest" if not args.use_compile else "max_length",
-                max_length=None if not args.use_compile else args.max_seq_length,
-            ),
+            collate_fn=collate_fn,
         )
         accelerator.state.deepspeed_plugin.deepspeed_config[
             'train_micro_batch_size_per_gpu'] = args.per_device_train_batch_size

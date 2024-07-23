@@ -259,6 +259,51 @@ class V2BatchSamplerDataCollatorForSeq2Seq(DataCollatorForSeq2Seq):
         return super().__call__(out_features, return_tensors=return_tensors)
 
 
+@dataclass
+class V2BatchSamplerDataCollatorForSeq2SeqPadding(DataCollatorForSeq2Seq):
+    """
+    Collator for multipack specific to the using the BatchSampler
+    """
+
+    def __call__(self, features, return_tensors=None):
+        if not isinstance(features[0], list):
+            features = [features]
+        out_features = [{} for _ in features]
+        for i, features_ in enumerate(features):
+            for feature in features_[0].keys():
+                if feature == "length":
+                    continue
+                if feature == "attention_mask":
+                    arrays = [
+                        (i + 1) * np.array(item[feature])
+                        for i, item in enumerate(features_)
+                        if feature in item
+                    ]
+                    concat_arrays = np.concatenate(arrays)
+                    # if shorter than max length, pad
+                    if len(concat_arrays) < self.max_length:
+                        pad_length = self.max_length - len(concat_arrays)
+                        concat_arrays = np.concatenate(
+                            [concat_arrays, np.zeros(pad_length, dtype=np.int64)]
+                        )
+                    out_features[i][feature] = concat_arrays
+                else:
+                    arrays = [
+                        np.array(item[feature]) for item in features_ if feature in item
+                    ]
+                    concat_arrays = np.concatenate(arrays)
+                    # if shorter than max length, pad
+                    if len(concat_arrays) < self.max_length:
+                        pad_length = self.max_length - len(concat_arrays)
+                        concat_arrays = np.concatenate(
+                            [concat_arrays, np.zeros(pad_length, dtype=np.int64)]
+                        )
+                    out_features[i][feature] = concat_arrays
+
+                    # out_features[i][feature] = np.concatenate(arrays)
+        return super().__call__(out_features, return_tensors=return_tensors)
+
+
 SUPPORTED_MULTIPACK_MODEL_TYPES = [
     "llama",
     "mixtral",
