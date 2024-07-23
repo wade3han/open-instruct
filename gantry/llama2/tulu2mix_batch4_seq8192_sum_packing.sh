@@ -30,7 +30,7 @@ gantry run --beaker-image seungjuh/open-instruct-public-240711 --venv base \
   --num_processes $NUM_GPUS \
   --use_deepspeed \
   --main_process_port 2950 \
-  --deepspeed_config_file configs/ds_configs/stage3_no_offloading_accelerate.conf \
+  --deepspeed_config_file configs/ds_configs/stage2_accelerate.conf \
   open_instruct/finetune.py \
   --use_multipack \
   --model_name_or_path meta-llama/Llama-2-7b-hf \
