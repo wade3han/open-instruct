@@ -7,7 +7,7 @@ echo "Training llama model ${MODEL_SIZE} using $NUM_GPUS GPUs, $BATCH_SIZE_PER_G
 # You can also set --gradient_checkpointing or use `stage3_offloading_accelerate.conf` to save memory,
 # but it will trade off speed.
 # sweep learning rate from 2e-5 to 1e-6
-NAME=megamixdedupv1_batch4_seq8192_mask-user
+NAME=tulu2mix_batch4_seq8192_reduce-loss-sum_v1-packing
 
 gantry run --beaker-image seungjuh/open-instruct-public-240711 --venv base \
   --name $NAME \
@@ -32,11 +32,11 @@ gantry run --beaker-image seungjuh/open-instruct-public-240711 --venv base \
   --main_process_port 2950 \
   --deepspeed_config_file configs/ds_configs/stage2_accelerate.conf \
   open_instruct/finetune.py \
-  --mask_users \
+  --use_multipack \
   --model_name_or_path meta-llama/Llama-2-7b-hf \
   --use_flash_attn \
   --tokenizer_name meta-llama/Llama-2-7b-hf \
-  --train_file /net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/megamix_minhash-3gram-0_5_train.jsonl \
+  --train_file /net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/tulu-v2-sft-mixture_train.jsonl \
   --max_seq_length 8192 \
   --preprocessing_num_workers 128 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
@@ -51,4 +51,5 @@ gantry run --beaker-image seungjuh/open-instruct-public-240711 --venv base \
   --with_tracking \
   --report_to wandb \
   --gradient_checkpointing \
+  --reduce_loss "sum" \
   --logging_steps 1

@@ -26,12 +26,13 @@ import datasets
 import deepspeed
 import torch
 import transformers
-from accelerate import Accelerator
+from accelerate import Accelerator, DeepSpeedPlugin
 from accelerate.logging import get_logger
+from accelerate.state import AcceleratorState
 from accelerate.utils import InitProcessGroupKwargs, set_seed
 from datasets import load_dataset
 from peft import LoraConfig, TaskType, get_peft_model, prepare_model_for_kbit_training
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, RandomSampler
 from tqdm.auto import tqdm
 from transformers import (
     AutoConfig,
@@ -47,6 +48,8 @@ from transformers import (
     get_scheduler,
 )
 
+from open_instruct.multipack import V2BatchSamplerDataCollatorForSeq2Seq, MultipackBatchSampler, get_dataset_lengths, \
+    patch_for_multipack, SUPPORTED_MULTIPACK_MODEL_TYPES
 from open_instruct.utils import ArgumentParserPlus, FlatArguments, MFUEstimator
 
 logger = get_logger(__name__)
@@ -262,6 +265,7 @@ def main():
             trust_remote_code=args.trust_remote_code,
             revision=args.model_revision,
             token=os.getenv("HF_TOKEN", None),
+            force_download=True,
         )
     elif args.model_name_or_path:
         config = AutoConfig.from_pretrained(
@@ -269,6 +273,7 @@ def main():
             trust_remote_code=args.trust_remote_code,
             revision=args.model_revision,
             token=os.getenv("HF_TOKEN", None),
+            force_download=True,
         )
     else:
         raise ValueError(
@@ -291,6 +296,7 @@ def main():
             use_fast=not args.use_slow_tokenizer,
             revision=tokenizer_revision,
             token=os.getenv("HF_TOKEN", None),
+            force_download=True,
         )
     elif args.model_name_or_path:
         tokenizer = AutoTokenizer.from_pretrained(
@@ -299,6 +305,7 @@ def main():
             use_fast=not args.use_slow_tokenizer,
             revision=tokenizer_revision,
             token=os.getenv("HF_TOKEN", None),
+            force_download=True,
         )
     else:
         raise ValueError(
@@ -328,6 +335,7 @@ def main():
                 use_flash_attention_2=True if args.use_flash_attn else False,
                 revision=args.model_revision,
                 token=os.getenv("HF_TOKEN", None),
+                force_download=True,
             )
         else:
             model = AutoModelForCausalLM.from_pretrained(
@@ -339,13 +347,12 @@ def main():
                 use_flash_attention_2=True if args.use_flash_attn else False,
                 revision=args.model_revision,
                 token=os.getenv("HF_TOKEN", None),
+                force_download=True,
             )
     else:
         logger.info("Training new model from scratch")
         model = AutoModelForCausalLM.from_config(config)
 
-    model_num_params = accelerator.unwrap_model(model).num_parameters(exclude_embeddings=True)
-    logger.info(f"Model has {model_num_params} parameters.")
     if args.use_compile:
         model = torch.compile(model)
 
@@ -502,12 +509,77 @@ def main():
         logger.info(f"Sample {index} of the training set: {train_dataset[index]}.")
 
     # DataLoaders creation:
-    train_dataloader = DataLoader(
-        train_dataset,
-        shuffle=True,
-        collate_fn=DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="longest"),
-        batch_size=args.per_device_train_batch_size,
-    )
+    if args.use_multipack:
+        assert config.model_type in SUPPORTED_MULTIPACK_MODEL_TYPES, f"Model type {config.model_type} not supported."
+
+        from torch.utils.data._utils.fetch import _BaseDatasetFetcher
+        from torch.utils.data._utils.worker import _worker_loop
+
+        class _MapDatasetFetcher(_BaseDatasetFetcher):
+            def fetch(self, possibly_batched_index):
+                if isinstance(possibly_batched_index[0], list):
+                    data = [None for i in possibly_batched_index]
+                    for i, possibly_batched_index_ in enumerate(possibly_batched_index):
+                        if self.auto_collation:
+                            if (
+                                    hasattr(self.dataset, "__getitems__")
+                                    and self.dataset.__getitems__
+                            ):
+                                data[i] = self.dataset.__getitems__(possibly_batched_index_)
+                            else:
+                                data[i] = [self.dataset[idx] for idx in possibly_batched_index_]
+                        else:
+                            data[i] = self.dataset[possibly_batched_index_]
+                else:
+                    if self.auto_collation:
+                        if hasattr(self.dataset, "__getitems__") and self.dataset.__getitems__:
+                            data = self.dataset.__getitems__(possibly_batched_index)
+                        else:
+                            data = [self.dataset[idx] for idx in possibly_batched_index]
+                    else:
+                        data = self.dataset[possibly_batched_index]
+                return self.collate_fn(data)
+
+        def patch_fetchers():
+            torch.utils.data._utils.fetch._MapDatasetFetcher = _MapDatasetFetcher
+            torch.utils.data.dataloader._utils.fetch._MapDatasetFetcher = _MapDatasetFetcher
+
+        def patched_worker_loop(*args, **kwargs):
+            patch_fetchers()
+            return _worker_loop(*args, **kwargs)
+
+        torch.utils.data._utils.worker._worker_loop = patched_worker_loop
+        patch_fetchers()
+
+        sampler = MultipackBatchSampler(
+            RandomSampler(train_dataset),
+            lengths=get_dataset_lengths(train_dataset),
+            packing_efficiency_estimate=1.0,
+            batch_max_len=args.max_seq_length,
+            batch_size=args.per_device_train_batch_size,
+            group_size=100000,
+            bin_size=200,
+            drop_last=True,
+        )
+        train_dataloader = DataLoader(
+            train_dataset,
+            batch_sampler=sampler,
+            collate_fn=V2BatchSamplerDataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="longest"),
+        )
+        accelerator.state.deepspeed_plugin.deepspeed_config[
+            'train_micro_batch_size_per_gpu'] = args.per_device_train_batch_size
+
+        # monkeypatch
+        if args.use_flash_attn:
+            patch_for_multipack(config.model_type, model_name=config._name_or_path)
+
+    else:
+        train_dataloader = DataLoader(
+            train_dataset,
+            shuffle=True,
+            collate_fn=DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="longest"),
+            batch_size=args.per_device_train_batch_size,
+        )
     test_data_loader = DataLoader(
         test_dataset,
         shuffle=False,
@@ -646,7 +718,7 @@ def main():
     mfu_estimator = MFUEstimator(config.num_hidden_layers,
                                  config.num_attention_heads,
                                  config.hidden_size,
-                                 model_num_params)
+                                 model_num_params=12 * config.num_hidden_layers * (config.hidden_size ** 2))
 
     t0 = time.time()
     running_emfu = -1.0
@@ -774,7 +846,8 @@ def main():
                                 "eMFU (%)": running_emfu * 100,
                                 "MFU (%)": running_mfu * 100,
                                 "effective_num_tokens (%)": effective_num_tokens_percentage,
-                                "effective_num_tokens_per_instance": effective_num_tokens_per_fwdbwd / (args.per_device_train_batch_size * args.gradient_accumulation_steps),
+                                "effective_num_tokens_per_instance": effective_num_tokens_per_fwdbwd / (
+                                        args.per_device_train_batch_size * args.gradient_accumulation_steps),
                                 "seq_length": seq_length_per_fwdbwd / args.gradient_accumulation_steps,
                             },
                             step=completed_steps,
