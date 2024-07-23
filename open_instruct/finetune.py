@@ -265,6 +265,7 @@ def main():
             trust_remote_code=args.trust_remote_code,
             revision=args.model_revision,
             token=os.getenv("HF_TOKEN", None),
+            force_download=True,
         )
     elif args.model_name_or_path:
         config = AutoConfig.from_pretrained(
@@ -272,6 +273,7 @@ def main():
             trust_remote_code=args.trust_remote_code,
             revision=args.model_revision,
             token=os.getenv("HF_TOKEN", None),
+            force_download=True,
         )
     else:
         raise ValueError(
@@ -294,6 +296,7 @@ def main():
             use_fast=not args.use_slow_tokenizer,
             revision=tokenizer_revision,
             token=os.getenv("HF_TOKEN", None),
+            force_download=True,
         )
     elif args.model_name_or_path:
         tokenizer = AutoTokenizer.from_pretrained(
@@ -302,6 +305,7 @@ def main():
             use_fast=not args.use_slow_tokenizer,
             revision=tokenizer_revision,
             token=os.getenv("HF_TOKEN", None),
+            force_download=True,
         )
     else:
         raise ValueError(
@@ -331,6 +335,7 @@ def main():
                 use_flash_attention_2=True if args.use_flash_attn else False,
                 revision=args.model_revision,
                 token=os.getenv("HF_TOKEN", None),
+                force_download=True,
             )
         else:
             model = AutoModelForCausalLM.from_pretrained(
@@ -342,12 +347,13 @@ def main():
                 use_flash_attention_2=True if args.use_flash_attn else False,
                 revision=args.model_revision,
                 token=os.getenv("HF_TOKEN", None),
+                force_download=True,
             )
     else:
         logger.info("Training new model from scratch")
         model = AutoModelForCausalLM.from_config(config)
 
-    model_num_params = model.num_parameters(exclude_embeddings=True)
+    model_num_params = model.num_parameters()
     logger.info(f"Model has {model_num_params} parameters.")
     if args.use_compile:
         model = torch.compile(model)
