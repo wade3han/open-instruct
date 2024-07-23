@@ -344,6 +344,8 @@ def main():
         logger.info("Training new model from scratch")
         model = AutoModelForCausalLM.from_config(config)
 
+    model_num_params = accelerator.unwrap_model(model).num_parameters(exclude_embeddings=True)
+    logger.info(f"Model has {model_num_params} parameters.")
     if args.use_compile:
         model = torch.compile(model)
 
@@ -641,7 +643,6 @@ def main():
     # update the progress_bar if load from checkpoint
     progress_bar.update(completed_steps)
 
-    model_num_params = accelerator.unwrap_model(model).num_parameters(exclude_embeddings=True)
     mfu_estimator = MFUEstimator(config.num_hidden_layers,
                                  config.num_attention_heads,
                                  config.hidden_size,
