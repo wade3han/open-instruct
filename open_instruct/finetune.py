@@ -530,6 +530,7 @@ def main(args: FlatArguments):
 
     # DataLoaders creation:
     if args.use_multipack:
+        assert not args.mask_padding, "Mask padding is not supported with multipack."
         assert config.model_type in SUPPORTED_MULTIPACK_MODEL_TYPES, f"Model type {config.model_type} not supported."
 
         from torch.utils.data._utils.fetch import _BaseDatasetFetcher
@@ -584,7 +585,10 @@ def main(args: FlatArguments):
         train_dataloader = DataLoader(
             train_dataset,
             batch_sampler=sampler,
-            collate_fn=V2BatchSamplerDataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="longest"),
+            collate_fn=V2BatchSamplerDataCollatorForSeq2Seq(
+                tokenizer=tokenizer,
+                model=model,
+                padding="longest" if not args.use_compile else "max_length"),
         )
         accelerator.state.deepspeed_plugin.deepspeed_config[
             'train_micro_batch_size_per_gpu'] = args.per_device_train_batch_size
