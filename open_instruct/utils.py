@@ -481,7 +481,9 @@ class FlatArguments:
         default="linear",
         metadata={
             "help": "The scheduler type to use for learning rate adjustment.",
-            "choices": ["linear", "cosine", "cosine_with_restarts", "polynomial", "constant", "constant_with_warmup"],
+            "choices": ["linear", "cosine", "cosine_with_restarts", "polynomial", "constant", "constant_with_warmup",
+                        "wsd"  # see https://arxiv.org/pdf/2404.06395 to check warmup-stable-decay (WSD)
+                        ],
         },
     )
     num_train_epochs: int = field(
@@ -511,6 +513,10 @@ class FlatArguments:
     warmup_ratio: float = field(
         default=0.03,
         metadata={"help": "Linear warmup over warmup_ratio fraction of total steps."},
+    )
+    cooldown_ratio: float = field(
+        default=0.1,
+        metadata={"help": "Linear cooldown over cooldown_ratio fraction of total steps."},
     )
     weight_decay: float = field(
         default=0.0,

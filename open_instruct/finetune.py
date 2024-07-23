@@ -26,9 +26,8 @@ import datasets
 import deepspeed
 import torch
 import transformers
-from accelerate import Accelerator, DeepSpeedPlugin
+from accelerate import Accelerator
 from accelerate.logging import get_logger
-from accelerate.state import AcceleratorState
 from accelerate.utils import InitProcessGroupKwargs, set_seed
 from datasets import load_dataset
 from peft import LoraConfig, TaskType, get_peft_model, prepare_model_for_kbit_training
@@ -51,6 +50,7 @@ from transformers import (
 from open_instruct.multipack import V2BatchSamplerDataCollatorForSeq2Seq, MultipackBatchSampler, get_dataset_lengths, \
     patch_for_multipack, SUPPORTED_MULTIPACK_MODEL_TYPES
 from open_instruct.utils import ArgumentParserPlus, FlatArguments, MFUEstimator, get_datasets
+from open_instruct.wsd_scheduler import get_constant_schedule_with_warmup_and_cooldown
 
 logger = get_logger(__name__)
 
@@ -654,12 +654,21 @@ def main(args: FlatArguments):
     num_training_steps_for_scheduler = (
         args.max_train_steps if overrode_max_train_steps else args.max_train_steps * accelerator.num_processes
     )
-    lr_scheduler = get_scheduler(
-        name=args.lr_scheduler_type,
-        optimizer=optimizer,
-        num_training_steps=num_training_steps_for_scheduler,
-        num_warmup_steps=int(num_training_steps_for_scheduler * args.warmup_ratio),
-    )
+    if args.lr_scheduler_type == "wsd":
+        lr_scheduler = get_constant_schedule_with_warmup_and_cooldown(
+            optimizer,
+            num_warmup_steps=int(num_training_steps_for_scheduler * args.warmup_ratio),
+            num_training_steps=num_training_steps_for_scheduler,
+            num_cooldown_steps=int(num_training_steps_for_scheduler * args.cooldown_ratio),
+        )
+    else:
+        lr_scheduler = get_scheduler(
+            name=args.lr_scheduler_type,
+            optimizer=optimizer,
+            num_training_steps=num_training_steps_for_scheduler,
+            num_warmup_steps=int(num_training_steps_for_scheduler * args.warmup_ratio),
+        )
+
     # Prepare everything with `accelerator`.
     model, optimizer, train_dataloader, test_data_loader, lr_scheduler = accelerator.prepare(
         model, optimizer, train_dataloader, test_data_loader, lr_scheduler
