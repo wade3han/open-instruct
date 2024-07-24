@@ -750,6 +750,7 @@ def main():
     ignore_first_few_steps_num = 4
     effective_num_tokens_per_fwdbwd = 0
     seq_length_per_fwdbwd = 0
+    _loss_quantiles = None  # only available when using below_median loss masking
 
     for epoch in range(starting_epoch, args.num_train_epochs):
         model.train()
@@ -787,6 +788,10 @@ def main():
                         loss = loss_fct(shift_logits, shift_labels)
                         # pick only loss where the value is > 0
                         loss = loss[shift_labels != -100]
+
+                        # for stats, get the 10%, 25%, 50%, 75%, 90% quantiles
+                        _loss_quantiles = torch.quantile(loss, torch.tensor([0.1, 0.25, 0.5, 0.75, 0.9])).detach()
+
                         # get the median
                         loss_median = loss.median().detach()
                         # pick the loss that has a value higher than the median
@@ -894,6 +899,17 @@ def main():
                             },
                             step=completed_steps,
                         )
+                        if _loss_quantiles is not None:
+                            accelerator.log(
+                                {
+                                    "loss_quantiles (10%)": _loss_quantiles[0].item(),
+                                    "loss_quantiles (25%)": _loss_quantiles[1].item(),
+                                    "loss_quantiles (50%)": _loss_quantiles[2].item(),
+                                    "loss_quantiles (75%)": _loss_quantiles[3].item(),
+                                    "loss_quantiles (90%)": _loss_quantiles[4].item(),
+                                },
+                                step=completed_steps,
+                            )
                     total_loss = 0
 
                 seq_length_per_fwdbwd = 0
