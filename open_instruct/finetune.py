@@ -609,6 +609,14 @@ def main(args: FlatArguments):
         #     'train_micro_batch_size_per_gpu'] = args.per_device_train_batch_size
         accelerator.state.deepspeed_plugin.deepspeed_config[
             'train_micro_batch_size_per_gpu'] = 1
+        accelerator.even_batches = False
+
+        count = 0
+        for data in train_dataloader:
+            print(f"BEFORE accl] RANK: {accelerator.local_process_index}, INPUT_IDS: {data['input_ids'].shape}")
+            count += 1
+            if count > 10:
+                break
 
         # monkeypatch
         if args.use_flash_attn:
