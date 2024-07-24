@@ -698,6 +698,13 @@ def main(args: FlatArguments):
             num_warmup_steps=int(num_training_steps_for_scheduler * args.warmup_ratio),
         )
 
+    count = 0
+    for batch in train_dataloader:
+        print(f"BEFORE ACC] RANK: {accelerator.local_process_index}, COUNT: {count} INPUT_IDS: {batch['input_ids'][0, :30]}, TARGETS: {batch['labels'][0, :30]}, SHAPE: {batch['input_ids'].shape}")
+        count += 1
+        if count > 4:
+            break
+
     # Prepare everything with `accelerator`.
     model, optimizer, train_dataloader, test_data_loader, lr_scheduler = accelerator.prepare(
         model, optimizer, train_dataloader, test_data_loader, lr_scheduler
