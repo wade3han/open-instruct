@@ -901,12 +901,14 @@ def main():
                     emfu = mfu_estimator.estimate_mfu(effective_num_tokens_per_fwdbwd,
                                                       dt,
                                                       int(seq_length_per_fwdbwd / args.gradient_accumulation_steps))
-                    mfu = mfu_estimator.estimate_mfu(seq_length_per_fwdbwd * args.per_device_train_batch_size,
+                    mfu = mfu_estimator.estimate_mfu(seq_length_per_fwdbwd,
+                                                     # seq_length_per_fwdbwd * args.per_device_train_batch_size,
                                                      dt,
                                                      int(seq_length_per_fwdbwd / args.gradient_accumulation_steps))
                 effective_num_tokens_percentage = effective_num_tokens_per_fwdbwd / \
-                                                  (seq_length_per_fwdbwd * args.per_device_train_batch_size) \
+                                                  seq_length_per_fwdbwd \
                                                   * 100
+                # (seq_length_per_fwdbwd * args.per_device_train_batch_size) \
                 running_emfu = emfu if running_emfu == -1.0 else 0.9 * running_emfu + 0.1 * emfu
                 running_mfu = mfu if running_mfu == -1.0 else 0.9 * running_mfu + 0.1 * mfu
 
@@ -920,6 +922,7 @@ def main():
                                 f" eMFU: {running_emfu * 100:.2f}%, MFU: {running_mfu * 100:.2f},"
                                 f" Total Norm: {total_norm:.2f},"
                                 f" Effective Num Tokens (%): {effective_num_tokens_percentage:.2f},"
+                                # f" Effective Num Tokens Per Instance: {effective_num_tokens_per_fwdbwd / (args.per_device_train_batch_size * args.gradient_accumulation_steps):.2f}"
                                 f" Effective Num Tokens Per Instance: {effective_num_tokens_per_fwdbwd / (args.per_device_train_batch_size * args.gradient_accumulation_steps):.2f}"
                                 f" Seq Length: {seq_length_per_fwdbwd / args.gradient_accumulation_steps:.2f}")
                     if args.with_tracking:
