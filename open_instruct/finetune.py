@@ -594,10 +594,8 @@ def main():
             collate_fn=collate_fn,
             worker_init_fn=seed_worker,
         )
-        # accelerator.state.deepspeed_plugin.deepspeed_config[
-        #     'train_micro_batch_size_per_gpu'] = args.per_device_train_batch_size
         accelerator.state.deepspeed_plugin.deepspeed_config[
-            'train_micro_batch_size_per_gpu'] = 1
+            'train_micro_batch_size_per_gpu'] = batch_size
         accelerator.even_batches = False
 
         # monkeypatch
@@ -687,7 +685,7 @@ def main():
 
     count = 0
     for batch in train_dataloader:
-        print(f"RANK: {accelerator.local_process_index}, COUNT: {count} INPUT_IDS: {batch['input_ids'][0, :30]}, SHAPE: {batch['input_ids'].shape}")
+        print(f"RANK: {accelerator.local_process_index}, COUNT: {count} INPUT_IDS: {batch['input_ids'][0, :30]}, TARGETS: {batch['labels'][0, :30]}, SHAPE: {batch['input_ids'].shape}")
         count += 1
         if count > 4:
             break
