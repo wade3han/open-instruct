@@ -19,7 +19,6 @@ from accelerate import init_empty_weights
 from torch.utils.data import BatchSampler, Sampler
 from transformers import AutoConfig, AutoModelForCausalLM
 from transformers import DataCollatorForSeq2Seq
-from transformers.integrations import is_deepspeed_zero3_enabled
 
 LOG = logging.getLogger(__name__)
 
