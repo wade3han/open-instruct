@@ -553,12 +553,18 @@ def main():
         torch.utils.data._utils.worker._worker_loop = patched_worker_loop
         patch_fetchers()
 
+        batch_max_len = args.per_device_train_batch_size * args.max_seq_length
+        batch_size = 1
+
+        # batch_max_len = args.max_seq_length
+        # batch_size = args.per_device_train_batch_size
+
         sampler = MultipackBatchSampler(
             RandomSampler(train_dataset),
             lengths=get_dataset_lengths(train_dataset),
             packing_efficiency_estimate=1.0,
-            batch_max_len=args.max_seq_length,
-            batch_size=args.per_device_train_batch_size,
+            batch_max_len=batch_max_len,
+            batch_size=batch_size,
             group_size=100000,
             bin_size=200,
             drop_last=True,
