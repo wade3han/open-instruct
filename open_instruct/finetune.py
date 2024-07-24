@@ -574,7 +574,8 @@ def main():
                 tokenizer=tokenizer,
                 model=model,
                 padding="longest",
-                max_length=args.max_seq_length,
+                max_length=args.max_seq_length * args.per_device_train_batch_size,
+                # max_length=args.max_seq_length,
             )
         else:
             collate_fn = V2BatchSamplerDataCollatorForSeq2Seq(
@@ -587,8 +588,10 @@ def main():
             batch_sampler=sampler,
             collate_fn=collate_fn,
         )
+        # accelerator.state.deepspeed_plugin.deepspeed_config[
+        #     'train_micro_batch_size_per_gpu'] = args.per_device_train_batch_size
         accelerator.state.deepspeed_plugin.deepspeed_config[
-            'train_micro_batch_size_per_gpu'] = args.per_device_train_batch_size
+            'train_micro_batch_size_per_gpu'] = 1
 
         # monkeypatch
         if args.use_flash_attn:
