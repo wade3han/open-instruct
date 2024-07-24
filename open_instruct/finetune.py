@@ -611,10 +611,6 @@ def main():
         batch_size=8,
     )
 
-    for batch in train_dataloader:
-        print(f"RANK: {accelerator.local_process_index}, INPUT_IDS: {batch['input_ids'][:30]}")
-        break
-
     # Optimizer
     # Split weights in two groups, one with weight decay and the other not.
     no_decay = ["bias", "layer_norm.weight"]
@@ -681,6 +677,10 @@ def main():
     model, optimizer, train_dataloader, test_data_loader, lr_scheduler = accelerator.prepare(
         model, optimizer, train_dataloader, test_data_loader, lr_scheduler
     )
+
+    for batch in train_dataloader:
+        print(f"RANK: {accelerator.local_process_index}, INPUT_IDS: {batch['input_ids'][:30]}")
+        break
 
     # We need to recalculate our total training steps as the size of the training dataloader may have changed.
     num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
@@ -927,7 +927,7 @@ def main():
                                 f" Total Norm: {total_norm:.2f},"
                                 f" Effective Num Tokens (%): {effective_num_tokens_percentage:.2f},"
                                 # f" Effective Num Tokens Per Instance: {effective_num_tokens_per_fwdbwd / (args.per_device_train_batch_size * args.gradient_accumulation_steps):.2f}"
-                                f" Effective Num Tokens Per Instance: {effective_num_tokens_per_fwdbwd / (args.per_device_train_batch_size * args.gradient_accumulation_steps):.2f}"
+                                f" Effective Num Tokens Per Instance: {effective_num_tokens_per_fwdbwd / args.gradient_accumulation_steps:.2f}"
                                 f" Seq Length: {seq_length_per_fwdbwd / args.gradient_accumulation_steps:.2f}")
                     if args.with_tracking:
                         accelerator.log(
