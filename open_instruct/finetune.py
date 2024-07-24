@@ -816,6 +816,35 @@ def main(args: FlatArguments):
                         loss_median = loss.median().detach()
                         # pick the loss that has a value higher than the median
                         loss = loss[loss > loss_median].sum()
+                        loss = loss / (args.per_device_train_batch_size * args.max_seq_length)
+                    elif args.loss_masking == "below_median_multiple":
+                        loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
+                        loss = loss_fct(shift_logits, shift_labels)
+                        # pick only loss where the value is > 0
+                        loss = loss[shift_labels != -100]
+
+                        # for stats, get the 10%, 25%, 50%, 75%, 90% quantiles
+                        _loss_quantiles = torch.quantile(loss, torch.tensor([0.1, 0.25, 0.5, 0.75, 0.9])).detach()
+
+                        # get the median
+                        loss_median = loss.median().detach()
+                        # pick the loss that has a value higher than the median
+                        loss = loss[loss > loss_median].sum() * 2.0
+                        loss = loss / (args.per_device_train_batch_size * args.max_seq_length)
+                    elif args.loss_masking == "below_quantile_multiple":
+                        loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
+                        loss = loss_fct(shift_logits, shift_labels)
+                        # pick only loss where the value is > 0
+                        loss = loss[shift_labels != -100]
+
+                        # for stats, get the 10%, 25%, 50%, 75%, 90% quantiles
+                        _loss_quantiles = torch.quantile(loss, torch.tensor([0.1, 0.25, 0.5, 0.75, 0.9])).detach()
+
+                        # get the 25% quantile
+                        loss_quantile = _loss_quantiles[3].detach()
+                        # pick the loss that has a value higher than the quantile
+                        loss = loss[loss > loss_quantile].sum() * 4.0
+                        loss = loss / (args.per_device_train_batch_size * args.max_seq_length)
                     # elif args.loss_masking == "none":
                     #     loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
                     #     loss = loss_fct(shift_logits, shift_labels)
@@ -828,7 +857,7 @@ def main(args: FlatArguments):
                         loss_fct = torch.nn.CrossEntropyLoss(reduction="sum")
                         loss = loss_fct(shift_logits, shift_labels)
                         # We scale the loss based on the batch size and sequence length
-                    loss = loss / (args.per_device_train_batch_size * args.max_seq_length)
+                        loss = loss / (args.per_device_train_batch_size * args.max_seq_length)
                 # We keep track of the loss at each logged step
                 total_loss += loss.detach().float()
                 accelerator.backward(loss)
