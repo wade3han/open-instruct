@@ -811,7 +811,6 @@ def main(args: FlatArguments):
                         loss_median = loss.median().detach()
                         # pick the loss that has a value higher than the median
                         loss = loss[loss > loss_median].sum()
-                        loss = loss / (args.per_device_train_batch_size * args.max_seq_length)
                     # elif args.loss_masking == "none":
                     #     loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
                     #     loss = loss_fct(shift_logits, shift_labels)
@@ -824,7 +823,7 @@ def main(args: FlatArguments):
                         loss_fct = torch.nn.CrossEntropyLoss(reduction="sum")
                         loss = loss_fct(shift_logits, shift_labels)
                         # We scale the loss based on the batch size and sequence length
-                        loss = loss / (args.per_device_train_batch_size * args.max_seq_length)
+                    loss = loss / (args.per_device_train_batch_size * args.max_seq_length)
                 # We keep track of the loss at each logged step
                 total_loss += loss.detach().float()
                 accelerator.backward(loss)
