@@ -523,7 +523,7 @@ class FlatArguments:
         metadata={"help": "Weight decay for AdamW if we apply some."},
     )
     timeout: int = field(
-        default=1800,
+        default=3600,
         metadata={
             "help": "Timeout for the training process in seconds."
                     "Useful if tokenization process is long. Default is 1800 seconds (30 minutes)."
