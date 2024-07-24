@@ -530,6 +530,7 @@ def main(args: FlatArguments):
 
     # DataLoaders creation:
     if args.use_multipack:
+        assert args.use_compile, "Multipack only works with compile. TODO: fix this."
         assert not args.mask_padding, "Mask padding is not supported with multipack."
         assert config.model_type in SUPPORTED_MULTIPACK_MODEL_TYPES, f"Model type {config.model_type} not supported."
 

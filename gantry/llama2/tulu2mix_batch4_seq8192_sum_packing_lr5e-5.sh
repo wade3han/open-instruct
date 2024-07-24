@@ -33,6 +33,7 @@ gantry run --beaker-image seungjuh/open-instruct-public-240711 --venv base \
   --deepspeed_config_file configs/ds_configs/stage2_accelerate.conf \
   open_instruct/finetune.py \
   --use_multipack \
+  --use_compile \
   --model_name_or_path meta-llama/Llama-2-7b-hf \
   --use_flash_attn \
   --tokenizer_name meta-llama/Llama-2-7b-hf \
