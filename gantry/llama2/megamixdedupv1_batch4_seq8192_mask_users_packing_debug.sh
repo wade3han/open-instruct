@@ -25,7 +25,6 @@ gantry run --beaker-image seungjuh/open-instruct-public-240711 --venv base \
   --env WANDB_NAME=$NAME \
   --env-secret OPENAI_API_KEY=openai_api_key \
   --budget ai2/oe-adapt -- accelerate launch \
-  --overwrite_cache \
   --mixed_precision bf16 \
   --num_machines 1 \
   --num_processes $NUM_GPUS \
@@ -33,6 +32,7 @@ gantry run --beaker-image seungjuh/open-instruct-public-240711 --venv base \
   --main_process_port 2950 \
   --deepspeed_config_file configs/ds_configs/stage2_accelerate.conf \
   open_instruct/finetune.py \
+  --overwrite_cache \
   --use_multipack \
   --use_compile \
   --mask_users \
