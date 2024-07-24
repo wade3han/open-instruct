@@ -556,9 +556,6 @@ def main():
         batch_max_len = args.per_device_train_batch_size * args.max_seq_length
         batch_size = 1
 
-        # batch_max_len = args.max_seq_length
-        # batch_size = args.per_device_train_batch_size
-
         sampler = MultipackBatchSampler(
             RandomSampler(train_dataset),
             lengths=get_dataset_lengths(train_dataset),
@@ -570,10 +567,12 @@ def main():
 
         # DEBUG:
         batches = sampler.generate_batches()
+        lengths = get_dataset_lengths(train_dataset)
         for id, batch in enumerate(batches[:3]):
             input_ids = [d['input_ids'] for d in [train_dataset[i] for i in batch[0]]]
             concat_input_ids = torch.cat(input_ids)
-            print(f"SAMPLED BATCHES.... RANK: {accelerator.local_process_index}, INPUT_IDS: {concat_input_ids[:30]}, SHAPE: {concat_input_ids.shape}")
+
+            print(f"SAMPLED BATCHES.... RANK: {accelerator.local_process_index}, ID {id} INPUT_IDS: {concat_input_ids[:30]}, SHAPE: {concat_input_ids.shape} LENGTH_SUM: {sum([lengths[i] for i in batch[0]])}")
 
         if args.use_compile:
             collate_fn = V2BatchSamplerDataCollatorForSeq2SeqPadding(
@@ -589,18 +588,10 @@ def main():
                 padding="longest",
             )
 
-        def seed_worker(_):
-            """
-            Helper function to set worker seed during Dataloader initialization.
-            """
-            worker_seed = torch.initial_seed() % 2 ** 32
-            set_seed(worker_seed)
-
         train_dataloader = DataLoader(
             train_dataset,
             batch_sampler=sampler,
             collate_fn=collate_fn,
-            worker_init_fn=seed_worker,
         )
         accelerator.state.deepspeed_plugin.deepspeed_config[
             'train_micro_batch_size_per_gpu'] = batch_size
@@ -686,24 +677,10 @@ def main():
             num_warmup_steps=int(num_training_steps_for_scheduler * args.warmup_ratio),
         )
 
-    count = 0
-    for batch in train_dataloader:
-        print(f"BEFORE ACC] RANK: {accelerator.local_process_index}, COUNT: {count} INPUT_IDS: {batch['input_ids'][0, :30]}, TARGETS: {batch['labels'][0, :30]}, SHAPE: {batch['input_ids'].shape}")
-        count += 1
-        if count > 4:
-            break
-
     # Prepare everything with `accelerator`.
     model, optimizer, train_dataloader, test_data_loader, lr_scheduler = accelerator.prepare(
         model, optimizer, train_dataloader, test_data_loader, lr_scheduler
     )
-
-    count = 0
-    for batch in train_dataloader:
-        print(f"RANK: {accelerator.local_process_index}, COUNT: {count} INPUT_IDS: {batch['input_ids'][0, :30]}, TARGETS: {batch['labels'][0, :30]}, SHAPE: {batch['input_ids'].shape}")
-        count += 1
-        if count > 4:
-            break
 
     # We need to recalculate our total training steps as the size of the training dataloader may have changed.
     num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
