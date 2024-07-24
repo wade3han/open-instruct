@@ -810,7 +810,7 @@ def main(args: FlatArguments):
                         loss = loss[shift_labels != -100]
 
                         # for stats, get the 10%, 25%, 50%, 75%, 90% quantiles
-                        _loss_quantiles = torch.quantile(loss, torch.tensor([0.1, 0.25, 0.5, 0.75, 0.9])).detach()
+                        _loss_quantiles = torch.quantile(loss.cpu(), torch.tensor([0.1, 0.25, 0.5, 0.75, 0.9])).detach()
 
                         # get the median
                         loss_median = loss.median().detach()
@@ -824,7 +824,7 @@ def main(args: FlatArguments):
                         loss = loss[shift_labels != -100]
 
                         # for stats, get the 10%, 25%, 50%, 75%, 90% quantiles
-                        _loss_quantiles = torch.quantile(loss, torch.tensor([0.1, 0.25, 0.5, 0.75, 0.9])).detach()
+                        _loss_quantiles = torch.quantile(loss.cpu(), torch.tensor([0.1, 0.25, 0.5, 0.75, 0.9])).detach()
 
                         # get the median
                         loss_median = loss.median().detach()
@@ -838,7 +838,7 @@ def main(args: FlatArguments):
                         loss = loss[shift_labels != -100]
 
                         # for stats, get the 10%, 25%, 50%, 75%, 90% quantiles
-                        _loss_quantiles = torch.quantile(loss, torch.tensor([0.1, 0.25, 0.5, 0.75, 0.9])).detach()
+                        _loss_quantiles = torch.quantile(loss.cpu(), torch.tensor([0.1, 0.25, 0.5, 0.75, 0.9])).detach()
 
                         # get the 25% quantile
                         loss_quantile = _loss_quantiles[3].detach()
