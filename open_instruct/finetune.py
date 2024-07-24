@@ -631,6 +631,10 @@ def main(args: FlatArguments):
         batch_size=8,
     )
 
+    for batch in train_dataloader:
+        print(f"RANK: {accelerator.local_process_index}, INPUT_IDS: {batch['input_ids'][:30]}")
+        break
+
     # Optimizer
     # Split weights in two groups, one with weight decay and the other not.
     no_decay = ["bias", "layer_norm.weight"]
