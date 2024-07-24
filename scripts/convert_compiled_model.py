@@ -24,8 +24,9 @@ if __name__ == "__main__":
             new_state_dict = {}
             state_dict = torch.load(bin_path)
             for key, value in state_dict.items():
-                new_key = remove_prefix(key, "_orig_mod.model.")
-                new_key = remove_prefix(new_key, "_orig_mod.")
+                new_key = remove_prefix(key, "_orig_mod.")
+                # new_key = remove_prefix(key, "_orig_mod.model.")
+                # new_key = remove_prefix(new_key, "_orig_mod.")
                 new_state_dict[new_key] = value
             torch.save(new_state_dict, bin_path)
             print(f"Converted {bin_path}")
@@ -36,8 +37,9 @@ if __name__ == "__main__":
             weight_map = index["weight_map"]
             new_weight_map = {}
             for key, value in weight_map.items():
-                new_key = remove_prefix(key, "_orig_mod.model.")
-                new_key = remove_prefix(new_key, "_orig_mod.")
+                new_key = remove_prefix(key, "_orig_mod.")
+                # new_key = remove_prefix(key, "_orig_mod.model.")
+                # new_key = remove_prefix(new_key, "_orig_mod.")
                 new_weight_map[new_key] = value
             index["weight_map"] = new_weight_map
 
