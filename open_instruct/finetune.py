@@ -122,12 +122,12 @@ def encode_with_messages_format(example, tokenizer, max_seq_length, add_bos=Fals
         input_ids = tokenized_example.input_ids
         labels = input_ids.clone()
     else:
-        # raise NotImplementedError("This is deprecated.")
-        tokenized_example = tokenizer(example_text, return_tensors="pt", max_length=max_seq_length, truncation=True,
-                                      padding="max_length")
-        input_ids = tokenized_example.input_ids
-        labels = input_ids.clone()
-        labels[labels == tokenizer.pad_token_id] = -100
+        raise NotImplementedError("This is deprecated.")
+        # tokenized_example = tokenizer(example_text, return_tensors="pt", max_length=max_seq_length, truncation=True,
+        #                               padding="max_length")
+        # input_ids = tokenized_example.input_ids
+        # labels = input_ids.clone()
+        # labels[labels == tokenizer.pad_token_id] = -100
 
     # mask the non-assistant part for avoiding loss
     if mask_users:
@@ -689,6 +689,13 @@ def main(args: FlatArguments):
             num_training_steps=num_training_steps_for_scheduler,
             num_warmup_steps=int(num_training_steps_for_scheduler * args.warmup_ratio),
         )
+
+    count = 0
+    for batch in train_dataloader:
+        print(f"BEFORE PREPARATION] RANK: {accelerator.local_process_index}, INPUT_IDS: {batch['input_ids'][0, :30]}, SHAPE: {batch['input_ids'].shape}")
+        count += 1
+        if count > 5:
+            break
 
     # Prepare everything with `accelerator`.
     model, optimizer, train_dataloader, test_data_loader, lr_scheduler = accelerator.prepare(
