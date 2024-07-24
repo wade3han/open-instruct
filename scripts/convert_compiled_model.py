@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 
 import torch
@@ -22,9 +23,24 @@ if __name__ == "__main__":
             bin_path = os.path.join(model_name, file)
             new_state_dict = {}
             state_dict = torch.load(bin_path)
-            import ipdb;
-            ipdb.set_trace();
             for key, value in state_dict.items():
                 new_key = remove_prefix(key, "_orig_mod.model.")
+                new_key = remove_prefix(new_key, "model.")
                 new_state_dict[new_key] = value
             torch.save(new_state_dict, bin_path)
+            print(f"Converted {bin_path}")
+        elif file.endswith("index.json"):
+            index_path = os.path.join(model_name, file)
+            with open(index_path, "r") as f:
+                index = json.load(f)
+            weight_map = index["weight_map"]
+            new_weight_map = {}
+            for key, value in weight_map.items():
+                new_key = remove_prefix(key, "_orig_mod.model.")
+                new_key = remove_prefix(new_key, "model.")
+                new_weight_map[new_key] = value
+            index["weight_map"] = new_weight_map
+
+            with open(index_path, "w") as f:
+                json.dump(index, f)
+                print(f"Converted {index_path}")
