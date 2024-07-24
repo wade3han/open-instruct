@@ -565,15 +565,6 @@ def main():
             drop_last=True,
         )
 
-        # DEBUG:
-        batches = sampler.generate_batches()
-        lengths = get_dataset_lengths(train_dataset)
-        for id, batch in enumerate(batches[:3]):
-            input_ids = [d['input_ids'] for d in [train_dataset[i] for i in batch[0]]]
-            concat_input_ids = torch.cat(input_ids)
-
-            print(f"SAMPLED BATCHES.... RANK: {accelerator.local_process_index}, ID {id} INPUT_IDS: {concat_input_ids[:30]}, SHAPE: {concat_input_ids.shape} LENGTH_SUM: {sum([lengths[i] for i in batch[0]])}")
-
         if args.use_compile:
             collate_fn = V2BatchSamplerDataCollatorForSeq2SeqPadding(
                 tokenizer=tokenizer,
