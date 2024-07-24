@@ -26,6 +26,7 @@ LOG = logging.getLogger(__name__)
 def get_dataset_lengths(dataset):
     input_ids = dataset["input_ids"]
     lengths = [len(x) for x in input_ids]
+    lengths = np.array(lengths, dtype=np.int64)
     # # helper util to calculate dataset lengths
     # if "length" in dataset.data.column_names:
     #     lengths = np.array(dataset.data.column("length"))
