@@ -699,7 +699,7 @@ def main(args: FlatArguments):
     )
 
     for batch in train_dataloader:
-        print(f"RANK: {accelerator.local_process_index}, INPUT_IDS: {batch['input_ids'][:30]}")
+        print(f"RANK: {accelerator.local_process_index}, INPUT_IDS: {batch['input_ids'][0, :30]}, SHAPE: {batch['input_ids'].shape}")
         break
 
     # We need to recalculate our total training steps as the size of the training dataloader may have changed.
