@@ -587,6 +587,14 @@ def main(args: FlatArguments):
             batch_size=batch_size,
             drop_last=True,
         )
+
+        # DEBUG:
+        batches = sampler.generate_batches()
+        for id, batch in enumerate(batches[:3]):
+            input_ids = [d['input_ids'] for d in [train_dataset[i] for i in batch]]
+            concat_input_ids = torch.cat(input_ids)
+            print(f"SAMPLED BATCHES.... RANK: {accelerator.local_process_index}, INPUT_IDS: {concat_input_ids[:30]}, SHAPE: {concat_input_ids.shape}")
+
         if args.use_compile:
             collate_fn = V2BatchSamplerDataCollatorForSeq2SeqPadding(
                 tokenizer=tokenizer,
