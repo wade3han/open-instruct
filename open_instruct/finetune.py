@@ -620,13 +620,6 @@ def main(args: FlatArguments):
             'train_micro_batch_size_per_gpu'] = 1
         accelerator.even_batches = False
 
-        count = 0
-        for data in train_dataloader:
-            print(f"BEFORE accl] RANK: {accelerator.local_process_index}, INPUT_IDS: {data['input_ids'].shape}")
-            count += 1
-            if count > 10:
-                break
-
         # monkeypatch
         if args.use_flash_attn:
             patch_for_multipack(config.model_type, model_name=config._name_or_path)
@@ -707,21 +700,17 @@ def main(args: FlatArguments):
             num_warmup_steps=int(num_training_steps_for_scheduler * args.warmup_ratio),
         )
 
-    count = 0
-    for batch in train_dataloader:
-        print(f"BEFORE PREPARATION] RANK: {accelerator.local_process_index}, INPUT_IDS: {batch['input_ids'][0, :30]}, SHAPE: {batch['input_ids'].shape}")
-        count += 1
-        if count > 5:
-            break
-
     # Prepare everything with `accelerator`.
     model, optimizer, train_dataloader, test_data_loader, lr_scheduler = accelerator.prepare(
         model, optimizer, train_dataloader, test_data_loader, lr_scheduler
     )
 
+    count = 0
     for batch in train_dataloader:
-        print(f"RANK: {accelerator.local_process_index}, INPUT_IDS: {batch['input_ids'][0, :30]}, SHAPE: {batch['input_ids'].shape}")
-        break
+        print(f"RANK: {accelerator.local_process_index}, COUNT: {count} INPUT_IDS: {batch['input_ids'][0, :30]}, SHAPE: {batch['input_ids'].shape}")
+        count += 1
+        if count > 4:
+            break
 
     # We need to recalculate our total training steps as the size of the training dataloader may have changed.
     num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
