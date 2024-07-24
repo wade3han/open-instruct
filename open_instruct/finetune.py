@@ -26,9 +26,8 @@ import datasets
 import deepspeed
 import torch
 import transformers
-from accelerate import Accelerator, DeepSpeedPlugin
+from accelerate import Accelerator
 from accelerate.logging import get_logger
-from accelerate.state import AcceleratorState
 from accelerate.utils import InitProcessGroupKwargs, set_seed
 from datasets import load_dataset
 from peft import LoraConfig, TaskType, get_peft_model, prepare_model_for_kbit_training
@@ -511,6 +510,7 @@ def main():
 
     # DataLoaders creation:
     if args.use_multipack:
+        assert args.use_compile, "Multipack only works with compile. TODO: fix this."
         assert not args.mask_padding, "Mask padding is not supported with multipack."
         assert config.model_type in SUPPORTED_MULTIPACK_MODEL_TYPES, f"Model type {config.model_type} not supported."
 
