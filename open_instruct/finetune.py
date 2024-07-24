@@ -790,15 +790,15 @@ def main():
                         # get the median
                         loss_median = loss.median().detach()
                         # pick the loss that has a value higher than the median
-                        loss = loss[loss > loss_median]
-                        loss = loss.mean()
-                    elif args.loss_masking == "none":
-                        loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
-                        loss = loss_fct(shift_logits, shift_labels)
-                        # pick only loss where the value is > 0
-                        loss = loss[shift_labels != -100]
-                        # get the mean
-                        loss = loss.mean()
+                        loss = loss[loss > loss_median].sum()
+                        loss = loss / (args.per_device_train_batch_size * args.max_seq_length)
+                    # elif args.loss_masking == "none":
+                    #     loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
+                    #     loss = loss_fct(shift_logits, shift_labels)
+                    #     # pick only loss where the value is > 0
+                    #     loss = loss[shift_labels != -100]
+                    #     # get the mean
+                    #     loss = loss.mean()
                     else:
                         # Flatten the tokens
                         loss_fct = torch.nn.CrossEntropyLoss(reduction="sum")
