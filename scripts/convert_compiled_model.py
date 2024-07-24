@@ -22,7 +22,9 @@ if __name__ == "__main__":
             bin_path = os.path.join(model_name, file)
             new_state_dict = {}
             state_dict = torch.load(bin_path)
+            import ipdb;
+            ipdb.set_trace();
             for key, value in state_dict.items():
-                new_key = remove_prefix(key, "_orig_mod.")
+                new_key = remove_prefix(key, "_orig_mod.model.")
                 new_state_dict[new_key] = value
             torch.save(new_state_dict, bin_path)
