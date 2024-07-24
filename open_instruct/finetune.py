@@ -600,10 +600,19 @@ def main(args: FlatArguments):
                 model=model,
                 padding="longest",
             )
+
+        def seed_worker(_):
+            """
+            Helper function to set worker seed during Dataloader initialization.
+            """
+            worker_seed = torch.initial_seed() % 2 ** 32
+            set_seed(worker_seed)
+
         train_dataloader = DataLoader(
             train_dataset,
             batch_sampler=sampler,
             collate_fn=collate_fn,
+            worker_init_fn=seed_worker,
         )
         # accelerator.state.deepspeed_plugin.deepspeed_config[
         #     'train_micro_batch_size_per_gpu'] = args.per_device_train_batch_size
