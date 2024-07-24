@@ -284,8 +284,8 @@ class V2BatchSamplerDataCollatorForSeq2SeqPadding(DataCollatorForSeq2Seq):
                         concat_arrays = np.concatenate(
                             [concat_arrays, np.zeros(pad_length, dtype=np.int64)]
                         )
-                    elif len(concat_arrays) > self.max_length:
-                        concat_arrays = concat_arrays[:self.max_length]
+                    # elif len(concat_arrays) > self.max_length:
+                        # concat_arrays = concat_arrays[:self.max_length]
                     out_features[i][feature] = concat_arrays
                 elif feature == "input_ids":
                     arrays = [
@@ -298,8 +298,8 @@ class V2BatchSamplerDataCollatorForSeq2SeqPadding(DataCollatorForSeq2Seq):
                         concat_arrays = np.concatenate(
                             [concat_arrays, np.zeros(pad_length, dtype=np.int64)]
                         )
-                    elif len(concat_arrays) > self.max_length:
-                        concat_arrays = concat_arrays[:self.max_length]
+                    # elif len(concat_arrays) > self.max_length:
+                    #     concat_arrays = concat_arrays[:self.max_length]
                     out_features[i][feature] = concat_arrays
                 elif feature == "labels":
                     arrays = [
@@ -312,9 +312,9 @@ class V2BatchSamplerDataCollatorForSeq2SeqPadding(DataCollatorForSeq2Seq):
                         concat_arrays = np.concatenate(
                             [concat_arrays, np.ones(pad_length, dtype=np.int64) * -100]
                         )
-                    elif len(concat_arrays) > self.max_length:
-                        print(f"Truncating labels for {i} in batch: {len(concat_arrays)}")
-                        concat_arrays = concat_arrays[:self.max_length]
+                    # elif len(concat_arrays) > self.max_length:
+                    #     print(f"Truncating labels for {i} in batch: {len(concat_arrays)}")
+                    #     concat_arrays = concat_arrays[:self.max_length]
                     out_features[i][feature] = concat_arrays
                 else:
                     raise ValueError(f"Unsupported feature: {feature}")
