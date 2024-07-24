@@ -585,8 +585,6 @@ def main(args: FlatArguments):
             packing_efficiency_estimate=1.0,
             batch_max_len=batch_max_len,
             batch_size=batch_size,
-            group_size=100000,
-            bin_size=200,
             drop_last=True,
         )
         if args.use_compile:
@@ -594,8 +592,7 @@ def main(args: FlatArguments):
                 tokenizer=tokenizer,
                 model=model,
                 padding="longest",
-                max_length=args.max_seq_length * args.per_device_train_batch_size,
-                # max_length=args.max_seq_length,
+                max_length=batch_max_len,
             )
         else:
             collate_fn = V2BatchSamplerDataCollatorForSeq2Seq(
