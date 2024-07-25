@@ -484,6 +484,18 @@ def main(args: FlatArguments):
             ],
             desc="Tokenizing and reformatting instruction data",
         )
+
+        if args.use_multipack:
+            def add_position_ids(sample):
+                sample_len = len(sample["input_ids"])
+                sample["position_ids"] = torch.arange(len(sample["input_ids"]))
+                sample["length"] = sample_len
+                return sample
+            lm_datasets = lm_datasets.map(
+                add_position_ids,
+                desc="Add position_id column (Pretraining Sample Packing)",
+            )
+
         lm_datasets.set_format(type="pt")
         lm_datasets = lm_datasets.filter(lambda example: (example["labels"] != -100).any())
 
@@ -604,6 +616,13 @@ def main(args: FlatArguments):
             batch_sampler=sampler,
             collate_fn=collate_fn,
         )
+
+        # for data in train_dataloader:
+        #     break
+        # input_ids, attention_mask, labels = data["input_ids"], data["attention_mask"], data["labels"]
+        # from open_instruct.multipack import get_unpad_data
+        # indices, cu_len, max_seq_len = get_unpad_data(attention_mask)
+
         accelerator.state.deepspeed_plugin.deepspeed_config[
             'train_micro_batch_size_per_gpu'] = batch_size
         accelerator.even_batches = False
