@@ -7,7 +7,7 @@ echo "Training llama model ${MODEL_SIZE} using $NUM_GPUS GPUs, $BATCH_SIZE_PER_G
 # You can also set --gradient_checkpointing or use `stage3_offloading_accelerate.conf` to save memory,
 # but it will trade off speed.
 # sweep learning rate from 2e-5 to 1e-6
-NAME=tulu2mix_batch4_seq8192_reduce-loss-sum_v1-packing_lr5e-5
+NAME=tulu2mix_batch4_seq8192_reduce-loss-sum_v1-packing_lr5e-5_fix
 
 gantry run --beaker-image seungjuh/open-instruct-public-240711 --venv base \
   --name $NAME \
