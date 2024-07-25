@@ -15,6 +15,7 @@ import torch
 import torch.nn.functional as F
 import transformers
 from accelerate import init_empty_weights
+from datasets import Dataset
 # from axolotl.monkeypatch.mixtral import patch_mixtral_moe_forward_zero3
 from torch.utils.data import BatchSampler, Sampler
 from transformers import AutoConfig, AutoModelForCausalLM
@@ -23,20 +24,14 @@ from transformers import DataCollatorForSeq2Seq
 LOG = logging.getLogger(__name__)
 
 
-def get_dataset_lengths(dataset):
-    # input_ids = dataset["input_ids"]
-    # lengths = [len(x) for x in input_ids]
-    # lengths = np.array(lengths, dtype=np.int64)
-    # helper util to calculate dataset lengths
-    if "length" in dataset.data.column_names:
-        lengths = np.array(dataset.data.column("length"))
-    elif "position_ids" in dataset.data.column_names:
-        position_ids = dataset.data.column("position_ids")
-        lengths = np.array([x[-1] + 1 for x in position_ids])
-    else:
-        input_ids = dataset.data.column("input_ids")
-        lengths = np.vectorize(len)(np.array(input_ids, dtype=object))
-        return lengths
+def get_dataset_lengths(dataset: Dataset) -> np.ndarray:
+    input_ids = dataset["input_ids"]
+    lengths = [len(x) for x in input_ids]
+    lengths = np.array(lengths, dtype=np.int64)
+    # this caused a bug in the original code
+    # input_ids = dataset.data.column("input_ids")
+    # lengths = np.vectorize(len)(np.array(input_ids, dtype=object))
+    # return lengths
     return lengths
 
 
