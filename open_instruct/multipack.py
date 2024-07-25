@@ -7,7 +7,8 @@ import logging
 import math
 import os
 from dataclasses import dataclass
-from typing import Any, Iterable, List, Union
+from typing import Any, Optional, Union
+from typing import Iterable, List
 
 import numba
 import numpy as np
@@ -18,8 +19,11 @@ from accelerate import init_empty_weights
 from datasets import Dataset
 # from axolotl.monkeypatch.mixtral import patch_mixtral_moe_forward_zero3
 from torch.utils.data import BatchSampler, Sampler
-from transformers import AutoConfig, AutoModelForCausalLM
-from transformers import DataCollatorForSeq2Seq
+from transformers import AutoConfig, AutoModelForCausalLM, DataCollatorForSeq2Seq
+from transformers import PreTrainedTokenizerBase
+from transformers.utils import PaddingStrategy
+
+# from transformers import DataCollatorForSeq2Seq
 
 LOG = logging.getLogger(__name__)
 
@@ -282,10 +286,8 @@ class V2BatchSamplerDataCollatorForSeq2SeqPadding(DataCollatorForSeq2Seq):
                         concat_arrays = np.concatenate(
                             [concat_arrays, np.zeros(pad_length, dtype=np.int64)]
                         )
-                    # elif len(concat_arrays) > self.max_length:
-                        # concat_arrays = concat_arrays[:self.max_length]
                     out_features[i][feature] = concat_arrays
-                elif feature == "input_ids":
+                elif feature in ["input_ids", "position_ids"]:
                     arrays = [
                         np.array(item[feature]) for item in features_ if feature in item
                     ]
@@ -296,8 +298,6 @@ class V2BatchSamplerDataCollatorForSeq2SeqPadding(DataCollatorForSeq2Seq):
                         concat_arrays = np.concatenate(
                             [concat_arrays, np.zeros(pad_length, dtype=np.int64)]
                         )
-                    # elif len(concat_arrays) > self.max_length:
-                    #     concat_arrays = concat_arrays[:self.max_length]
                     out_features[i][feature] = concat_arrays
                 elif feature == "labels":
                     arrays = [
@@ -310,9 +310,6 @@ class V2BatchSamplerDataCollatorForSeq2SeqPadding(DataCollatorForSeq2Seq):
                         concat_arrays = np.concatenate(
                             [concat_arrays, np.ones(pad_length, dtype=np.int64) * -100]
                         )
-                    # elif len(concat_arrays) > self.max_length:
-                    #     print(f"Truncating labels for {i} in batch: {len(concat_arrays)}")
-                    #     concat_arrays = concat_arrays[:self.max_length]
                     out_features[i][feature] = concat_arrays
                 else:
                     raise ValueError(f"Unsupported feature: {feature}")
