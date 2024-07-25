@@ -7,7 +7,8 @@ import logging
 import math
 import os
 from dataclasses import dataclass
-from typing import Any, Iterable, List, Union
+from typing import Any, Optional, Union
+from typing import Iterable, List
 
 import numba
 import numpy as np
@@ -15,26 +16,26 @@ import torch
 import torch.nn.functional as F
 import transformers
 from accelerate import init_empty_weights
+from datasets import Dataset
 # from axolotl.monkeypatch.mixtral import patch_mixtral_moe_forward_zero3
 from torch.utils.data import BatchSampler, Sampler
-from transformers import AutoConfig, AutoModelForCausalLM
-from transformers import DataCollatorForSeq2Seq
-from transformers.integrations import is_deepspeed_zero3_enabled
+from transformers import AutoConfig, AutoModelForCausalLM, DataCollatorForSeq2Seq
+from transformers import PreTrainedTokenizerBase
+from transformers.utils import PaddingStrategy
+
+# from transformers import DataCollatorForSeq2Seq
 
 LOG = logging.getLogger(__name__)
 
 
-def get_dataset_lengths(dataset):
-    # helper util to calculate dataset lengths
-    if "length" in dataset.data.column_names:
-        lengths = np.array(dataset.data.column("length"))
-    elif "position_ids" in dataset.data.column_names:
-        position_ids = dataset.data.column("position_ids")
-        lengths = np.array([x[-1] + 1 for x in position_ids])
-    else:
-        input_ids = dataset.data.column("input_ids")
-        lengths = np.vectorize(len)(np.array(input_ids, dtype=object))
-        return lengths
+def get_dataset_lengths(dataset: Dataset) -> np.ndarray:
+    input_ids = dataset["input_ids"]
+    lengths = [len(x) for x in input_ids]
+    lengths = np.array(lengths, dtype=np.int64)
+    # this caused a bug in the original code
+    # input_ids = dataset.data.column("input_ids")
+    # lengths = np.vectorize(len)(np.array(input_ids, dtype=object))
+    # return lengths
     return lengths
 
 
@@ -139,7 +140,6 @@ class MultipackBatchSampler(BatchSampler):
             lengths: np.ndarray,
             packing_efficiency_estimate: float = 1.0,
             drop_last: bool = False,
-            **kwargs,
     ):
         super().__init__(sampler, batch_size, drop_last)
         self.batch_size = batch_size
@@ -256,6 +256,63 @@ class V2BatchSamplerDataCollatorForSeq2Seq(DataCollatorForSeq2Seq):
                         np.array(item[feature]) for item in features_ if feature in item
                     ]
                     out_features[i][feature] = np.concatenate(arrays)
+        return super().__call__(out_features, return_tensors=return_tensors)
+
+
+@dataclass
+class V2BatchSamplerDataCollatorForSeq2SeqPadding(DataCollatorForSeq2Seq):
+    """
+    Collator for multipack specific to the using the BatchSampler
+    """
+
+    def __call__(self, features, return_tensors=None):
+        if not isinstance(features[0], list):
+            features = [features]
+        out_features = [{} for _ in features]
+        for i, features_ in enumerate(features):
+            for feature in features_[0].keys():
+                if feature == "length":
+                    continue
+                if feature == "attention_mask":
+                    arrays = [
+                        (i + 1) * np.array(item[feature])
+                        for i, item in enumerate(features_)
+                        if feature in item
+                    ]
+                    concat_arrays = np.concatenate(arrays)
+                    # if shorter than max length, pad
+                    if len(concat_arrays) < self.max_length:
+                        pad_length = self.max_length - len(concat_arrays)
+                        concat_arrays = np.concatenate(
+                            [concat_arrays, np.zeros(pad_length, dtype=np.int64)]
+                        )
+                    out_features[i][feature] = concat_arrays
+                elif feature in ["input_ids", "position_ids"]:
+                    arrays = [
+                        np.array(item[feature]) for item in features_ if feature in item
+                    ]
+                    concat_arrays = np.concatenate(arrays)
+                    # if shorter than max length, pad
+                    if len(concat_arrays) < self.max_length:
+                        pad_length = self.max_length - len(concat_arrays)
+                        concat_arrays = np.concatenate(
+                            [concat_arrays, np.zeros(pad_length, dtype=np.int64)]
+                        )
+                    out_features[i][feature] = concat_arrays
+                elif feature == "labels":
+                    arrays = [
+                        np.array(item[feature]) for item in features_ if feature in item
+                    ]
+                    concat_arrays = np.concatenate(arrays)
+                    # if shorter than max length, pad
+                    if len(concat_arrays) < self.max_length:
+                        pad_length = self.max_length - len(concat_arrays)
+                        concat_arrays = np.concatenate(
+                            [concat_arrays, np.ones(pad_length, dtype=np.int64) * -100]
+                        )
+                    out_features[i][feature] = concat_arrays
+                else:
+                    raise ValueError(f"Unsupported feature: {feature}")
         return super().__call__(out_features, return_tensors=return_tensors)
 
 

@@ -7,7 +7,7 @@ echo "Training llama model ${MODEL_SIZE} using $NUM_GPUS GPUs, $BATCH_SIZE_PER_G
 # You can also set --gradient_checkpointing or use `stage3_offloading_accelerate.conf` to save memory,
 # but it will trade off speed.
 # sweep learning rate from 2e-5 to 1e-6
-NAME=tulu2mix_batch4_seq8192_reduce-loss-sum_v1-packing-debug
+NAME=tulu2mix_batch4_seq8192_reduce-loss-sum_v1-packing_lr5e-5_fix
 
 gantry run --beaker-image seungjuh/open-instruct-public-240711 --venv base \
   --name $NAME \
@@ -30,18 +30,19 @@ gantry run --beaker-image seungjuh/open-instruct-public-240711 --venv base \
   --num_processes $NUM_GPUS \
   --use_deepspeed \
   --main_process_port 2950 \
-  --deepspeed_config_file configs/ds_configs/stage3_no_offloading_accelerate.conf \
+  --deepspeed_config_file configs/ds_configs/stage2_accelerate.conf \
   open_instruct/finetune.py \
   --use_multipack \
+  --use_compile \
   --model_name_or_path meta-llama/Llama-2-7b-hf \
   --use_flash_attn \
   --tokenizer_name meta-llama/Llama-2-7b-hf \
-  --train_file /net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/tulu-v2-sft-mixture-held-out-1k.jsonl \
+  --train_file /net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/tulu-v2-sft-mixture_train.jsonl \
   --max_seq_length 8192 \
   --preprocessing_num_workers 128 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
-  --learning_rate 2e-5 \
+  --learning_rate 5e-5 \
   --lr_scheduler_type linear \
   --warmup_ratio 0.03 \
   --weight_decay 0. \

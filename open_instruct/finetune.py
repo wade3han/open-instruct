@@ -26,9 +26,8 @@ import datasets
 import deepspeed
 import torch
 import transformers
-from accelerate import Accelerator, DeepSpeedPlugin
+from accelerate import Accelerator
 from accelerate.logging import get_logger
-from accelerate.state import AcceleratorState
 from accelerate.utils import InitProcessGroupKwargs, set_seed
 from datasets import load_dataset
 from peft import LoraConfig, TaskType, get_peft_model, prepare_model_for_kbit_training
@@ -49,8 +48,9 @@ from transformers import (
 )
 
 from open_instruct.multipack import V2BatchSamplerDataCollatorForSeq2Seq, MultipackBatchSampler, get_dataset_lengths, \
-    patch_for_multipack, SUPPORTED_MULTIPACK_MODEL_TYPES
+    patch_for_multipack, SUPPORTED_MULTIPACK_MODEL_TYPES, V2BatchSamplerDataCollatorForSeq2SeqPadding
 from open_instruct.utils import ArgumentParserPlus, FlatArguments, MFUEstimator
+from open_instruct.wsd_scheduler import get_constant_schedule_with_warmup_and_cooldown
 
 logger = get_logger(__name__)
 
@@ -122,12 +122,12 @@ def encode_with_messages_format(example, tokenizer, max_seq_length, add_bos=Fals
         input_ids = tokenized_example.input_ids
         labels = input_ids.clone()
     else:
-        # raise NotImplementedError("This is deprecated.")
-        tokenized_example = tokenizer(example_text, return_tensors="pt", max_length=max_seq_length, truncation=True,
-                                      padding="max_length")
-        input_ids = tokenized_example.input_ids
-        labels = input_ids.clone()
-        labels[labels == tokenizer.pad_token_id] = -100
+        raise NotImplementedError("This is deprecated.")
+        # tokenized_example = tokenizer(example_text, return_tensors="pt", max_length=max_seq_length, truncation=True,
+        #                               padding="max_length")
+        # input_ids = tokenized_example.input_ids
+        # labels = input_ids.clone()
+        # labels[labels == tokenizer.pad_token_id] = -100
 
     # mask the non-assistant part for avoiding loss
     if mask_users:
@@ -175,7 +175,7 @@ def save_with_accelerate(accelerator, model, tokenizer, output_dir, args):
     # When doing multi-gpu training, we need to use accelerator.get_state_dict(model) to get the state_dict.
     # Otherwise, sometimes the model will be saved with only part of the parameters.
     # Also, accelerator needs to use the wrapped model to get the state_dict.
-    state_dict = accelerator.get_state_dict(model)
+    state_dict = accelerator.get_state_dict(getattr(model, '_orig_mod', model))
     if args.use_lora:
         # When using lora, the unwrapped model is a PeftModel, which doesn't support the is_main_process
         # and has its own save_pretrained function for only saving lora modules.
@@ -464,6 +464,18 @@ def main():
             ],
             desc="Tokenizing and reformatting instruction data",
         )
+
+        if args.use_multipack:
+            def add_position_ids(sample):
+                sample_len = len(sample["input_ids"])
+                sample["position_ids"] = torch.arange(len(sample["input_ids"]))
+                sample["length"] = sample_len
+                return sample
+            lm_datasets = lm_datasets.map(
+                add_position_ids,
+                desc="Add position_id column (Pretraining Sample Packing)",
+            )
+
         lm_datasets.set_format(type="pt")
         lm_datasets = lm_datasets.filter(lambda example: (example["labels"] != -100).any())
 
@@ -510,6 +522,8 @@ def main():
 
     # DataLoaders creation:
     if args.use_multipack:
+        assert args.use_compile, "Multipack only works with compile. TODO: fix this."
+        assert not args.mask_padding, "Mask padding is not supported with multipack."
         assert config.model_type in SUPPORTED_MULTIPACK_MODEL_TYPES, f"Model type {config.model_type} not supported."
 
         from torch.utils.data._utils.fetch import _BaseDatasetFetcher
@@ -551,23 +565,47 @@ def main():
         torch.utils.data._utils.worker._worker_loop = patched_worker_loop
         patch_fetchers()
 
+        batch_max_len = args.per_device_train_batch_size * args.max_seq_length
+        batch_size = 1
+
         sampler = MultipackBatchSampler(
             RandomSampler(train_dataset),
             lengths=get_dataset_lengths(train_dataset),
             packing_efficiency_estimate=1.0,
-            batch_max_len=args.max_seq_length,
-            batch_size=args.per_device_train_batch_size,
-            group_size=100000,
-            bin_size=200,
+            batch_max_len=batch_max_len,
+            batch_size=batch_size,
             drop_last=True,
         )
+
+        if args.use_compile:
+            collate_fn = V2BatchSamplerDataCollatorForSeq2SeqPadding(
+                tokenizer=tokenizer,
+                model=model,
+                padding="longest",
+                max_length=batch_max_len,
+            )
+        else:
+            collate_fn = V2BatchSamplerDataCollatorForSeq2Seq(
+                tokenizer=tokenizer,
+                model=model,
+                padding="longest",
+            )
+
         train_dataloader = DataLoader(
             train_dataset,
             batch_sampler=sampler,
-            collate_fn=V2BatchSamplerDataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="longest"),
+            collate_fn=collate_fn,
         )
+
+        # for data in train_dataloader:
+        #     break
+        # input_ids, attention_mask, labels = data["input_ids"], data["attention_mask"], data["labels"]
+        # from open_instruct.multipack import get_unpad_data
+        # indices, cu_len, max_seq_len = get_unpad_data(attention_mask)
+
         accelerator.state.deepspeed_plugin.deepspeed_config[
-            'train_micro_batch_size_per_gpu'] = args.per_device_train_batch_size
+            'train_micro_batch_size_per_gpu'] = batch_size
+        accelerator.even_batches = False
 
         # monkeypatch
         if args.use_flash_attn:
@@ -634,12 +672,21 @@ def main():
     num_training_steps_for_scheduler = (
         args.max_train_steps if overrode_max_train_steps else args.max_train_steps * accelerator.num_processes
     )
-    lr_scheduler = get_scheduler(
-        name=args.lr_scheduler_type,
-        optimizer=optimizer,
-        num_training_steps=num_training_steps_for_scheduler,
-        num_warmup_steps=int(num_training_steps_for_scheduler * args.warmup_ratio),
-    )
+    if args.lr_scheduler_type == "wsd":
+        lr_scheduler = get_constant_schedule_with_warmup_and_cooldown(
+            optimizer,
+            num_warmup_steps=int(num_training_steps_for_scheduler * args.warmup_ratio),
+            num_training_steps=num_training_steps_for_scheduler,
+            num_cooldown_steps=int(num_training_steps_for_scheduler * args.cooldown_ratio),
+        )
+    else:
+        lr_scheduler = get_scheduler(
+            name=args.lr_scheduler_type,
+            optimizer=optimizer,
+            num_training_steps=num_training_steps_for_scheduler,
+            num_warmup_steps=int(num_training_steps_for_scheduler * args.warmup_ratio),
+        )
+
     # Prepare everything with `accelerator`.
     model, optimizer, train_dataloader, test_data_loader, lr_scheduler = accelerator.prepare(
         model, optimizer, train_dataloader, test_data_loader, lr_scheduler
@@ -726,6 +773,7 @@ def main():
     ignore_first_few_steps_num = 4
     effective_num_tokens_per_fwdbwd = 0
     seq_length_per_fwdbwd = 0
+    _loss_quantiles = None  # only available when using below_median loss masking
 
     for epoch in range(starting_epoch, args.num_train_epochs):
         model.train()
@@ -739,6 +787,7 @@ def main():
             with accelerator.accumulate(model):
                 outputs = model(**batch, use_cache=False)
                 if args.reduce_loss == "mean":
+                    assert args.loss_masking == "default", "mean loss only works with default loss masking"
                     loss = outputs.loss
                 else:
                     # reduce loss is sum
@@ -753,15 +802,65 @@ def main():
                     # Shift so that tokens < n predict n
                     shift_logits = logits[..., :-1, :].contiguous()
                     shift_labels = labels[..., 1:].contiguous()
-                    # Flatten the tokens
-                    loss_fct = torch.nn.CrossEntropyLoss(reduction="sum")
                     shift_logits = shift_logits.view(-1, embedding_size)
                     shift_labels = shift_labels.view(-1)
                     # Enable model parallelism
                     shift_labels = shift_labels.to(shift_logits.device)
-                    loss = loss_fct(shift_logits, shift_labels)
-                    # We scale the loss based on the batch size and sequence length
-                    loss = loss / (args.per_device_train_batch_size * args.max_seq_length)
+                    if args.loss_masking == "below_median":
+                        loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
+                        loss = loss_fct(shift_logits, shift_labels)
+                        # pick only loss where the value is > 0
+                        loss = loss[shift_labels != -100]
+
+                        # for stats, get the 10%, 25%, 50%, 75%, 90% quantiles
+                        _loss_quantiles = torch.quantile(loss.cpu(), torch.tensor([0.1, 0.25, 0.5, 0.75, 0.9])).detach()
+
+                        # get the median
+                        loss_median = loss.median().detach()
+                        # pick the loss that has a value higher than the median
+                        loss = loss[loss > loss_median].sum()
+                        loss = loss / (args.per_device_train_batch_size * args.max_seq_length)
+                    elif args.loss_masking == "below_median_multiple":
+                        loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
+                        loss = loss_fct(shift_logits, shift_labels)
+                        # pick only loss where the value is > 0
+                        loss = loss[shift_labels != -100]
+
+                        # for stats, get the 10%, 25%, 50%, 75%, 90% quantiles
+                        _loss_quantiles = torch.quantile(loss.cpu(), torch.tensor([0.1, 0.25, 0.5, 0.75, 0.9])).detach()
+
+                        # get the median
+                        loss_median = loss.median().detach()
+                        # pick the loss that has a value higher than the median
+                        loss = loss[loss > loss_median].sum() * 2.0
+                        loss = loss / (args.per_device_train_batch_size * args.max_seq_length)
+                    elif args.loss_masking == "below_quantile_multiple":
+                        loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
+                        loss = loss_fct(shift_logits, shift_labels)
+                        # pick only loss where the value is > 0
+                        loss = loss[shift_labels != -100]
+
+                        # for stats, get the 10%, 25%, 50%, 75%, 90% quantiles
+                        _loss_quantiles = torch.quantile(loss.cpu(), torch.tensor([0.1, 0.25, 0.5, 0.75, 0.9])).detach()
+
+                        # get the 25% quantile
+                        loss_quantile = _loss_quantiles[3].detach()
+                        # pick the loss that has a value higher than the quantile
+                        loss = loss[loss > loss_quantile].sum() * 4.0
+                        loss = loss / (args.per_device_train_batch_size * args.max_seq_length)
+                    # elif args.loss_masking == "none":
+                    #     loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
+                    #     loss = loss_fct(shift_logits, shift_labels)
+                    #     # pick only loss where the value is > 0
+                    #     loss = loss[shift_labels != -100]
+                    #     # get the mean
+                    #     loss = loss.mean()
+                    else:
+                        # Flatten the tokens
+                        loss_fct = torch.nn.CrossEntropyLoss(reduction="sum")
+                        loss = loss_fct(shift_logits, shift_labels)
+                        # We scale the loss based on the batch size and sequence length
+                        loss = loss / (args.per_device_train_batch_size * args.max_seq_length)
                 # We keep track of the loss at each logged step
                 total_loss += loss.detach().float()
                 accelerator.backward(loss)
@@ -816,12 +915,14 @@ def main():
                     emfu = mfu_estimator.estimate_mfu(effective_num_tokens_per_fwdbwd,
                                                       dt,
                                                       int(seq_length_per_fwdbwd / args.gradient_accumulation_steps))
-                    mfu = mfu_estimator.estimate_mfu(seq_length_per_fwdbwd * args.per_device_train_batch_size,
+                    mfu = mfu_estimator.estimate_mfu(seq_length_per_fwdbwd,
+                                                     # seq_length_per_fwdbwd * args.per_device_train_batch_size,
                                                      dt,
                                                      int(seq_length_per_fwdbwd / args.gradient_accumulation_steps))
                 effective_num_tokens_percentage = effective_num_tokens_per_fwdbwd / \
-                                                  (seq_length_per_fwdbwd * args.per_device_train_batch_size) \
+                                                  seq_length_per_fwdbwd \
                                                   * 100
+                # (seq_length_per_fwdbwd * args.per_device_train_batch_size) \
                 running_emfu = emfu if running_emfu == -1.0 else 0.9 * running_emfu + 0.1 * emfu
                 running_mfu = mfu if running_mfu == -1.0 else 0.9 * running_mfu + 0.1 * mfu
 
@@ -835,7 +936,8 @@ def main():
                                 f" eMFU: {running_emfu * 100:.2f}%, MFU: {running_mfu * 100:.2f},"
                                 f" Total Norm: {total_norm:.2f},"
                                 f" Effective Num Tokens (%): {effective_num_tokens_percentage:.2f},"
-                                f" Effective Num Tokens Per Instance: {effective_num_tokens_per_fwdbwd / (args.per_device_train_batch_size * args.gradient_accumulation_steps):.2f}"
+                                # f" Effective Num Tokens Per Instance: {effective_num_tokens_per_fwdbwd / (args.per_device_train_batch_size * args.gradient_accumulation_steps):.2f}"
+                                f" Effective Num Tokens Per Instance: {effective_num_tokens_per_fwdbwd / args.gradient_accumulation_steps:.2f}"
                                 f" Seq Length: {seq_length_per_fwdbwd / args.gradient_accumulation_steps:.2f}")
                     if args.with_tracking:
                         accelerator.log(
@@ -852,6 +954,17 @@ def main():
                             },
                             step=completed_steps,
                         )
+                        if _loss_quantiles is not None:
+                            accelerator.log(
+                                {
+                                    "loss_quantiles (10%)": _loss_quantiles[0].item(),
+                                    "loss_quantiles (25%)": _loss_quantiles[1].item(),
+                                    "loss_quantiles (50%)": _loss_quantiles[2].item(),
+                                    "loss_quantiles (75%)": _loss_quantiles[3].item(),
+                                    "loss_quantiles (90%)": _loss_quantiles[4].item(),
+                                },
+                                step=completed_steps,
+                            )
                     total_loss = 0
 
                 seq_length_per_fwdbwd = 0
