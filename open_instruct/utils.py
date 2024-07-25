@@ -185,7 +185,9 @@ class FlatArguments:
         default="linear",
         metadata={
             "help": "The scheduler type to use for learning rate adjustment.",
-            "choices": ["linear", "cosine", "cosine_with_restarts", "polynomial", "constant", "constant_with_warmup"],
+            "choices": ["linear", "cosine", "cosine_with_restarts", "polynomial", "constant", "constant_with_warmup",
+                        "wsd"  # see https://arxiv.org/pdf/2404.06395 to check warmup-stable-decay (WSD)
+                        ],
         },
     )
     num_train_epochs: int = field(
@@ -216,12 +218,16 @@ class FlatArguments:
         default=0.03,
         metadata={"help": "Linear warmup over warmup_ratio fraction of total steps."},
     )
+    cooldown_ratio: float = field(
+        default=0.1,
+        metadata={"help": "Linear cooldown over cooldown_ratio fraction of total steps."},
+    )
     weight_decay: float = field(
         default=0.0,
         metadata={"help": "Weight decay for AdamW if we apply some."},
     )
     timeout: int = field(
-        default=1800,
+        default=3600,
         metadata={
             "help": "Timeout for the training process in seconds."
                     "Useful if tokenization process is long. Default is 1800 seconds (30 minutes)."
@@ -284,6 +290,12 @@ class FlatArguments:
     use_multipack: bool = field(
         default=False,
         metadata={"help": "Whether to use multipack for training."},
+    )
+    loss_masking: str = field(
+        default="default",
+        metadata={
+            "help": "The option for masking loss."
+        },
     )
 
     def __post_init__(self):
