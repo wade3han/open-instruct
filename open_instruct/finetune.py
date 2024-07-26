@@ -491,6 +491,7 @@ def main(args: FlatArguments):
                 sample["position_ids"] = torch.arange(len(sample["input_ids"]))
                 sample["length"] = sample_len
                 return sample
+
             lm_datasets = lm_datasets.map(
                 add_position_ids,
                 desc="Add position_id column (Pretraining Sample Packing)",
@@ -692,12 +693,14 @@ def main(args: FlatArguments):
     num_training_steps_for_scheduler = (
         args.max_train_steps if overrode_max_train_steps else args.max_train_steps * accelerator.num_processes
     )
+    num_cooldown_steps = 0
     if args.lr_scheduler_type == "wsd":
+        num_cooldown_steps = int(num_training_steps_for_scheduler * args.cooldown_ratio)
         lr_scheduler = get_constant_schedule_with_warmup_and_cooldown(
             optimizer,
             num_warmup_steps=int(num_training_steps_for_scheduler * args.warmup_ratio),
             num_training_steps=num_training_steps_for_scheduler,
-            num_cooldown_steps=int(num_training_steps_for_scheduler * args.cooldown_ratio),
+            num_cooldown_steps=num_cooldown_steps,
         )
     else:
         lr_scheduler = get_scheduler(
@@ -996,6 +999,14 @@ def main(args: FlatArguments):
                         if args.output_dir is not None:
                             output_dir = os.path.join(args.output_dir, output_dir)
                         save_with_accelerate(accelerator, model, tokenizer, output_dir, args)
+
+                if args.lr_scheduler_type == "wsd" and \
+                        completed_steps + num_cooldown_steps == num_training_steps_for_scheduler:
+                    # save the model before cooling down
+                    output_dir = f"step_{completed_steps}"
+                    if args.output_dir is not None:
+                        output_dir = os.path.join(args.output_dir, output_dir)
+                    save_with_accelerate(accelerator, model, tokenizer, output_dir, args)
 
                 if completed_steps >= args.max_train_steps:
                     break
