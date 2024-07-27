@@ -693,7 +693,6 @@ def main(args: FlatArguments):
     num_training_steps_for_scheduler = (
         args.max_train_steps if overrode_max_train_steps else args.max_train_steps * accelerator.num_processes
     )
-    num_cooldown_steps = 0
     if args.lr_scheduler_type == "wsd":
         num_cooldown_steps = int(num_training_steps_for_scheduler * args.cooldown_ratio)
         lr_scheduler = get_constant_schedule_with_warmup_and_cooldown(
@@ -1001,7 +1000,7 @@ def main(args: FlatArguments):
                         save_with_accelerate(accelerator, model, tokenizer, output_dir, args)
 
                 if args.lr_scheduler_type == "wsd" and \
-                        completed_steps + num_cooldown_steps == num_training_steps_for_scheduler:
+                        completed_steps + int(args.max_train_steps * args.cooldown_ratio) == args.max_train_steps:
                     # save the model before cooling down
                     output_dir = f"step_{completed_steps}"
                     if args.output_dir is not None:
