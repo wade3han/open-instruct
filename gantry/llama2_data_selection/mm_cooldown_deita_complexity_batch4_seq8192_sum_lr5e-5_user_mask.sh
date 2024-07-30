@@ -52,6 +52,6 @@ gantry run --beaker-image seungjuh/open-instruct-public-240711 --venv base \
   --report_to wandb \
   --gradient_checkpointing \
   --reduce_loss "sum" \
-  --lr_scheduler_type "constant_with_warmup" \
-  --save_state \
+  --lr_scheduler_type "wsd" \
+  --cooldown_ratio 0.0 \
   --logging_steps 1
