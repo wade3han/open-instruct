@@ -7,7 +7,7 @@ echo "Training llama model ${MODEL_SIZE} using $NUM_GPUS GPUs, $BATCH_SIZE_PER_G
 # You can also set --gradient_checkpointing or use `stage3_offloading_accelerate.conf` to save memory,
 # but it will trade off speed.
 # sweep learning rate from 2e-5 to 1e-6
-NAME=mm_cooldown_random_batch4_seq8192_sum_lr5e-5_user_mask
+NAME=random_batch4_seq8192_sum_lr5e-5_user_mask
 
 gantry run --beaker-image seungjuh/open-instruct-public-240711 --venv base \
   --name $NAME \
@@ -16,7 +16,6 @@ gantry run --beaker-image seungjuh/open-instruct-public-240711 --venv base \
   --pip requirements.txt \
   --workspace ai2/safety \
   --gpus 8 \
-  --dataset '01J41RDY5H3HJD1P2Y40W86N87:/model' \
   --priority high \
   --preemptible \
   --env-secret WANDB_API_KEY=WANDB_API_KEY \
@@ -48,12 +47,11 @@ gantry run --beaker-image seungjuh/open-instruct-public-240711 --venv base \
   --warmup_ratio 0.03 \
   --weight_decay 0. \
   --num_train_epochs 1 \
-  --load_from_checkpoint /model/dacc98e_megamixdedupv1_batch4_seq8192_sum_lr5e-5_wsd0_user_mask \
   --output_dir /results/$NAME \
   --with_tracking \
   --report_to wandb \
   --gradient_checkpointing \
   --reduce_loss "sum" \
   --lr_scheduler_type "wsd" \
-  --cooldown_ratio 1.0 \
+  --cooldown_ratio 0.2 \
   --logging_steps 1

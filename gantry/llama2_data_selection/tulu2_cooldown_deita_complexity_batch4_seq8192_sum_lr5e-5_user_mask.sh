@@ -45,7 +45,7 @@ gantry run --beaker-image seungjuh/open-instruct-public-240711 --venv base \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
   --learning_rate 5e-5 \
-  --warmup_ratio 0.03 \
+  --warmup_ratio 0. \
   --weight_decay 0. \
   --num_train_epochs 1 \
   --load_from_checkpoint /model/dacc98e_tulu2mix_batch4_seq8192_sum_lr5e-5_wsd0_user_mask \
