@@ -297,6 +297,10 @@ class FlatArguments:
             "help": "The option for masking loss."
         },
     )
+    use_ema: bool = field(
+        default=False,
+        metadata={"help": "Whether to use exponential moving average for model parameters."},
+    )
 
     def __post_init__(self):
         if self.reduce_loss not in ["mean", "sum"]:

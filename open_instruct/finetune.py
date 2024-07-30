@@ -13,7 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import functools
 import logging
 import math
 import os
@@ -47,6 +47,7 @@ from transformers import (
     get_scheduler,
 )
 
+from open_instruct.ema import PostHocEMA
 from open_instruct.multipack import V2BatchSamplerDataCollatorForSeq2Seq, MultipackBatchSampler, get_dataset_lengths, \
     patch_for_multipack, SUPPORTED_MULTIPACK_MODEL_TYPES, V2BatchSamplerDataCollatorForSeq2SeqPadding
 from open_instruct.utils import ArgumentParserPlus, FlatArguments, MFUEstimator
@@ -732,6 +733,26 @@ def main():
     completed_steps = 0
     starting_epoch = 0
 
+    # EMA
+    emas_model = None
+    if args.use_ema:
+        assert args.resume_from_checkpoint is None, "Cannot resume from checkpoint when using EMA."
+        assert (args.max_train_steps // accelerator.num_processes) % 1024 == 0, \
+            "Number of steps must be a multiple of 1024 for EMA."
+        emas_model = PostHocEMA(
+            accelerator.unwrap_model(model),
+            sigma_rels=(0.05, 0.3),
+            # a tuple with the hyperparameter for the multiple EMAs. you need at least 2 here to synthesize a new one
+            update_every=128,  # how often to actually update, to save on compute (updates every 10th .update() call)
+            checkpoint_every_num_steps=1024,  # how often to save the EMA model,
+            save_func=functools.partial(save_with_accelerate,
+                                        accelerator=accelerator,
+                                        tokenizer=tokenizer,
+                                        args=args),
+            checkpoint_folder=f'{args.output_dir}/post-hoc-ema-checkpoints',
+            # the folder of saved checkpoints for each sigma_rel (gamma) across timesteps with the hparam above, used to synthesizing a new EMA model after training
+        )
+
     # Potentially load in the weights and states from a previous save
     if args.resume_from_checkpoint:
         if args.resume_from_checkpoint is not None or args.resume_from_checkpoint != "":
@@ -875,6 +896,9 @@ def main():
                 optimizer.step()
                 optimizer.zero_grad()
                 lr_scheduler.step()
+
+                if accelerator.sync_gradients and args.use_ema:
+                    emas_model.update()
 
                 seq_length_per_fwdbwd += batch["labels"].shape[-1]
                 effective_num_tokens_per_fwdbwd += (batch["labels"] != -100).detach().sum().item()
