@@ -297,6 +297,14 @@ class FlatArguments:
             "help": "The option for masking loss."
         },
     )
+    save_state: bool = field(
+        default=False,
+        metadata={"help": "Whether to save the state of the model during training."},
+    )
+    load_from_checkpoint: Optional[str] = field(
+        default=None,
+        metadata={"help": "If the training should continue from a checkpoint folder."},
+    )
 
     def __post_init__(self):
         if self.reduce_loss not in ["mean", "sum"]:
