@@ -48,7 +48,6 @@ gantry run --beaker-image seungjuh/open-instruct-public-240711 --venv base \
   --weight_decay 0. \
   --num_train_epochs 2 \
   --output_dir /results/$NAME \
-  --checkpointing_steps "epoch" \
   --with_tracking \
   --report_to wandb \
   --gradient_checkpointing \
