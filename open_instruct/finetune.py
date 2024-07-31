@@ -690,9 +690,16 @@ def main():
         )
 
     # Prepare everything with `accelerator`.
-    model, optimizer, train_dataloader, test_data_loader = accelerator.prepare(
-        model, optimizer, train_dataloader, test_data_loader
-    )
+    model, optimizer = accelerator.prepare(model, optimizer)
+
+    # Load weights and states from a trained model, but not resuming.
+    if args.load_from_checkpoint:
+        accelerator.print(f"Loading from checkpoint: {args.load_from_checkpoint}")
+        accelerator.load_state(args.load_from_checkpoint)
+
+    lr_scheduler, train_dataloader, test_data_loader = accelerator.prepare(lr_scheduler,
+                                                                           train_dataloader,
+                                                                           test_data_loader)
 
     # We need to recalculate our total training steps as the size of the training dataloader may have changed.
     num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
@@ -732,12 +739,6 @@ def main():
     completed_steps = 0
     starting_epoch = 0
 
-    # Load weights and states from a trained model, but not resuming.
-    if args.load_from_checkpoint:
-        accelerator.print(f"Loading from checkpoint: {args.load_from_checkpoint}")
-        accelerator.load_state(args.load_from_checkpoint)
-
-    # Potentially load in the weights and states from a previous save
     if args.resume_from_checkpoint:
         raise NotImplementedError("Should not use this.")
         # if args.resume_from_checkpoint is not None or args.resume_from_checkpoint != "":
@@ -766,8 +767,6 @@ def main():
         #     starting_epoch = resume_step // len(train_dataloader)
         #     completed_steps = resume_step // args.gradient_accumulation_steps
         #     resume_step -= starting_epoch * len(train_dataloader)
-
-    lr_scheduler = accelerator.prepare(lr_scheduler)
 
     # update the progress_bar if load from checkpoint
     progress_bar.update(completed_steps)
