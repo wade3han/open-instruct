@@ -7,7 +7,7 @@ echo "Training llama model ${MODEL_SIZE} using $NUM_GPUS GPUs, $BATCH_SIZE_PER_G
 # You can also set --gradient_checkpointing or use `stage3_offloading_accelerate.conf` to save memory,
 # but it will trade off speed.
 # sweep learning rate from 2e-5 to 1e-6
-NAME=dacc98e_megamixdedupv1_batch4_seq8192_sum_lr5e-5_wsd0_user_mask_3epochs
+NAME=dacc98e_megamixdedupv1_batch4_seq8192_sum_lr5e-5_wsd0_3epochs
 
 gantry run --beaker-image seungjuh/open-instruct-public-240711 --venv base \
   --name $NAME \
@@ -34,7 +34,6 @@ gantry run --beaker-image seungjuh/open-instruct-public-240711 --venv base \
   open_instruct/finetune.py \
   --use_multipack \
   --use_compile \
-  --mask_users \
   --model_name_or_path meta-llama/Llama-2-7b-hf \
   --use_flash_attn \
   --tokenizer_name meta-llama/Llama-2-7b-hf \
