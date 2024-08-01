@@ -16,7 +16,6 @@ gantry run --beaker-image seungjuh/open-instruct-public-240711 --venv base \
   --pip requirements.txt \
   --workspace ai2/safety \
   --gpus 8 \
-  --dataset '01J46CNASDBBBSZRP50GV264FS:/model' \
   --priority high \
   --preemptible \
   --env-secret WANDB_API_KEY=WANDB_API_KEY \
@@ -48,7 +47,7 @@ gantry run --beaker-image seungjuh/open-instruct-public-240711 --venv base \
   --warmup_ratio 0. \
   --weight_decay 0. \
   --num_train_epochs 2 \
-  --load_from_checkpoint /model/dacc98e_tulu2mix_batch4_seq8192_sum_lr5e-5_wsd0_user_mask \
+  --load_from_checkpoint /net/nfs.cirrascale/mosaic/seungjuh/open-instruct-general/dacc98e_tulu2mix_batch4_seq8192_sum_lr5e-5_wsd0_user_mask \
   --output_dir /results/$NAME \
   --with_tracking \
   --report_to wandb \
