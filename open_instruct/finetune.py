@@ -690,16 +690,14 @@ def main():
         )
 
     # Prepare everything with `accelerator`.
-    model, optimizer = accelerator.prepare(model, optimizer)
+    model, optimizer, lr_scheduler, train_dataloader, test_data_loader = accelerator.prepare(
+        model, optimizer, lr_scheduler, train_dataloader, test_data_loader,
+    )
 
     # Load weights and states from a trained model, but not resuming.
     if args.load_from_checkpoint:
         accelerator.print(f"Loading from checkpoint: {args.load_from_checkpoint}")
         accelerator.load_state(args.load_from_checkpoint)
-
-    lr_scheduler, train_dataloader, test_data_loader = accelerator.prepare(lr_scheduler,
-                                                                           train_dataloader,
-                                                                           test_data_loader)
 
     # We need to recalculate our total training steps as the size of the training dataloader may have changed.
     num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
