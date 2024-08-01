@@ -16,7 +16,7 @@ gantry run --beaker-image seungjuh/open-instruct-public-240711 --venv base \
   --pip requirements.txt \
   --workspace ai2/safety \
   --gpus 8 \
-  --dataset '01J41RH4R54JH143QG3Z64K3T9:/model' \
+  --dataset '01J46CNASDBBBSZRP50GV264FS:/model' \
   --priority high \
   --preemptible \
   --env-secret WANDB_API_KEY=WANDB_API_KEY \
