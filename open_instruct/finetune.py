@@ -47,7 +47,8 @@ from transformers import (
     get_scheduler,
 )
 
-from open_instruct.multipack import V2BatchSamplerDataCollatorForSeq2Seq, MultipackBatchSampler, get_dataset_lengths
+from open_instruct.multipack import V2BatchSamplerDataCollatorForSeq2Seq, MultipackBatchSampler, get_dataset_lengths, \
+    patch_for_multipack, SUPPORTED_MULTIPACK_MODEL_TYPES
 from open_instruct.utils import ArgumentParserPlus, FlatArguments, MFUEstimator, get_datasets
 
 logger = get_logger(__name__)
@@ -524,6 +525,8 @@ def main(args: FlatArguments):
 
     # DataLoaders creation:
     if args.use_multipack:
+        assert config.model_type in SUPPORTED_MULTIPACK_MODEL_TYPES, f"Model type {config.model_type} not supported."
+
         from torch.utils.data._utils.fetch import _BaseDatasetFetcher
         from torch.utils.data._utils.worker import _worker_loop
 
@@ -578,6 +581,10 @@ def main(args: FlatArguments):
             batch_sampler=sampler,
             collate_fn=V2BatchSamplerDataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="longest"),
         )
+
+        # monkeypatch
+        patch_for_multipack(config.model_type, model_name=config._name_or_path)
+
     else:
         train_dataloader = DataLoader(
             train_dataset,
@@ -585,11 +592,6 @@ def main(args: FlatArguments):
             collate_fn=DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="longest"),
             batch_size=args.per_device_train_batch_size,
         )
-
-    for data in train_dataloader:
-        print(data)
-        break
-
     test_data_loader = DataLoader(
         test_dataset,
         shuffle=False,
@@ -856,7 +858,8 @@ def main(args: FlatArguments):
                                 "eMFU (%)": running_emfu * 100,
                                 "MFU (%)": running_mfu * 100,
                                 "effective_num_tokens (%)": effective_num_tokens_percentage,
-                                "effective_num_tokens_per_instance": effective_num_tokens_per_fwdbwd / (args.per_device_train_batch_size * args.gradient_accumulation_steps),
+                                "effective_num_tokens_per_instance": effective_num_tokens_per_fwdbwd / (
+                                            args.per_device_train_batch_size * args.gradient_accumulation_steps),
                                 "seq_length": seq_length_per_fwdbwd / args.gradient_accumulation_steps,
                             },
                             step=completed_steps,
