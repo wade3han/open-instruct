@@ -690,9 +690,58 @@ def main():
         )
 
     # Prepare everything with `accelerator`.
-    model, optimizer, train_dataloader, test_data_loader, lr_scheduler = accelerator.prepare(
-        model, optimizer, train_dataloader, test_data_loader, lr_scheduler
+    model, optimizer, lr_scheduler, train_dataloader, test_data_loader = accelerator.prepare(
+        model, optimizer, lr_scheduler, train_dataloader, test_data_loader,
     )
+
+    # Load weights and states from a trained model, but not resuming.
+    if args.load_from_checkpoint:
+        accelerator.print(f"Loading from checkpoint: {args.load_from_checkpoint}")
+
+        # monkey-patch load_state do just load model and optimizer.
+        def load_state(accelerator, input_dir: str = None, **load_model_func_kwargs):
+            import re
+            from accelerate import DistributedType
+            from accelerate.utils import load_fsdp_model
+
+            MODEL_NAME = "pytorch_model"
+
+            if input_dir is not None:
+                # Check if folder exists
+                input_dir = os.path.expanduser(input_dir)
+                if not os.path.isdir(input_dir):
+                    raise ValueError(f"Tried to find {input_dir} but folder does not exist")
+            elif accelerator.project_configuration.automatic_checkpoint_naming:
+                # Pick up from automatic checkpoint naming
+                input_dir = os.path.join(accelerator.project_dir, "checkpoints")
+                folders = [os.path.join(input_dir, folder) for folder in os.listdir(input_dir)]
+
+                def _inner(folder):
+                    return list(map(int, re.findall(r"[\/]?([0-9]+)(?=[^\/]*$)", folder)))[0]
+
+                folders.sort(key=_inner)
+                input_dir = folders[-1]
+            else:
+                raise ValueError("No input_dir provided and automatic checkpoint naming is disabled.")
+            logger.info(f"Loading states from {input_dir}")
+
+            for i, model in enumerate(accelerator._models):
+                if accelerator.distributed_type == DistributedType.FSDP:
+                    logger.info("Loading FSDP model")
+                    load_fsdp_model(accelerator.state.fsdp_plugin, accelerator, model, input_dir, i)
+                    logger.info(f"FSDP Model loaded from input dir {input_dir}")
+                elif accelerator.distributed_type == DistributedType.DEEPSPEED:
+                    logger.info("Loading DeepSpeed Model and Optimizer")
+                    ckpt_id = f"{MODEL_NAME}" if i == 0 else f"{MODEL_NAME}_{i}"
+                    model.load_checkpoint(input_dir, ckpt_id, **load_model_func_kwargs)
+                    logger.info(
+                        f"DeepSpeed Model and Optimizer loaded from input dir {os.path.join(input_dir, ckpt_id)}")
+                elif accelerator.distributed_type == DistributedType.MEGATRON_LM:
+                    logger.info("Loading Megatron-LM Model, Optimizer and Scheduler")
+                    model.load_checkpoint(input_dir)
+                    logger.info(f"Megatron-LM Model , Optimizer and Scheduler loaded from input dir {input_dir}")
+
+        load_state(accelerator, args.load_from_checkpoint)
 
     # We need to recalculate our total training steps as the size of the training dataloader may have changed.
     num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
@@ -732,34 +781,34 @@ def main():
     completed_steps = 0
     starting_epoch = 0
 
-    # Potentially load in the weights and states from a previous save
     if args.resume_from_checkpoint:
-        if args.resume_from_checkpoint is not None or args.resume_from_checkpoint != "":
-            checkpoint_path = args.resume_from_checkpoint
-            path = os.path.basename(args.resume_from_checkpoint)
-        else:
-            # Get the most recent checkpoint
-            dirs = [f.name for f in os.scandir(os.getcwd()) if f.is_dir()]
-            dirs.sort(key=os.path.getctime)
-            path = dirs[-1]  # Sorts folders by date modified, most recent checkpoint is the last
-            checkpoint_path = path
-            path = os.path.basename(checkpoint_path)
-
-        accelerator.print(f"Resumed from checkpoint: {checkpoint_path}")
-        accelerator.load_state(path)
-        # Extract `epoch_{i}` or `step_{i}`
-        training_difference = os.path.splitext(path)[0]
-
-        if "epoch" in training_difference:
-            starting_epoch = int(training_difference.replace("epoch_", "")) + 1
-            resume_step = None
-            completed_steps = starting_epoch * num_update_steps_per_epoch
-        else:
-            # need to multiply `gradient_accumulation_steps` to reflect real steps
-            resume_step = int(training_difference.replace("step_", "")) * args.gradient_accumulation_steps
-            starting_epoch = resume_step // len(train_dataloader)
-            completed_steps = resume_step // args.gradient_accumulation_steps
-            resume_step -= starting_epoch * len(train_dataloader)
+        raise NotImplementedError("Should not use this.")
+        # if args.resume_from_checkpoint is not None or args.resume_from_checkpoint != "":
+        #     checkpoint_path = args.resume_from_checkpoint
+        #     path = os.path.basename(args.resume_from_checkpoint)
+        # else:
+        #     # Get the most recent checkpoint
+        #     dirs = [f.name for f in os.scandir(os.getcwd()) if f.is_dir()]
+        #     dirs.sort(key=os.path.getctime)
+        #     path = dirs[-1]  # Sorts folders by date modified, most recent checkpoint is the last
+        #     checkpoint_path = path
+        #     path = os.path.basename(checkpoint_path)
+        #
+        # accelerator.print(f"Resumed from checkpoint: {checkpoint_path}")
+        # accelerator.load_state(path)
+        # # Extract `epoch_{i}` or `step_{i}`
+        # training_difference = os.path.splitext(path)[0]
+        #
+        # if "epoch" in training_difference:
+        #     starting_epoch = int(training_difference.replace("epoch_", "")) + 1
+        #     resume_step = None
+        #     completed_steps = starting_epoch * num_update_steps_per_epoch
+        # else:
+        #     # need to multiply `gradient_accumulation_steps` to reflect real steps
+        #     resume_step = int(training_difference.replace("step_", "")) * args.gradient_accumulation_steps
+        #     starting_epoch = resume_step // len(train_dataloader)
+        #     completed_steps = resume_step // args.gradient_accumulation_steps
+        #     resume_step -= starting_epoch * len(train_dataloader)
 
     # update the progress_bar if load from checkpoint
     progress_bar.update(completed_steps)
@@ -780,11 +829,13 @@ def main():
     for epoch in range(starting_epoch, args.num_train_epochs):
         model.train()
         total_loss = 0
-        if args.resume_from_checkpoint and epoch == starting_epoch and resume_step is not None:
-            # We skip the first `n` batches in the dataloader when resuming from a checkpoint
-            active_dataloader = accelerator.skip_first_batches(train_dataloader, resume_step)
-        else:
-            active_dataloader = train_dataloader
+        # if args.resume_from_checkpoint and epoch == starting_epoch and resume_step is not None:
+        #     # We skip the first `n` batches in the dataloader when resuming from a checkpoint
+        #     active_dataloader = accelerator.skip_first_batches(train_dataloader, resume_step)
+        # else:
+        #     active_dataloader = train_dataloader
+        active_dataloader = train_dataloader
+
         for step, batch in enumerate(active_dataloader):
             with accelerator.accumulate(model):
                 outputs = model(**batch, use_cache=False)
@@ -1000,6 +1051,9 @@ def main():
         if accelerator.is_main_process:
             tokenizer.save_pretrained(args.output_dir)
         save_with_accelerate(accelerator, model, tokenizer, args.output_dir, args)
+
+        if args.save_state:
+            accelerator.save_state(args.output_dir)
 
     accelerator.wait_for_everyone()
     if args.with_tracking:

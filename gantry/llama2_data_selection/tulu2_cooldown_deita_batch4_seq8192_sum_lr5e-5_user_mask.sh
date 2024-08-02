@@ -7,7 +7,7 @@ echo "Training llama model ${MODEL_SIZE} using $NUM_GPUS GPUs, $BATCH_SIZE_PER_G
 # You can also set --gradient_checkpointing or use `stage3_offloading_accelerate.conf` to save memory,
 # but it will trade off speed.
 # sweep learning rate from 2e-5 to 1e-6
-NAME=dacc98e_megamixdedupv1_batch4_seq8192_sum_lr5e-5_wsd0_user_mask
+NAME=tulu2_cooldown_deita_batch4_seq8192_sum_lr5e-5_user_mask
 
 gantry run --beaker-image seungjuh/open-instruct-public-240711 --venv base \
   --name $NAME \
@@ -38,20 +38,21 @@ gantry run --beaker-image seungjuh/open-instruct-public-240711 --venv base \
   --model_name_or_path meta-llama/Llama-2-7b-hf \
   --use_flash_attn \
   --tokenizer_name meta-llama/Llama-2-7b-hf \
-  --train_file /net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/megamix_minhash-3gram-0_5_train.jsonl \
+  --train_file /net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/megamix_minhash-3gram-0_5_train/deita_processed_top600000.jsonl \
   --max_seq_length 8192 \
   --preprocessing_num_workers 128 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
   --learning_rate 5e-5 \
-  --warmup_ratio 0.03 \
+  --warmup_ratio 0. \
   --weight_decay 0. \
-  --num_train_epochs 2 \
+  --num_train_epochs 1 \
+  --load_from_checkpoint /net/nfs.cirrascale/mosaic/seungjuh/open-instruct-general/dacc98e_tulu2mix_batch4_seq8192_sum_lr5e-5_wsd0_user_mask \
   --output_dir /results/$NAME \
   --with_tracking \
   --report_to wandb \
   --gradient_checkpointing \
   --reduce_loss "sum" \
   --lr_scheduler_type "wsd" \
-  --cooldown_ratio 0.0 \
+  --cooldown_ratio 1.0 \
   --logging_steps 1
