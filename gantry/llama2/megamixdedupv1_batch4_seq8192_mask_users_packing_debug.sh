@@ -15,7 +15,7 @@ gantry run --beaker-image seungjuh/open-instruct-public-240711 --venv base \
   --workspace ai2/safety \
   --pip requirements.txt \
   --workspace ai2/safety \
-  --gpus 8 \
+  --gpus 4 \
   --priority high \
   --preemptible \
   --env-secret WANDB_API_KEY=WANDB_API_KEY \
