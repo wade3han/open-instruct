@@ -1,7 +1,7 @@
 #!/bin/bash
-NUM_GPUS=4
+NUM_GPUS=2
 BATCH_SIZE_PER_GPU=1
-TOTAL_BATCH_SIZE=4
+TOTAL_BATCH_SIZE=2
 GRADIENT_ACC_STEPS=$(($TOTAL_BATCH_SIZE / $NUM_GPUS / $BATCH_SIZE_PER_GPU))
 echo "Training llama model ${MODEL_SIZE} using $NUM_GPUS GPUs, $BATCH_SIZE_PER_GPU batch size per GPU, $GRADIENT_ACC_STEPS gradient accumulation steps"
 # You can also set --gradient_checkpointing or use `stage3_offloading_accelerate.conf` to save memory,
@@ -15,7 +15,7 @@ gantry run --beaker-image seungjuh/open-instruct-public-240711 --venv base \
   --workspace ai2/safety \
   --pip requirements.txt \
   --workspace ai2/safety \
-  --gpus 4 \
+  --gpus 2 \
   --priority high \
   --preemptible \
   --env-secret WANDB_API_KEY=WANDB_API_KEY \
