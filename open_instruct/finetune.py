@@ -1083,13 +1083,13 @@ def main():
                             output_dir = os.path.join(args.output_dir, output_dir)
                         save_with_accelerate(accelerator, model, tokenizer, output_dir, args)
 
-                if args.lr_scheduler_type == "wsd" and \
-                        completed_steps + int(args.max_train_steps * args.cooldown_ratio) == args.max_train_steps:
-                    # save the model before cooling down
-                    output_dir = f"step_{completed_steps}"
-                    if args.output_dir is not None:
-                        output_dir = os.path.join(args.output_dir, output_dir)
-                    save_with_accelerate(accelerator, model, tokenizer, output_dir, args)
+                # if args.lr_scheduler_type == "wsd" and \
+                #         completed_steps + int(args.max_train_steps * args.cooldown_ratio) == args.max_train_steps:
+                #     # save the model before cooling down
+                #     output_dir = f"step_{completed_steps}"
+                #     if args.output_dir is not None:
+                #         output_dir = os.path.join(args.output_dir, output_dir)
+                #     save_with_accelerate(accelerator, model, tokenizer, output_dir, args)
 
                 if completed_steps >= args.max_train_steps:
                     break
