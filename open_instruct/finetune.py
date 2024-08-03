@@ -60,6 +60,9 @@ torch.backends.cuda.matmul.allow_tf32 = True
 # The flag below controls whether to allow TF32 on cuDNN. This flag defaults to True.
 torch.backends.cudnn.allow_tf32 = True
 
+EVAL_MAX_SEQ_LENGTH = 8192
+EVAL_BATCH_SIZE = 8
+
 
 def encode_with_prompt_completion_format(example, tokenizer, max_seq_length, add_bos=False):
     """
@@ -199,16 +202,30 @@ def test_model(args,
                test_data_loaders_names: list[str],
                accelerator,
                completed_steps: int,
+               embedding_size: int,
                ):
     model.eval()
     total_eval_loss = 0
+    DIVIDE_CONSTANT = EVAL_MAX_SEQ_LENGTH * EVAL_BATCH_SIZE
+    loss_fct = torch.nn.CrossEntropyLoss(reduction="sum")
     with torch.no_grad():
         for test_data_loader, dataset_name in zip(test_data_loaders, test_data_loaders_names):
             eval_loss = 0
             loss_count = 0
             for eval_batch in test_data_loader:
                 outputs = model(**eval_batch, use_cache=False)
-                eval_loss += outputs.loss
+                logits = outputs.logits
+                labels = eval_batch["labels"]
+                # Shift so that tokens < n predict n
+                shift_logits = logits[..., :-1, :].contiguous()
+                shift_labels = labels[..., 1:].contiguous()
+                shift_logits = shift_logits.view(-1, embedding_size)
+                shift_labels = shift_labels.view(-1)
+                # Enable model parallelism
+                shift_labels = shift_labels.to(shift_logits.device)
+                loss = loss_fct(shift_logits, shift_labels)
+                loss = loss / DIVIDE_CONSTANT
+                eval_loss += loss
                 loss_count += 1
             eval_loss = accelerator.gather(eval_loss).mean().item() / loss_count
             total_eval_loss += eval_loss
@@ -516,17 +533,17 @@ def main():
         selected_validation_dataset_names = [
             "lmsyschat",
             "tulu2mix-code_alpaca",
-            "tulu2mix-cot",
-            "tulu2mix-flan_v2",
-            "tulu2mix-gpt4_alpaca",
-            "tulu2mix-oasst1",
-            "tulu2mix-open_orca",
-            "tulu2mix-science",
-            "tulu2mix-sharegpt",
-            "tulu2mix-wizardlm",
-            "ultrachat",
-            "ultrainteract",
-            "wildchat-gpt-4-0125-preview",
+            # "tulu2mix-cot",
+            # "tulu2mix-flan_v2",
+            # "tulu2mix-gpt4_alpaca",
+            # "tulu2mix-oasst1",
+            # "tulu2mix-open_orca",
+            # "tulu2mix-science",
+            # "tulu2mix-sharegpt",
+            # "tulu2mix-wizardlm",
+            # "ultrachat",
+            # "ultrainteract",
+            # "wildchat-gpt-4-0125-preview",
         ]
         lm_datasets_tests = []
         for dataset_name in selected_validation_dataset_names:
@@ -541,7 +558,7 @@ def main():
                 tokenizer=tokenizer,
                 mask_padding=False,
                 mask_users=True,
-                max_seq_length=8192,  # HARD-CODED
+                max_seq_length=EVAL_MAX_SEQ_LENGTH,  # HARD-CODED
                 add_bos=args.add_bos,
             )
             lm_datasets_test = raw_datasets_test.map(
@@ -673,7 +690,7 @@ def main():
             test_dataset,
             shuffle=False,
             collate_fn=DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="longest"),
-            batch_size=8,
+            batch_size=EVAL_BATCH_SIZE,
         )
         for test_dataset in test_datasets
     ]
@@ -985,7 +1002,7 @@ def main():
             if accelerator.sync_gradients:
                 if completed_steps % args.eval_per_steps == 0 and completed_steps > 0:
                     test_model(args, model, test_data_loaders, selected_validation_dataset_names,
-                               accelerator, completed_steps)
+                               accelerator, completed_steps, embedding_size)
 
             # Checks if the accelerator has performed an optimization step behind the scenes
             if accelerator.sync_gradients:
