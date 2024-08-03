@@ -1,7 +1,7 @@
 #!/bin/bash
-NUM_GPUS=8
-BATCH_SIZE_PER_GPU=4
-TOTAL_BATCH_SIZE=128
+NUM_GPUS=4
+BATCH_SIZE_PER_GPU=1
+TOTAL_BATCH_SIZE=4
 GRADIENT_ACC_STEPS=$(($TOTAL_BATCH_SIZE / $NUM_GPUS / $BATCH_SIZE_PER_GPU))
 echo "Training llama model ${MODEL_SIZE} using $NUM_GPUS GPUs, $BATCH_SIZE_PER_GPU batch size per GPU, $GRADIENT_ACC_STEPS gradient accumulation steps"
 # You can also set --gradient_checkpointing or use `stage3_offloading_accelerate.conf` to save memory,
@@ -11,7 +11,7 @@ NAME=megamixdedupv1_batch4_seq8192_mask-user_packing_debug
 
 gantry run --beaker-image seungjuh/open-instruct-public-240711 --venv base \
   --name $NAME \
-  --cluster ai2/pluto-cirrascale \
+  --cluster ai2/general-cirrascale-a100-80g-ib \
   --workspace ai2/safety \
   --pip requirements.txt \
   --workspace ai2/safety \
@@ -54,4 +54,5 @@ gantry run --beaker-image seungjuh/open-instruct-public-240711 --venv base \
   --with_tracking \
   --report_to wandb \
   --gradient_checkpointing \
+  --eval_per_steps 1 \
   --logging_steps 1

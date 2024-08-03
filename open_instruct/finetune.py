@@ -983,7 +983,7 @@ def main():
                 effective_num_tokens_per_fwdbwd += (batch["labels"] != -100).detach().sum().item()
 
             if accelerator.sync_gradients:
-                if completed_steps % 100 == 0 and completed_steps > 0:
+                if completed_steps % args.eval_per_steps == 0 and completed_steps > 0:
                     test_model(args, model, test_data_loaders, selected_validation_dataset_names,
                                accelerator, completed_steps)
 

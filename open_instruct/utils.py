@@ -305,6 +305,10 @@ class FlatArguments:
         default=None,
         metadata={"help": "If the training should continue from a checkpoint folder."},
     )
+    eval_per_steps: int = field(
+        default=100,
+        metadata={"help": "The number of steps between each evaluation run."},
+    )
 
     def __post_init__(self):
         if self.reduce_loss not in ["mean", "sum"]:
