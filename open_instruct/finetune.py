@@ -193,6 +193,36 @@ def save_with_accelerate(accelerator, model, tokenizer, output_dir, args):
         )
 
 
+def test_model(args,
+               model,
+               test_data_loaders: list[DataLoader],
+               test_data_loaders_names: list[str],
+               accelerator,
+               completed_steps: int,
+               ):
+    model.eval()
+    total_eval_loss = 0
+    with torch.no_grad():
+        for test_data_loader, dataset_name in zip(test_data_loaders, test_data_loaders_names):
+            eval_loss = 0
+            loss_count = 0
+            for eval_batch in test_data_loader:
+                outputs = model(**eval_batch, use_cache=False)
+                eval_loss += outputs.loss
+                loss_count += 1
+            eval_loss = accelerator.gather(eval_loss).mean().item() / loss_count
+            total_eval_loss += eval_loss
+            logger.info(f"Eval loss for {dataset_name}: {eval_loss}")
+            if args.with_tracking:
+                accelerator.log({f"eval_loss_{dataset_name}": eval_loss}, step=completed_steps)
+    total_eval_loss /= len(test_data_loaders)
+    logger.info(f"Total eval loss: {total_eval_loss}")
+    if args.with_tracking:
+        accelerator.log({"eval_loss": total_eval_loss}, step=completed_steps)
+
+    model.train()
+
+
 def main():
     parser = ArgumentParserPlus((FlatArguments))
     args = parser.parse()
@@ -481,35 +511,53 @@ def main():
         lm_datasets = lm_datasets.filter(lambda example: (example["labels"] != -100).any())
 
     with accelerator.main_process_first():
-        TEST_DATASET_PATH = "/net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/tulu-v2-sft-mixture-held-out.jsonl"
-        data_files = {"test": TEST_DATASET_PATH}
-        raw_datasets_test = load_dataset(
-            "json",
-            data_files=data_files,
-        )
-        encode_function_mask_non_assistant = partial(
-            encode_with_messages_format,
-            tokenizer=tokenizer,
-            mask_padding=False,
-            mask_users=True,
-            max_seq_length=8192,  # HARD-CODED
-            add_bos=args.add_bos,
-        )
-        lm_datasets_test = raw_datasets_test.map(
-            encode_function_mask_non_assistant,
-            batched=False,
-            num_proc=args.preprocessing_num_workers,
-            load_from_cache_file=not args.overwrite_cache,
-            remove_columns=[name for name in raw_datasets_test["test"].column_names if
-                            name not in ["input_ids", "labels", "attention_mask"]],
-            desc="Tokenizing and reformatting instruction data",
-        )
-        lm_datasets_test.set_format(type="pt")
-
-        print(f"Dataset size: {len(lm_datasets_test['test'])}")
+        # TEST_DATASET_PATH = "/net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/tulu-v2-sft-mixture-held-out.jsonl"
+        TEST_DATASET_DIR = "/net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/"
+        selected_validation_dataset_names = [
+            "lmsyschat",
+            "tulu2mix-code_alpaca",
+            "tulu2mix-cot",
+            "tulu2mix-flan_v2",
+            "tulu2mix-gpt4_alpaca",
+            "tulu2mix-oasst1",
+            "tulu2mix-open_orca",
+            "tulu2mix-science",
+            "tulu2mix-sharegpt",
+            "tulu2mix-wizardlm",
+            "ultrachat",
+            "ultrainteract",
+            "wildchat-gpt-4-0125-preview",
+        ]
+        lm_datasets_tests = []
+        for dataset_name in selected_validation_dataset_names:
+            validation_datapath = f"{TEST_DATASET_DIR}/megamixv2_dedup_{dataset_name}_validation.jsonl"
+            data_files = {"test": validation_datapath}
+            raw_datasets_test = load_dataset(
+                "json",
+                data_files=data_files,
+            )
+            encode_function_mask_non_assistant = partial(
+                encode_with_messages_format,
+                tokenizer=tokenizer,
+                mask_padding=False,
+                mask_users=True,
+                max_seq_length=8192,  # HARD-CODED
+                add_bos=args.add_bos,
+            )
+            lm_datasets_test = raw_datasets_test.map(
+                encode_function_mask_non_assistant,
+                batched=False,
+                num_proc=args.preprocessing_num_workers,
+                load_from_cache_file=not args.overwrite_cache,
+                remove_columns=[name for name in raw_datasets_test["test"].column_names if
+                                name not in ["input_ids", "labels", "attention_mask"]],
+                desc="Tokenizing and reformatting instruction data",
+            )
+            lm_datasets_test.set_format(type="pt")
+            lm_datasets_tests.append(lm_datasets_test)
 
     train_dataset = lm_datasets["train"]
-    test_dataset = lm_datasets_test["test"]
+    test_datasets = [lm_datasets_test["test"] for lm_datasets_test in lm_datasets_tests]
 
     # debugging tool for fewer samples
     if args.max_train_samples is not None:
@@ -619,12 +667,16 @@ def main():
             collate_fn=DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="longest"),
             batch_size=args.per_device_train_batch_size,
         )
-    test_data_loader = DataLoader(
-        test_dataset,
-        shuffle=False,
-        collate_fn=DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="longest"),
-        batch_size=8,
-    )
+
+    test_data_loaders = [
+        DataLoader(
+            test_dataset,
+            shuffle=False,
+            collate_fn=DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="longest"),
+            batch_size=8,
+        )
+        for test_dataset in test_datasets
+    ]
 
     # Optimizer
     # Split weights in two groups, one with weight decay and the other not.
@@ -690,8 +742,8 @@ def main():
         )
 
     # Prepare everything with `accelerator`.
-    model, optimizer, lr_scheduler, train_dataloader, test_data_loader = accelerator.prepare(
-        model, optimizer, lr_scheduler, train_dataloader, test_data_loader,
+    model, optimizer, lr_scheduler, train_dataloader, *test_data_loaders = accelerator.prepare(
+        model, optimizer, lr_scheduler, train_dataloader, *test_data_loaders,
     )
 
     # Load weights and states from a trained model, but not resuming.
@@ -932,24 +984,8 @@ def main():
 
             if accelerator.sync_gradients:
                 if completed_steps % 100 == 0 and completed_steps > 0:
-                    model.eval()
-                    with torch.no_grad():
-                        eval_loss = 0
-                        loss_count = 0
-                        for eval_step, eval_batch in enumerate(test_data_loader):
-                            outputs = model(**eval_batch, use_cache=False)
-                            eval_loss += outputs.loss
-                            loss_count += 1
-                        eval_loss = accelerator.gather(eval_loss).mean().item() / loss_count
-                        logger.info(f"Validation loss: {eval_loss}")
-                        if args.with_tracking:
-                            accelerator.log(
-                                {
-                                    "eval_loss": eval_loss,
-                                },
-                                step=completed_steps,
-                            )
-                    model.train()
+                    test_model(args, model, test_data_loaders, selected_validation_dataset_names,
+                               accelerator, completed_steps)
 
             # Checks if the accelerator has performed an optimization step behind the scenes
             if accelerator.sync_gradients:
