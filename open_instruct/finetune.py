@@ -214,17 +214,18 @@ def test_model(args,
             loss_count = 0
             for eval_batch in test_data_loader:
                 outputs = model(**eval_batch, use_cache=False)
-                logits = outputs.logits
-                labels = eval_batch["labels"]
-                # Shift so that tokens < n predict n
-                shift_logits = logits[..., :-1, :].contiguous()
-                shift_labels = labels[..., 1:].contiguous()
-                shift_logits = shift_logits.view(-1, embedding_size)
-                shift_labels = shift_labels.view(-1)
-                # Enable model parallelism
-                shift_labels = shift_labels.to(shift_logits.device)
-                loss = loss_fct(shift_logits, shift_labels)
-                loss = loss / DIVIDE_CONSTANT
+                loss = outputs.loss
+                # logits = outputs.logits
+                # labels = eval_batch["labels"]
+                # # Shift so that tokens < n predict n
+                # shift_logits = logits[..., :-1, :].contiguous()
+                # shift_labels = labels[..., 1:].contiguous()
+                # shift_logits = shift_logits.view(-1, embedding_size)
+                # shift_labels = shift_labels.view(-1)
+                # # Enable model parallelism
+                # shift_labels = shift_labels.to(shift_logits.device)
+                # loss = loss_fct(shift_logits, shift_labels)
+                # loss = loss / DIVIDE_CONSTANT
                 eval_loss += loss
                 loss_count += 1
             eval_loss = accelerator.gather(eval_loss).mean().item() / loss_count
