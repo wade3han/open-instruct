@@ -20,7 +20,6 @@ from datetime import timedelta
 from functools import partial
 
 import datasets
-import deepspeed
 import torch
 import transformers
 from accelerate import Accelerator
@@ -381,19 +380,15 @@ def main():
         num_added_tokens = tokenizer.add_special_tokens({"pad_token": "<pad>"})
         assert num_added_tokens == 1, "We detected no padding token but add_special_tokens did not add one."
 
-    # We resize the embeddings only when necessary to avoid index errors. If you are creating a model from scratch
-    # gather deepspeed to get "real" embedding size
+    # We resize the embeddings only when necessary to avoid index errors.
     embeddings = model.get_input_embeddings()
-    with deepspeed.zero.GatheredParameters(embeddings.weight, modifier_rank=None):
-        embedding_size = embeddings.weight.shape[0]
+    embedding_size = embeddings.weight.shape[0]
     # resize does its own gather
     if len(tokenizer) > embedding_size:
         # pad to multiple for tensor cores.
         model.resize_token_embeddings(len(tokenizer), pad_to_multiple_of=8)
-    # update embedding size after resizing for sum loss
     embeddings = model.get_input_embeddings()
-    with deepspeed.zero.GatheredParameters(embeddings.weight, modifier_rank=None):
-        embedding_size = embeddings.weight.shape[0]
+    embedding_size = embeddings.weight.shape[0]
 
     # set the tokenizer chat template to the tulu format
     # this makes evaluation/etc easier down the line.
