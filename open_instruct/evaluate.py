@@ -455,6 +455,17 @@ def main():
         for test_dataset in test_datasets
     ]
 
+    # We need to initialize the trackers we use, and also store our configuration.
+    # The trackers initializes automatically on the main process.
+    if args.with_tracking:
+        experiment_config = vars(args)
+        # TensorBoard cannot log Enums, need the raw value
+        experiment_config["lr_scheduler_type"] = experiment_config["lr_scheduler_type"]
+        accelerator.init_trackers(
+            os.environ["WANDB_PROJECT"], experiment_config,
+            init_kwargs={"wandb": {"entity": os.environ["WANDB_ENTITY"]}}
+        )
+
     # Optimizer
     # Split weights in two groups, one with weight decay and the other not.
     no_decay = ["bias", "layer_norm.weight"]
@@ -484,7 +495,7 @@ def main():
     model, optimizer, *test_data_loaders = accelerator.prepare(
         model, optimizer, *test_data_loaders,
     )
-
+    
     # last evaluation
     with torch.no_grad():
         test_model(args, model, test_data_loaders, selected_validation_dataset_names,
