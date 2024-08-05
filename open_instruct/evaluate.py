@@ -455,9 +455,34 @@ def main():
         for test_dataset in test_datasets
     ]
 
+    # Optimizer
+    # Split weights in two groups, one with weight decay and the other not.
+    no_decay = ["bias", "layer_norm.weight"]
+    optimizer_grouped_parameters = [
+        {
+            "params": [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)],
+            "weight_decay": args.weight_decay,
+        },
+        {
+            "params": [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)],
+            "weight_decay": 0.0,
+        },
+    ]
+    if args.use_qlora:
+        from bitsandbytes.optim import AdamW
+
+        optimizer = AdamW(
+            optimizer_grouped_parameters,
+            lr=args.learning_rate,
+            optim_bits=8 if args.use_8bit_optimizer else 32,
+            is_paged=True,
+        )
+    else:
+        optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=args.learning_rate)
+
     # Prepare everything with `accelerator`.
-    model, *test_data_loaders = accelerator.prepare(
-        model, *test_data_loaders,
+    model, optimizer, *test_data_loaders = accelerator.prepare(
+        model, optimizer, *test_data_loaders,
     )
 
     # last evaluation
