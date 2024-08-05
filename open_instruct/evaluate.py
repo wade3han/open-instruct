@@ -495,7 +495,7 @@ def main():
     model, optimizer, *test_data_loaders = accelerator.prepare(
         model, optimizer, *test_data_loaders,
     )
-    
+
     # last evaluation
     with torch.no_grad():
         test_model(args, model, test_data_loaders, selected_validation_dataset_names,
