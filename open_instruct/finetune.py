@@ -1101,6 +1101,11 @@ def main():
                 output_dir = os.path.join(args.output_dir, output_dir)
             save_with_accelerate(accelerator, model, tokenizer, output_dir, args)
 
+    accelerator.wait_for_everyone()
+    # last evaluation
+    test_model(args, model, test_data_loaders, selected_validation_dataset_names,
+               accelerator, completed_steps, embedding_size)
+
     if args.output_dir is not None:
         if accelerator.is_main_process:
             tokenizer.save_pretrained(args.output_dir)
