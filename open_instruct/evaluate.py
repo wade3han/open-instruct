@@ -461,8 +461,9 @@ def main():
     )
 
     # last evaluation
-    test_model(args, model, test_data_loaders, selected_validation_dataset_names,
-               accelerator, 0, embedding_size)
+    with torch.no_grad():
+        test_model(args, model, test_data_loaders, selected_validation_dataset_names,
+                   accelerator, 0, embedding_size)
 
 
 if __name__ == "__main__":
