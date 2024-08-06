@@ -159,13 +159,17 @@ def encode_with_messages_format(example, tokenizer, max_seq_length, add_bos=Fals
 def measure_gradient(model,
                      test_data_loaders: list[DataLoader],
                      test_data_loaders_names: list[str],
+                     device: torch.device,
                      ):
     for test_data_loader, dataset_name in zip(test_data_loaders, test_data_loaders_names):
         print(f"***** Running Evaluation for {dataset_name} *****")
         loss_count = 0
         grad_per_params = defaultdict(list)
         for eval_batch in test_data_loader:
-            outputs = model(**eval_batch, use_cache=False)
+            print(eval_batch.keys())
+            eval_batch_device = {k: v.to(device).to(torch.bfloat16) for k, v in eval_batch.items()}
+
+            outputs = model(**eval_batch_device, use_cache=False)
             loss = outputs.loss
             loss_count += 1
             print(loss)
@@ -234,7 +238,7 @@ def main():
 
     ds_config = {
         "train_micro_batch_size_per_gpu": args.per_device_train_batch_size,
-        "train_batch_size": args.per_device_train_batch_size * os.environ["WORLD_SIZE"],
+        "train_batch_size": args.per_device_train_batch_size * int(os.environ["WORLD_SIZE"]),
         "zero_optimization": {
             "stage": zero_stage,
             "offload_param": {"device": offload_device},
@@ -473,7 +477,7 @@ def main():
 
     # last evaluation
     print("***** Running Evaluation *****")
-    measure_gradient(model_engine, test_data_loaders, selected_validation_dataset_names)
+    measure_gradient(model_engine, test_data_loaders, selected_validation_dataset_names, device)
     # optimizer, )
     print("***** Evaluation finished *****")
 
