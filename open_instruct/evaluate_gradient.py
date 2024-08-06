@@ -169,6 +169,7 @@ def measure_gradient(args,
     loss_fct = torch.nn.CrossEntropyLoss(reduction="sum")
 
     for test_data_loader, dataset_name in zip(test_data_loaders, test_data_loaders_names):
+        print(f"***** Running Evaluation for {dataset_name} *****")
         loss_count = 0
         grad_per_params = defaultdict(list)
         for eval_batch in test_data_loader:
@@ -498,7 +499,9 @@ def main():
     )
 
     # last evaluation
+    accelerator.print("***** Running Evaluation *****")
     measure_gradient(args, model, test_data_loaders, selected_validation_dataset_names, accelerator, optimizer, )
+    accelerator.print("***** Evaluation finished *****")
 
 
 if __name__ == "__main__":
