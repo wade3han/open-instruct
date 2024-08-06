@@ -333,9 +333,11 @@ def main():
 
     if args.gradient_checkpointing:
         model.gradient_checkpointing = True
+        model._gradient_checkpointing_func = torch.utils.checkpoint.checkpoint
         for module in model.modules():
             if hasattr(module, "gradient_checkpointing"):
                 module.gradient_checkpointing = True
+                module._gradient_checkpointing_func = torch.utils.checkpoint.checkpoint
         # gradient_checkpointing_func = deepspeed.checkpointing.checkpoint
         # deepspeed.checkpointing.configure(mpu_=None)
         # model._gradient_checkpointing_func = gradient_checkpointing_func
