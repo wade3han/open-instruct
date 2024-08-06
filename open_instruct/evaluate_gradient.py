@@ -52,7 +52,7 @@ torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
 
 EVAL_MAX_SEQ_LENGTH = 8192
-EVAL_BATCH_SIZE = 8
+EVAL_BATCH_SIZE = 1
 
 
 def encode_with_prompt_completion_format(example, tokenizer, max_seq_length, add_bos=False):
@@ -343,6 +343,9 @@ def main():
     else:
         logger.info("Training new model from scratch")
         model = AutoModelForCausalLM.from_config(config)
+
+    if args.gradient_checkpointing:
+        model.gradient_checkpointing_enable()
 
     # no default pad token for llama!
     # here we add all special tokens again, because the default ones are not in the special_tokens_map
