@@ -51,7 +51,7 @@ torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
 
 # EVAL_MAX_SEQ_LENGTH = 8192
-EVAL_MAX_SEQ_LENGTH = 2048
+EVAL_MAX_SEQ_LENGTH = 512
 EVAL_BATCH_SIZE = 1
 
 
@@ -177,18 +177,8 @@ def measure_gradient(local_rank: int,
             loss_count += 1
 
             for n, p in model_engine.named_parameters():
-                grad = safe_get_full_grad(p)
-                if local_rank == 0:
-                    print(n)
-                    print(grad)
-                # if p.grad is None:
-                #     continue
-                # grad = p.grad
-                #
-                # print(grad)
-                # print(grad.flatten().detach().cpu().numpy())
-                # flatten the gradient tensor
-                grad_per_params[n].append(grad.flatten().detach().cpu().numpy())
+                grad = safe_get_full_grad(p).detach().cpu()
+                grad_per_params[n].append(grad.flatten().numpy())
 
             # zero the gradients
             model_engine.zero_grad()
