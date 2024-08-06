@@ -49,7 +49,7 @@ torch.backends.cuda.matmul.allow_tf32 = True
 # The flag below controls whether to allow TF32 on cuDNN. This flag defaults to True.
 torch.backends.cudnn.allow_tf32 = True
 
-EVAL_MAX_SEQ_LENGTH = 8192
+EVAL_MAX_SEQ_LENGTH = 4096
 EVAL_BATCH_SIZE = 4
 
 
@@ -166,7 +166,7 @@ def measure_gradient(local_rank: int,
     for test_data_loader, dataset_name in zip(test_data_loaders, test_data_loaders_names):
         loss_count = 0
         grad_per_params = {}
-        for eval_batch in test_data_loader:
+        for i, eval_batch in enumerate(test_data_loader):
             eval_batch_device = {k: v.to(device) for k, v in eval_batch.items()}
 
             outputs = model_engine(**eval_batch_device, use_cache=False)
@@ -184,6 +184,7 @@ def measure_gradient(local_rank: int,
 
             # zero the gradients
             optimizer.zero_grad(set_to_none=True)
+            print(f"Processed {loss_count} samples for {dataset_name}.")
 
         # get the average gradient norm for each parameter group
         acc_grad_per_params = {}
