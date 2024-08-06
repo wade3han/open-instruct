@@ -28,6 +28,7 @@ import transformers
 import wandb
 from datasets import load_dataset
 from deepspeed import get_accelerator
+from deepspeed.utils import safe_get_full_grad
 from torch.utils.data import DataLoader
 from transformers import (
     AutoConfig,
@@ -175,11 +176,14 @@ def measure_gradient(model_engine,
 
             for n, p in model_engine.named_parameters():
                 print(n)
-                if p.grad is None:
-                    continue
-                grad = p.grad
+                grad = safe_get_full_grad(p)
                 print(grad)
-                print(grad.flatten().detach().cpu().numpy())
+                # if p.grad is None:
+                #     continue
+                # grad = p.grad
+                #
+                # print(grad)
+                # print(grad.flatten().detach().cpu().numpy())
                 # flatten the gradient tensor
                 grad_per_params[n].append(grad.flatten().detach().cpu().numpy())
 
