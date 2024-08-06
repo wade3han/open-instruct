@@ -49,8 +49,7 @@ torch.backends.cuda.matmul.allow_tf32 = True
 # The flag below controls whether to allow TF32 on cuDNN. This flag defaults to True.
 torch.backends.cudnn.allow_tf32 = True
 
-# EVAL_MAX_SEQ_LENGTH = 8192
-EVAL_MAX_SEQ_LENGTH = 512
+EVAL_MAX_SEQ_LENGTH = 8192
 EVAL_BATCH_SIZE = 1
 
 
@@ -190,7 +189,7 @@ def measure_gradient(local_rank: int,
         # get the average gradient norm for each parameter group
         acc_grad_per_params = {}
         for n in grad_per_params:
-            acc_grad_per_params[n] = np.mean(np.stack(grad_per_params[n], axis=0))
+            acc_grad_per_params[n] = np.mean(np.stack(grad_per_params[n], axis=0), axis=0)
 
         # check whether different devices have the same gradient norm
         for i, n in enumerate(acc_grad_per_params):
@@ -329,6 +328,7 @@ def main():
 
     if args.gradient_checkpointing:
         gradient_checkpointing_func = deepspeed.checkpointing.checkpoint
+        deepspeed.checkpointing.configure(mpu=None)
         for module in model.modules():
             if hasattr(module, "gradient_checkpointing"):
                 module.gradient_checkpointing = True
@@ -467,7 +467,6 @@ def main():
     # last evaluation
     measure_gradient(args.local_rank, model_engine, optimizer,
                      test_data_loaders, selected_validation_dataset_names, device)
-    # optimizer, )
 
 
 if __name__ == "__main__":
