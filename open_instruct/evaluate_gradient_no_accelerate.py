@@ -328,7 +328,7 @@ def main():
 
     if args.gradient_checkpointing:
         gradient_checkpointing_func = deepspeed.checkpointing.checkpoint
-        deepspeed.checkpointing.configure(mpu=None)
+        deepspeed.checkpointing.configure(mpu_=None)
         for module in model.modules():
             if hasattr(module, "gradient_checkpointing"):
                 module.gradient_checkpointing = True
