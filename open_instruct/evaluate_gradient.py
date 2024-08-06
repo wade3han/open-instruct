@@ -52,7 +52,7 @@ torch.backends.cuda.matmul.allow_tf32 = True
 # The flag below controls whether to allow TF32 on cuDNN. This flag defaults to True.
 torch.backends.cudnn.allow_tf32 = True
 
-EVAL_MAX_SEQ_LENGTH = 8192
+EVAL_MAX_SEQ_LENGTH = 2048
 EVAL_BATCH_SIZE = 1
 
 
