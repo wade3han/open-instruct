@@ -28,7 +28,7 @@ from datasets import load_dataset
 from deepspeed import get_accelerator, DeepSpeedEngine
 from deepspeed.utils import safe_get_full_grad
 from safetensors.torch import save_file
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, DistributedSampler
 from transformers import (
     AutoConfig,
     AutoModelForCausalLM,
@@ -185,6 +185,7 @@ def measure_gradient(local_rank: int,
             # zero the gradients
             optimizer.zero_grad(set_to_none=True)
             print(f"Processed {loss_count} samples for {dataset_name}.")
+            print(f"Rank {local_rank}: eval batch input_ids: {eval_batch['input_ids'][0, :20]}")
 
         # get the average gradient norm for each parameter group
         acc_grad_per_params = {}
@@ -330,7 +331,6 @@ def main():
         model._gradient_checkpointing_func = gradient_checkpointing_func
         model.gradient_checkpointing = True
         for module in model.modules():
-            print(module)
             if hasattr(module, "gradient_checkpointing"):
                 module.gradient_checkpointing = True
                 module._gradient_checkpointing_func = gradient_checkpointing_func
@@ -442,6 +442,7 @@ def main():
             shuffle=False,
             collate_fn=DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="longest"),
             batch_size=EVAL_BATCH_SIZE,
+            sampler=DistributedSampler(test_dataset, num_replicas=int(os.environ["WORLD_SIZE"]), rank=args.local_rank),
         )
         for test_dataset in test_datasets
     ]
