@@ -178,9 +178,9 @@ def measure_gradient(local_rank: int,
             model_engine.backward(loss)
             loss_count += 1
 
-            # for n, p in model_engine.named_parameters():
-            #     grad = safe_get_full_grad(p).detach().cpu()
-            #     grad_per_params[n].append(grad.flatten().numpy())
+            for n, p in model_engine.named_parameters():
+                grad = safe_get_full_grad(p).detach().cpu()
+                grad_per_params[n].append(grad.flatten().numpy())
 
             # zero the gradients
             optimizer.zero_grad(set_to_none=True)
@@ -330,8 +330,12 @@ def main():
             force_download=False,
         )
 
-    # if args.gradient_checkpointing:
-    #     model.gradient_checkpointing_enable()
+    if args.gradient_checkpointing:
+        gradient_checkpointing_func = deepspeed.checkpointing.checkpoint
+        for module in model.modules():
+            if hasattr(module, "gradient_checkpointing"):
+                module._gradient_checkpointing = True
+                module._gradient_checkpointing_func = gradient_checkpointing_func
 
     # no default pad token for llama!
     # here we add all special tokens again, because the default ones are not in the special_tokens_map
