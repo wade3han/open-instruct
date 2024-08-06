@@ -171,6 +171,7 @@ def measure_gradient(local_rank: int,
             print(
                 f"[START] Rank {local_rank}: eval batch input_ids: {eval_batch['input_ids'][0, :20]}, {eval_batch['input_ids'].shape}")
 
+            print(model_engine.embed_tokens(eval_batch['input_ids']).shape)
             outputs = model_engine(**eval_batch_device, use_cache=False)
             loss = outputs.loss
             model_engine.backward(loss)
