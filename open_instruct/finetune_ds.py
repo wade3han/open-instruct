@@ -28,6 +28,7 @@ import torch
 import transformers
 import wandb
 from datasets import load_dataset
+from deepspeed import get_accelerator
 from torch.utils.data import DataLoader, DistributedSampler
 from tqdm.auto import tqdm
 from transformers import (
@@ -248,6 +249,10 @@ def main():
     # If passed along, set the training seed now.
     if args.seed is not None:
         set_seed(args.seed)
+
+    get_accelerator().set_device(args.local_rank)
+    device = torch.device(get_accelerator().device_name(), args.local_rank)
+    deepspeed.init_distributed()
 
     if args.local_rank:
         print(f"Arguments: {args}")
