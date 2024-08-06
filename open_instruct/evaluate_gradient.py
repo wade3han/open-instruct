@@ -177,7 +177,7 @@ def measure_gradient(args,
             loss = outputs.loss
             loss_count += 1
             accelerator.backward(loss)
-            print(f"Loss for {dataset_name}: {loss.item()} in RANK {accelerator.rank}")
+            print(f"Loss for {dataset_name}: {loss.item()} in RANK {accelerator.local_process_index}")
             print(f"Params: {model.named_parameters()}")
             print(f"Unwrapped model: {accelerator.unwrap_model(model).named_parameters()}")
 
@@ -198,7 +198,7 @@ def measure_gradient(args,
 
         # check whether different devices have the same gradient norm
         for i, n in enumerate(grad_per_params):
-            print(f"Gradient norm for {n}: {grad_per_params[n]} in RANK {accelerator.rank}")
+            print(f"Gradient norm for {n}: {grad_per_params[n]} in RANK {accelerator.local_process_index}")
             if i == 3:
                 break
 
