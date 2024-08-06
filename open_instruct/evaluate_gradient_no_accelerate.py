@@ -184,6 +184,7 @@ def measure_gradient(local_rank: int,
 
             # zero the gradients
             optimizer.zero_grad(set_to_none=True)
+            torch.cuda.empty_cache()
             if local_rank == 0:
                 print(f"Processed {loss_count} samples for {dataset_name}.")
             print(
@@ -444,7 +445,7 @@ def main():
             shuffle=False,
             collate_fn=DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="longest"),
             batch_size=EVAL_BATCH_SIZE,
-            # sampler=DistributedSampler(test_dataset, num_replicas=int(os.environ["WORLD_SIZE"]), rank=args.local_rank),
+            sampler=DistributedSampler(test_dataset, num_replicas=int(os.environ["WORLD_SIZE"]), rank=args.local_rank),
         )
         for test_dataset in test_datasets
     ]
