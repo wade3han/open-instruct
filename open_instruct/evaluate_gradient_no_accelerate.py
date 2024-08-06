@@ -28,7 +28,6 @@ import transformers
 from datasets import load_dataset
 from deepspeed import get_accelerator, DeepSpeedEngine
 from deepspeed.utils import safe_get_full_grad
-from safetensors import safe_open
 from safetensors.torch import save_file
 from torch.utils.data import DataLoader
 from transformers import (
@@ -52,7 +51,7 @@ torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
 
 EVAL_MAX_SEQ_LENGTH = 8192
-EVAL_BATCH_SIZE = 1
+EVAL_BATCH_SIZE = 4
 
 
 def encode_with_prompt_completion_format(example, tokenizer, max_seq_length, add_bos=False):
@@ -167,32 +166,30 @@ def measure_gradient(local_rank: int,
                      ):
     for test_data_loader, dataset_name in zip(test_data_loaders, test_data_loaders_names):
         loss_count = 0
-        grad_per_params = defaultdict(list)
+        grad_per_params = {}
         for eval_batch in test_data_loader:
-            if local_rank == 0:
-                print(f"STEP {loss_count}")
-                print(f"{eval_batch['input_ids'].shape}")
             eval_batch_device = {k: v.to(device) for k, v in eval_batch.items()}
 
             outputs = model_engine(**eval_batch_device, use_cache=False)
             loss = outputs.loss
             model_engine.backward(loss)
-            loss_count += 1
+            batch_size = eval_batch['input_ids'].shape[0]
+            loss_count += batch_size
 
             for n, p in model_engine.named_parameters():
                 grad = safe_get_full_grad(p).detach().cpu()
-                grad_per_params[n].append(grad.flatten())
+                if n not in grad_per_params:
+                    grad_per_params[n] = grad.flatten() * batch_size
+                else:
+                    grad_per_params[n] += grad.flatten() * batch_size
 
             # zero the gradients
             optimizer.zero_grad(set_to_none=True)
 
-            if loss_count == 3:
-                break
-
         # get the average gradient norm for each parameter group
         acc_grad_per_params = {}
         for n in grad_per_params:
-            acc_grad_per_params[n] = torch.stack(grad_per_params[n], dim=0).mean(dim=0).to(torch.bfloat16)
+            acc_grad_per_params[n] = acc_grad_per_params[n] / loss_count
 
         # save the gradient norm for each parameter group
         output_path = f"{output_dir}/{dataset_name}_gradient_norms.safetensors"
