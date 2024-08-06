@@ -249,6 +249,7 @@ def main():
         },
         "bfloat16": {"enabled": True},
         "gradient_clipping": 1.0,
+        "zero_allow_untested_optimizer": True,
     }
 
     torch.distributed.barrier()
