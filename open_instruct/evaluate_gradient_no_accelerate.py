@@ -171,19 +171,19 @@ def measure_gradient(local_rank: int,
             print(
                 f"[START] Rank {local_rank}: eval batch input_ids: {eval_batch['input_ids'][0, :20]}, {eval_batch['input_ids'].shape}")
 
-            print(model_engine.model.embed_tokens(eval_batch_device['input_ids']).shape)
+            # print(model_engine.model.embed_tokens(eval_batch_device['input_ids']).shape)
             outputs = model_engine(**eval_batch_device, use_cache=False)
             loss = outputs.loss
             model_engine.backward(loss)
             batch_size = eval_batch['input_ids'].shape[0]
             loss_count += batch_size
 
-            # for n, p in model_engine.named_parameters():
-            #     grad = safe_get_full_grad(p).detach().cpu()
-            #     if n not in grad_per_params:
-            #         grad_per_params[n] = grad * batch_size
-            #     else:
-            #         grad_per_params[n] += grad * batch_size
+            for n, p in model_engine.named_parameters():
+                grad = safe_get_full_grad(p).detach().cpu()
+                if n not in grad_per_params:
+                    grad_per_params[n] = grad * batch_size
+                else:
+                    grad_per_params[n] += grad * batch_size
 
             # zero the gradients
             optimizer.zero_grad(set_to_none=True)
@@ -192,15 +192,15 @@ def measure_gradient(local_rank: int,
             print(
                 f"[END] Rank {local_rank}: eval batch input_ids: {eval_batch['input_ids'][0, :20]}, {eval_batch['input_ids'].shape}")
 
-        # # get the average gradient norm for each parameter group
-        # acc_grad_per_params = {}
-        # for n in grad_per_params:
-        #     acc_grad_per_params[n] = acc_grad_per_params[n] / loss_count
-        #
-        # # save the gradient norm for each parameter group
-        # if local_rank == 0:
-        #     output_path = f"{output_dir}/{dataset_name}_gradient_norms.safetensors"
-        #     save_file(acc_grad_per_params, output_path)
+        # get the average gradient norm for each parameter group
+        acc_grad_per_params = {}
+        for n in grad_per_params:
+            acc_grad_per_params[n] = acc_grad_per_params[n] / loss_count
+
+        # save the gradient norm for each parameter group
+        if local_rank == 0:
+            output_path = f"{output_dir}/{dataset_name}_gradient_norms.safetensors"
+            save_file(acc_grad_per_params, output_path)
 
 
 def set_seed(seed=42):
@@ -332,14 +332,18 @@ def main():
         ).cuda()
 
     if args.gradient_checkpointing:
-        gradient_checkpointing_func = deepspeed.checkpointing.checkpoint
-        deepspeed.checkpointing.configure(mpu_=None)
-        model._gradient_checkpointing_func = gradient_checkpointing_func
         model.gradient_checkpointing = True
         for module in model.modules():
             if hasattr(module, "gradient_checkpointing"):
                 module.gradient_checkpointing = True
-                module._gradient_checkpointing_func = gradient_checkpointing_func
+        # gradient_checkpointing_func = deepspeed.checkpointing.checkpoint
+        # deepspeed.checkpointing.configure(mpu_=None)
+        # model._gradient_checkpointing_func = gradient_checkpointing_func
+        # model.gradient_checkpointing = True
+        # for module in model.modules():
+        #     if hasattr(module, "gradient_checkpointing"):
+        #         module.gradient_checkpointing = True
+        #         module._gradient_checkpointing_func = gradient_checkpointing_func
 
     model.train()
 
