@@ -16,24 +16,23 @@
 
 import logging
 import os
+import random
 from collections import defaultdict
-from datetime import timedelta
 from functools import partial
 
 import datasets
+import deepspeed
 import numpy as np
 import torch
 import transformers
-from accelerate import Accelerator
-from accelerate.logging import get_logger
-from accelerate.utils import InitProcessGroupKwargs, set_seed
+import wandb
 from datasets import load_dataset
+from deepspeed import get_accelerator
 from torch.utils.data import DataLoader
 from transformers import (
     AutoConfig,
     AutoModelForCausalLM,
     AutoTokenizer,
-    BitsAndBytesConfig,
     DataCollatorForSeq2Seq,
     GPT2Tokenizer,
     GPTNeoXTokenizerFast,
@@ -43,8 +42,6 @@ from transformers import (
 )
 
 from open_instruct.utils import ArgumentParserPlus, FlatArguments
-
-logger = get_logger(__name__)
 
 # The flag below controls whether to allow TF32 on matmul. This flag defaults to False
 # in PyTorch 1.12 and later.
@@ -161,13 +158,7 @@ def encode_with_messages_format(example, tokenizer, max_seq_length, add_bos=Fals
 def measure_gradient(model,
                      test_data_loaders: list[DataLoader],
                      test_data_loaders_names: list[str],
-                     accelerator,
-                     # optimizer,
                      ):
-    total_eval_loss = 0
-    DIVIDE_CONSTANT = EVAL_MAX_SEQ_LENGTH * EVAL_BATCH_SIZE
-    loss_fct = torch.nn.CrossEntropyLoss(reduction="sum")
-
     for test_data_loader, dataset_name in zip(test_data_loaders, test_data_loaders_names):
         print(f"***** Running Evaluation for {dataset_name} *****")
         loss_count = 0
@@ -176,20 +167,19 @@ def measure_gradient(model,
             outputs = model(**eval_batch, use_cache=False)
             loss = outputs.loss
             loss_count += 1
-            accelerator.backward(loss)
+            print(loss)
 
-            if accelerator.sync_gradients:
-                for n, p in model.named_parameters():
-                    if p.grad is None:
-                        continue
-                    grad = p.grad
-                    print(grad)
-                    print(grad.flatten().detach().cpu().numpy())
-                    # flatten the gradient tensor
-                    grad_per_params[n].append(grad.flatten().detach().cpu().numpy())
+            for n, p in model.named_parameters():
+                if p.grad is None:
+                    continue
+                grad = p.grad
+                print(grad)
+                print(grad.flatten().detach().cpu().numpy())
+                # flatten the gradient tensor
+                grad_per_params[n].append(grad.flatten().detach().cpu().numpy())
 
-                # zero the gradients
-                model.zero_grad()
+            # zero the gradients
+            model.zero_grad()
 
             if loss_count == 3:
                 break
@@ -206,53 +196,61 @@ def measure_gradient(model,
                 break
 
 
+def set_seed(seed=42):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
+
 def main():
     parser = ArgumentParserPlus((FlatArguments))
     args = parser.parse()
 
-    # Initialize the accelerator. We will let the accelerator handle device placement for us in this example.
-    # If we're using tracking, we also need to initialize it here and it will by default pick up all supported trackers
-    # in the environment
-    accelerator_log_kwargs = {}
-
-    if args.with_tracking:
-        accelerator_log_kwargs["log_with"] = args.report_to
-        accelerator_log_kwargs["project_dir"] = args.output_dir
-
-    # if you get timeouts (e.g. due to long tokenization) increase this.
-    timeout_kwargs = InitProcessGroupKwargs(timeout=timedelta(seconds=args.timeout))
-
-    accelerator = Accelerator(
-        gradient_accumulation_steps=args.gradient_accumulation_steps,
-        **accelerator_log_kwargs,
-        kwargs_handlers=[timeout_kwargs],
-    )
     # Make one log on every process with the configuration for debugging.
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
         datefmt="%m/%d/%Y %H:%M:%S",
         level=logging.INFO,
     )
-    logger.info(accelerator.state, main_process_only=False)
-    if accelerator.is_local_main_process:
-        datasets.utils.logging.set_verbosity_warning()
-        transformers.utils.logging.set_verbosity_info()
-    else:
-        datasets.utils.logging.set_verbosity_error()
-        transformers.utils.logging.set_verbosity_error()
+    datasets.utils.logging.set_verbosity_warning()
+    transformers.utils.logging.set_verbosity_info()
 
     # If passed along, set the training seed now.
     if args.seed is not None:
         set_seed(args.seed)
 
-    if accelerator.is_main_process:
-        if args.output_dir is not None:
-            os.makedirs(args.output_dir, exist_ok=True)
+    device = torch.device(get_accelerator().device_name())
+    # hard-coded for now.
+    offload = False
+    zero_stage = 2
 
-    accelerator.wait_for_everyone()
+    offload_device = "cpu" if offload else "none"
+    print(f"WORLD_SIZE: {os.environ['WORLD_SIZE']}")
 
-    if accelerator.is_main_process:
-        print(f"Arguments: {args}")
+    ds_config = {
+        "train_micro_batch_size_per_gpu": args.per_device_train_batch_size,
+        "train_batch_size": args.per_device_train_batch_size * os.environ["WORLD_SIZE"],
+        "zero_optimization": {
+            "stage": zero_stage,
+            "offload_param": {"device": offload_device},
+            "offload_optimizer": {"device": offload_device},
+            "stage3_param_persistence_threshold": 1e4,
+            "stage3_max_live_parameters": 3e7,
+            "stage3_prefetch_bucket_size": 3e7,
+            "memory_efficient_linear": False,
+        },
+        "bfloat16": {"enabled": True},
+        "gradient_clipping": 1.0,
+    }
+
+    torch.distributed.barrier()
+    global_rank = torch.distributed.get_rank()
+
+    if args.output_dir is not None and global_rank == 0:
+        os.makedirs(args.output_dir, exist_ok=True)
+
+    print(f"Arguments: {args}")
 
     # Load pretrained model and tokenizer
     if args.config_name:
@@ -283,7 +281,7 @@ def main():
         # use case.
         warning = f"""Requested tokenizer revision `{tokenizer_revision}` is different
                    from the model revision `{args.model_revision}`."""
-        logger.warn(warning)
+        print(warning)
 
     if args.tokenizer_name:
         tokenizer = AutoTokenizer.from_pretrained(
@@ -309,48 +307,20 @@ def main():
             "You can do it from another script, save it, and load it from here, using --tokenizer_name."
         )
 
-    if args.model_name_or_path:
-        if args.use_qlora:
-            bnb_config = BitsAndBytesConfig(
-                load_in_4bit=True,
-                bnb_4bit_use_double_quant=True,
-                bnb_4bit_quant_type="nf4",
-                bnb_4bit_compute_dtype=torch.bfloat16,
-            )
-            device_index = accelerator.local_process_index
-            device_map = {"": device_index}  # force data-parallel training.
-            model = AutoModelForCausalLM.from_pretrained(
-                args.model_name_or_path,
-                from_tf=bool(".ckpt" in args.model_name_or_path),
-                config=config,
-                load_in_4bit=True,
-                quantization_config=bnb_config,
-                device_map=device_map,
-                trust_remote_code=args.trust_remote_code,
-                torch_dtype=torch.bfloat16,
-                use_flash_attention_2=True if args.use_flash_attn else False,
-                revision=args.model_revision,
-                token=os.getenv("HF_TOKEN", None),
-                force_download=True,
-            )
-        else:
-            model = AutoModelForCausalLM.from_pretrained(
-                args.model_name_or_path,
-                from_tf=bool(".ckpt" in args.model_name_or_path),
-                config=config,
-                trust_remote_code=args.trust_remote_code,
-                low_cpu_mem_usage=args.low_cpu_mem_usage,
-                use_flash_attention_2=True if args.use_flash_attn else False,
-                revision=args.model_revision,
-                token=os.getenv("HF_TOKEN", None),
-                force_download=True,
-            )
-    else:
-        logger.info("Training new model from scratch")
-        model = AutoModelForCausalLM.from_config(config)
+    assert args.model_name_or_path is not None, "You need to specify a model name or path"
 
-    if args.gradient_checkpointing:
-        model.gradient_checkpointing_enable()
+    with deepspeed.zero.Init(enabled=(zero_stage == 3)):
+        model = AutoModelForCausalLM.from_pretrained(
+            args.model_name_or_path,
+            from_tf=bool(".ckpt" in args.model_name_or_path),
+            config=config,
+            trust_remote_code=args.trust_remote_code,
+            low_cpu_mem_usage=args.low_cpu_mem_usage,
+            use_flash_attention_2=True if args.use_flash_attn else False,
+            revision=args.model_revision,
+            token=os.getenv("HF_TOKEN", None),
+            force_download=True,
+        )
 
     # no default pad token for llama!
     # here we add all special tokens again, because the default ones are not in the special_tokens_map
@@ -403,52 +373,50 @@ def main():
         # also add bos in the chat template
         tokenizer.chat_template = "{{ bos_token }}" + tokenizer.chat_template
 
-    with accelerator.main_process_first():
-        # TEST_DATASET_PATH = "/net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/tulu-v2-sft-mixture-held-out.jsonl"
-        TEST_DATASET_DIR = "/net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/"
-        selected_validation_dataset_names = [
-            "lmsyschat",
-            "tulu2mix-code_alpaca",
-            # "tulu2mix-cot",
-            # "tulu2mix-flan_v2",
-            # "tulu2mix-gpt4_alpaca",
-            # "tulu2mix-oasst1",
-            # "tulu2mix-open_orca",
-            # "tulu2mix-science",
-            # "tulu2mix-sharegpt",
-            # "tulu2mix-wizardlm",
-            # "ultrachat",
-            # "ultrainteract",
-            # "wildchat-gpt-4-0125-preview",
-        ]
-        lm_datasets_tests = []
-        for dataset_name in selected_validation_dataset_names:
-            validation_datapath = f"{TEST_DATASET_DIR}/megamixv2_dedup_{dataset_name}_validation.jsonl"
-            data_files = {"test": validation_datapath}
-            raw_datasets_test = load_dataset(
-                "json",
-                data_files=data_files,
-            )
-            encode_function_mask_non_assistant = partial(
-                encode_with_messages_format,
-                tokenizer=tokenizer,
-                mask_padding=False,
-                mask_users=True,
-                max_seq_length=EVAL_MAX_SEQ_LENGTH,  # HARD-CODED
-                add_bos=args.add_bos,
-            )
-            lm_datasets_test = raw_datasets_test.map(
-                encode_function_mask_non_assistant,
-                batched=False,
-                num_proc=args.preprocessing_num_workers,
-                load_from_cache_file=not args.overwrite_cache,
-                remove_columns=[name for name in raw_datasets_test["test"].column_names if
-                                name not in ["input_ids", "labels", "attention_mask"]],
-                desc="Tokenizing and reformatting instruction data",
-            )
-            lm_datasets_test.set_format(type="pt")
-            lm_datasets_test = lm_datasets_test.filter(lambda example: (example["labels"] != -100).any())
-            lm_datasets_tests.append(lm_datasets_test)
+    TEST_DATASET_DIR = "/net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/"
+    selected_validation_dataset_names = [
+        "lmsyschat",
+        "tulu2mix-code_alpaca",
+        # "tulu2mix-cot",
+        # "tulu2mix-flan_v2",
+        # "tulu2mix-gpt4_alpaca",
+        # "tulu2mix-oasst1",
+        # "tulu2mix-open_orca",
+        # "tulu2mix-science",
+        # "tulu2mix-sharegpt",
+        # "tulu2mix-wizardlm",
+        # "ultrachat",
+        # "ultrainteract",
+        # "wildchat-gpt-4-0125-preview",
+    ]
+    lm_datasets_tests = []
+    for dataset_name in selected_validation_dataset_names:
+        validation_datapath = f"{TEST_DATASET_DIR}/megamixv2_dedup_{dataset_name}_validation.jsonl"
+        data_files = {"test": validation_datapath}
+        raw_datasets_test = load_dataset(
+            "json",
+            data_files=data_files,
+        )
+        encode_function_mask_non_assistant = partial(
+            encode_with_messages_format,
+            tokenizer=tokenizer,
+            mask_padding=False,
+            mask_users=True,
+            max_seq_length=EVAL_MAX_SEQ_LENGTH,  # HARD-CODED
+            add_bos=args.add_bos,
+        )
+        lm_datasets_test = raw_datasets_test.map(
+            encode_function_mask_non_assistant,
+            batched=False,
+            num_proc=args.preprocessing_num_workers,
+            load_from_cache_file=not args.overwrite_cache,
+            remove_columns=[name for name in raw_datasets_test["test"].column_names if
+                            name not in ["input_ids", "labels", "attention_mask"]],
+            desc="Tokenizing and reformatting instruction data",
+        )
+        lm_datasets_test.set_format(type="pt")
+        lm_datasets_test = lm_datasets_test.filter(lambda example: (example["labels"] != -100).any())
+        lm_datasets_tests.append(lm_datasets_test)
 
     test_datasets = [lm_datasets_test["test"] for lm_datasets_test in lm_datasets_tests]
 
@@ -464,14 +432,11 @@ def main():
 
     # We need to initialize the trackers we use, and also store our configuration.
     # The trackers initializes automatically on the main process.
-    if args.with_tracking:
+    if args.with_tracking and global_rank == 0:
         experiment_config = vars(args)
         # TensorBoard cannot log Enums, need the raw value
         experiment_config["lr_scheduler_type"] = experiment_config["lr_scheduler_type"]
-        accelerator.init_trackers(
-            os.environ["WANDB_PROJECT"], experiment_config,
-            init_kwargs={"wandb": {"entity": os.environ["WANDB_ENTITY"]}}
-        )
+        wandb.init(entity=os.environ["WANDB_ENTITY"], project=os.environ["WANDB_PROJECT"], config=experiment_config)
     #
     # # Optimizer
     # # Split weights in two groups, one with weight decay and the other not.
@@ -498,15 +463,15 @@ def main():
     # else:
     #     optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=args.learning_rate)
 
-    # Prepare everything with `accelerator`.
-    model, *test_data_loaders = accelerator.prepare(model, *test_data_loaders)
+    # # Prepare everything with `accelerator`.
+    # model, *test_data_loaders = accelerator.prepare(model, *test_data_loaders)
+    model_engine = deepspeed.initialize(model=model, config=ds_config)
 
     # last evaluation
-    accelerator.print("***** Running Evaluation *****")
-    measure_gradient(model, test_data_loaders, selected_validation_dataset_names, accelerator,
-                     )
+    print("***** Running Evaluation *****")
+    measure_gradient(model_engine, test_data_loaders, selected_validation_dataset_names)
     # optimizer, )
-    accelerator.print("***** Evaluation finished *****")
+    print("***** Evaluation finished *****")
 
 
 if __name__ == "__main__":
