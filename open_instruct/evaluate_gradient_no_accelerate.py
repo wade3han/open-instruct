@@ -49,7 +49,8 @@ torch.backends.cuda.matmul.allow_tf32 = True
 # The flag below controls whether to allow TF32 on cuDNN. This flag defaults to True.
 torch.backends.cudnn.allow_tf32 = True
 
-EVAL_MAX_SEQ_LENGTH = 8192
+# EVAL_MAX_SEQ_LENGTH = 8192
+EVAL_MAX_SEQ_LENGTH = 2048
 EVAL_BATCH_SIZE = 1
 
 
@@ -224,13 +225,12 @@ def main():
     get_accelerator().set_device(args.local_rank)
     device = torch.device(get_accelerator().device_name(), args.local_rank)
     deepspeed.init_distributed()
-    
+
     # hard-coded for now.
     offload = False
     zero_stage = 2
 
     offload_device = "cpu" if offload else "none"
-    print(f"WORLD_SIZE: {os.environ['WORLD_SIZE']}")
 
     ds_config = {
         "train_micro_batch_size_per_gpu": args.per_device_train_batch_size,
@@ -263,7 +263,7 @@ def main():
             trust_remote_code=args.trust_remote_code,
             revision=args.model_revision,
             token=os.getenv("HF_TOKEN", None),
-            force_download=True,
+            force_download=False,
         )
     elif args.model_name_or_path:
         config = AutoConfig.from_pretrained(
@@ -271,7 +271,7 @@ def main():
             trust_remote_code=args.trust_remote_code,
             revision=args.model_revision,
             token=os.getenv("HF_TOKEN", None),
-            force_download=True,
+            force_download=False,
         )
     else:
         raise ValueError(
@@ -294,7 +294,7 @@ def main():
             use_fast=not args.use_slow_tokenizer,
             revision=tokenizer_revision,
             token=os.getenv("HF_TOKEN", None),
-            force_download=True,
+            force_download=False,
         )
     elif args.model_name_or_path:
         tokenizer = AutoTokenizer.from_pretrained(
@@ -303,7 +303,7 @@ def main():
             use_fast=not args.use_slow_tokenizer,
             revision=tokenizer_revision,
             token=os.getenv("HF_TOKEN", None),
-            force_download=True,
+            force_download=False,
         )
     else:
         raise ValueError(
@@ -323,7 +323,7 @@ def main():
             use_flash_attention_2=True if args.use_flash_attn else False,
             revision=args.model_revision,
             token=os.getenv("HF_TOKEN", None),
-            force_download=True,
+            force_download=False,
         )
 
     # no default pad token for llama!
