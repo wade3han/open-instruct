@@ -26,8 +26,9 @@ import deepspeed
 import numpy as np
 import torch
 import transformers
+import wandb
 from datasets import load_dataset
-from torch.utils.data import DataLoader, RandomSampler
+from torch.utils.data import DataLoader, DistributedSampler
 from tqdm.auto import tqdm
 from transformers import (
     AutoConfig,
@@ -159,45 +160,14 @@ def encode_with_messages_format(example, tokenizer, max_seq_length, add_bos=Fals
     }
 
 
-def save_with_accelerate(accelerator, model, tokenizer, output_dir, args):
-    # set the generation config to an empty setting to be safe.
-    # we usually do greedy decoding for generation, so this should be okay.
-    # otherwise, we get an error thrown at save time.
-    model.generation_config = transformers.GenerationConfig(
-        temperature=None, top_p=None, eos_token_id=tokenizer.eos_token_id, bos_token_id=tokenizer.bos_token_id
-    )
-
-    unwrapped_model = accelerator.unwrap_model(model)
-    # When doing multi-gpu training, we need to use accelerator.get_state_dict(model) to get the state_dict.
-    # Otherwise, sometimes the model will be saved with only part of the parameters.
-    # Also, accelerator needs to use the wrapped model to get the state_dict.
-    state_dict = accelerator.get_state_dict(getattr(model, '_orig_mod', model))
-    if args.use_lora:
-        # When using lora, the unwrapped model is a PeftModel, which doesn't support the is_main_process
-        # and has its own save_pretrained function for only saving lora modules.
-        # We have to manually specify the is_main_process outside the save_pretrained function.
-        if accelerator.is_main_process:
-            unwrapped_model.save_pretrained(output_dir, state_dict=state_dict)
-    else:
-        # don't use safetensors for saving for now
-        unwrapped_model.save_pretrained(
-            output_dir,
-            is_main_process=accelerator.is_main_process,
-            save_function=accelerator.save,
-            state_dict=state_dict,
-            safe_serialization=False,
-        )
-
-
 def test_model(args,
-               model,
+               model_engine,
                test_data_loaders: list[DataLoader],
                test_data_loaders_names: list[str],
-               accelerator,
                completed_steps: int,
                embedding_size: int,
                ):
-    model.eval()
+    model_engine.eval()
     total_eval_loss = 0
     DIVIDE_CONSTANT = EVAL_MAX_SEQ_LENGTH * EVAL_BATCH_SIZE
     loss_fct = torch.nn.CrossEntropyLoss(reduction="sum")
@@ -206,7 +176,7 @@ def test_model(args,
             eval_loss = 0
             loss_count = 0
             for eval_batch in test_data_loader:
-                outputs = model(**eval_batch, use_cache=False)
+                outputs = model_engine(**eval_batch, use_cache=False)
                 loss = outputs.loss
                 # logits = outputs.logits
                 # labels = eval_batch["labels"]
@@ -221,17 +191,17 @@ def test_model(args,
                 # loss = loss / DIVIDE_CONSTANT
                 eval_loss += loss
                 loss_count += 1
-            eval_loss = accelerator.gather(eval_loss).mean().item() / loss_count
+            eval_loss = torch.distributed.all_reduce(eval_loss, torch.distributed.ReduceOp.MEAN).item() / loss_count
             total_eval_loss += eval_loss
             print(f"Eval loss for {dataset_name}: {eval_loss}")
             if args.with_tracking:
-                accelerator.log({f"eval_loss_{dataset_name}": eval_loss}, step=completed_steps)
+                wandb.log({f"eval_loss_{dataset_name}": eval_loss}, step=completed_steps)
     total_eval_loss /= len(test_data_loaders)
     print(f"Total eval loss: {total_eval_loss}")
     if args.with_tracking:
-        accelerator.log({"eval_loss": total_eval_loss}, step=completed_steps)
+        wandb.log({"eval_loss": total_eval_loss}, step=completed_steps)
 
-    model.train()
+    model_engine.train()
 
 
 def set_seed(seed: int, deterministic: bool = False):
@@ -251,6 +221,11 @@ def set_seed(seed: int, deterministic: bool = False):
 
     if deterministic:
         torch.use_deterministic_algorithms(True)
+
+
+def save_model(model_engine, local_rank, output_dir):
+    if local_rank == 0:
+        torch.save(model_engine.state_dict(), os.path.join(output_dir, "model.pth"))
 
 
 def main():
@@ -617,7 +592,7 @@ def main():
         batch_size = 1
 
         sampler = MultipackBatchSampler(
-            RandomSampler(train_dataset),
+            DistributedSampler(train_dataset, num_replicas=int(os.environ["WORLD_SIZE"]), rank=args.local_rank),
             lengths=get_dataset_lengths(train_dataset),
             packing_efficiency_estimate=1.0,
             batch_max_len=batch_max_len,
@@ -655,9 +630,10 @@ def main():
     else:
         train_dataloader = DataLoader(
             train_dataset,
-            shuffle=True,
+            shuffle=False,
             collate_fn=DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="longest"),
             batch_size=args.per_device_train_batch_size,
+            sampler=DistributedSampler(train_dataset, num_replicas=int(os.environ["WORLD_SIZE"]), rank=args.local_rank),
         )
 
     test_data_loaders = [
@@ -666,6 +642,7 @@ def main():
             shuffle=False,
             collate_fn=DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="longest"),
             batch_size=EVAL_BATCH_SIZE,
+            sampler=DistributedSampler(test_dataset, num_replicas=int(os.environ["WORLD_SIZE"]), rank=args.local_rank),
         )
         for test_dataset in test_datasets
     ]
@@ -730,50 +707,10 @@ def main():
     if args.load_from_checkpoint:
         print(f"Loading from checkpoint: {args.load_from_checkpoint}")
 
-        # monkey-patch load_state do just load model and optimizer.
-        def load_state(accelerator, input_dir: str = None, **load_model_func_kwargs):
-            import re
-            from accelerate import DistributedType
-            from accelerate.utils import load_fsdp_model
-
-            MODEL_NAME = "pytorch_model"
-
-            if input_dir is not None:
-                # Check if folder exists
-                input_dir = os.path.expanduser(input_dir)
-                if not os.path.isdir(input_dir):
-                    raise ValueError(f"Tried to find {input_dir} but folder does not exist")
-            elif accelerator.project_configuration.automatic_checkpoint_naming:
-                # Pick up from automatic checkpoint naming
-                input_dir = os.path.join(accelerator.project_dir, "checkpoints")
-                folders = [os.path.join(input_dir, folder) for folder in os.listdir(input_dir)]
-
-                def _inner(folder):
-                    return list(map(int, re.findall(r"[\/]?([0-9]+)(?=[^\/]*$)", folder)))[0]
-
-                folders.sort(key=_inner)
-                input_dir = folders[-1]
-            else:
-                raise ValueError("No input_dir provided and automatic checkpoint naming is disabled.")
-            print(f"Loading states from {input_dir}")
-
-            for i, model in enumerate(accelerator._models):
-                if accelerator.distributed_type == DistributedType.FSDP:
-                    print("Loading FSDP model")
-                    load_fsdp_model(accelerator.state.fsdp_plugin, accelerator, model, input_dir, i)
-                    print(f"FSDP Model loaded from input dir {input_dir}")
-                elif accelerator.distributed_type == DistributedType.DEEPSPEED:
-                    print("Loading DeepSpeed Model and Optimizer")
-                    ckpt_id = f"{MODEL_NAME}" if i == 0 else f"{MODEL_NAME}_{i}"
-                    model.load_checkpoint(input_dir, ckpt_id, **load_model_func_kwargs)
-                    print(
-                        f"DeepSpeed Model and Optimizer loaded from input dir {os.path.join(input_dir, ckpt_id)}")
-                elif accelerator.distributed_type == DistributedType.MEGATRON_LM:
-                    print("Loading Megatron-LM Model, Optimizer and Scheduler")
-                    model.load_checkpoint(input_dir)
-                    print(f"Megatron-LM Model , Optimizer and Scheduler loaded from input dir {input_dir}")
-
-        load_state(accelerator, args.load_from_checkpoint)
+        # MODEL_NAME = "pytorch_model"
+        # input_dir = args.load_from_checkpoint
+        # for i, model in enumerate(model_engine._models):
+        #     model.load_checkpoint(input_dir, f"{MODEL_NAME}" if i == 0 else f"{MODEL_NAME}_{i}")
 
     # We need to recalculate our total training steps as the size of the training dataloader may have changed.
     num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
@@ -793,13 +730,11 @@ def main():
         experiment_config = vars(args)
         # TensorBoard cannot log Enums, need the raw value
         experiment_config["lr_scheduler_type"] = experiment_config["lr_scheduler_type"]
-        accelerator.init_trackers(
-            os.environ["WANDB_PROJECT"], experiment_config,
-            init_kwargs={"wandb": {"entity": os.environ["WANDB_ENTITY"]}}
-        )
+        wandb.init(project=os.environ["WANDB_PROJECT"], entity=os.environ["WANDB_ENTITY"], config=experiment_config)
 
     # Train!
-    total_batch_size = args.per_device_train_batch_size * accelerator.num_processes * args.gradient_accumulation_steps
+    total_batch_size = args.per_device_train_batch_size * int(os.environ["WORLD_SIZE"]) * \
+                       args.gradient_accumulation_steps
 
     print("***** Running training *****")
     print(f"  Num examples = {len(train_dataset)}")
@@ -809,7 +744,7 @@ def main():
     print(f"  Gradient Accumulation steps = {args.gradient_accumulation_steps}")
     print(f"  Total optimization steps = {args.max_train_steps}")
     # Only show the progress bar once on each machine.
-    progress_bar = tqdm(range(args.max_train_steps), disable=not accelerator.is_local_main_process)
+    progress_bar = tqdm(range(args.max_train_steps), disable=not args.local_rank)
     completed_steps = 0
     starting_epoch = 0
 
@@ -859,7 +794,7 @@ def main():
     _loss_quantiles = None  # only available when using below_median loss masking
 
     for epoch in range(starting_epoch, args.num_train_epochs):
-        model.train()
+        model_engine.train()
         total_loss = 0
         # if args.resume_from_checkpoint and epoch == starting_epoch and resume_step is not None:
         #     # We skip the first `n` batches in the dataloader when resuming from a checkpoint
@@ -869,106 +804,52 @@ def main():
         active_dataloader = train_dataloader
 
         for step, batch in enumerate(active_dataloader):
-            with accelerator.accumulate(model):
-                outputs = model(**batch, use_cache=False)
-                if args.reduce_loss == "mean":
-                    assert args.loss_masking == "default", "mean loss only works with default loss masking"
-                    loss = outputs.loss
-                else:
-                    # reduce loss is sum
-                    # this ensures that we weight all tokens in the dataset equally,
-                    # rather than weighting each overall example equally when
-                    # using high amounts of gradient accumulation.
-                    # this can result in > 5 point improvements in AlpacaEval
-                    # see https://github.com/huggingface/transformers/issues/24725 for
-                    # more discussion and details.
-                    logits = outputs.logits
-                    labels = batch["labels"]
-                    # Shift so that tokens < n predict n
-                    shift_logits = logits[..., :-1, :].contiguous()
-                    shift_labels = labels[..., 1:].contiguous()
-                    shift_logits = shift_logits.view(-1, embedding_size)
-                    shift_labels = shift_labels.view(-1)
-                    # Enable model parallelism
-                    shift_labels = shift_labels.to(shift_logits.device)
-                    if args.loss_masking == "below_median":
-                        loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
-                        loss = loss_fct(shift_logits, shift_labels)
-                        # pick only loss where the value is > 0
-                        loss = loss[shift_labels != -100]
+            outputs = model_engine(**batch, use_cache=False)
+            if args.reduce_loss == "mean":
+                assert args.loss_masking == "default", "mean loss only works with default loss masking"
+                loss = outputs.loss
+            else:
+                # reduce loss is sum
+                # this ensures that we weight all tokens in the dataset equally,
+                # rather than weighting each overall example equally when
+                # using high amounts of gradient accumulation.
+                # this can result in > 5 point improvements in AlpacaEval
+                # see https://github.com/huggingface/transformers/issues/24725 for
+                # more discussion and details.
+                logits = outputs.logits
+                labels = batch["labels"]
+                # Shift so that tokens < n predict n
+                shift_logits = logits[..., :-1, :].contiguous()
+                shift_labels = labels[..., 1:].contiguous()
+                shift_logits = shift_logits.view(-1, embedding_size)
+                shift_labels = shift_labels.view(-1)
+                # Enable model parallelism
+                shift_labels = shift_labels.to(shift_logits.device)
+                # Flatten the tokens
+                loss_fct = torch.nn.CrossEntropyLoss(reduction="sum")
+                loss = loss_fct(shift_logits, shift_labels)
+                # We scale the loss based on the batch size and sequence length
+                loss = loss / (args.per_device_train_batch_size * args.max_seq_length)
 
-                        # for stats, get the 10%, 25%, 50%, 75%, 90% quantiles
-                        _loss_quantiles = torch.quantile(loss.cpu(), torch.tensor([0.1, 0.25, 0.5, 0.75, 0.9])).detach()
+            model_engine.backward(loss)
+            model_engine.step()
 
-                        # get the median
-                        loss_median = loss.median().detach()
-                        # pick the loss that has a value higher than the median
-                        loss = loss[loss > loss_median].sum()
-                        loss = loss / (args.per_device_train_batch_size * args.max_seq_length)
-                    elif args.loss_masking == "below_median_multiple":
-                        loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
-                        loss = loss_fct(shift_logits, shift_labels)
-                        # pick only loss where the value is > 0
-                        loss = loss[shift_labels != -100]
+            # We keep track of the loss at each logged step
+            total_loss += loss.detach().float()
 
-                        # for stats, get the 10%, 25%, 50%, 75%, 90% quantiles
-                        _loss_quantiles = torch.quantile(loss.cpu(), torch.tensor([0.1, 0.25, 0.5, 0.75, 0.9])).detach()
+            total_norm = model_engine.get_global_grad_norm()
+            if hasattr(total_norm, "item"):
+                total_norm = total_norm.item()
 
-                        # get the median
-                        loss_median = loss.median().detach()
-                        # pick the loss that has a value higher than the median
-                        loss = loss[loss > loss_median].sum() * 2.0
-                        loss = loss / (args.per_device_train_batch_size * args.max_seq_length)
-                    elif args.loss_masking == "below_quantile_multiple":
-                        loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
-                        loss = loss_fct(shift_logits, shift_labels)
-                        # pick only loss where the value is > 0
-                        loss = loss[shift_labels != -100]
+            seq_length_per_fwdbwd += batch["labels"].shape[-1]
+            effective_num_tokens_per_fwdbwd += (batch["labels"] != -100).detach().sum().item()
 
-                        # for stats, get the 10%, 25%, 50%, 75%, 90% quantiles
-                        _loss_quantiles = torch.quantile(loss.cpu(), torch.tensor([0.1, 0.25, 0.5, 0.75, 0.9])).detach()
-
-                        # get the 25% quantile
-                        loss_quantile = _loss_quantiles[3].detach()
-                        # pick the loss that has a value higher than the quantile
-                        loss = loss[loss > loss_quantile].sum() * 4.0
-                        loss = loss / (args.per_device_train_batch_size * args.max_seq_length)
-                    # elif args.loss_masking == "none":
-                    #     loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
-                    #     loss = loss_fct(shift_logits, shift_labels)
-                    #     # pick only loss where the value is > 0
-                    #     loss = loss[shift_labels != -100]
-                    #     # get the mean
-                    #     loss = loss.mean()
-                    else:
-                        # Flatten the tokens
-                        loss_fct = torch.nn.CrossEntropyLoss(reduction="sum")
-                        loss = loss_fct(shift_logits, shift_labels)
-                        # We scale the loss based on the batch size and sequence length
-                        loss = loss / (args.per_device_train_batch_size * args.max_seq_length)
-                # We keep track of the loss at each logged step
-                total_loss += loss.detach().float()
-                accelerator.backward(loss)
-                # clip gradient norm. don't do this with deepspeed
-                if accelerator.sync_gradients and args.clip_grad_norm > 0:
-                    accelerator.clip_grad_norm_(model.parameters(), args.clip_grad_norm)
-                total_norm = model.get_global_grad_norm()
-                if hasattr(total_norm, "item"):
-                    total_norm = total_norm.item()
-                optimizer.step()
-                optimizer.zero_grad()
-                lr_scheduler.step()
-
-                seq_length_per_fwdbwd += batch["labels"].shape[-1]
-                effective_num_tokens_per_fwdbwd += (batch["labels"] != -100).detach().sum().item()
-
-            if accelerator.sync_gradients:
+            if model_engine.is_gradient_accumulation_boundary():
                 if completed_steps % args.eval_per_steps == 0 and completed_steps > 0:
-                    test_model(args, model, test_data_loaders, selected_validation_dataset_names,
-                               accelerator, completed_steps, embedding_size)
+                    test_model(args, model_engine, test_data_loaders, selected_validation_dataset_names,
+                               completed_steps, embedding_size)
 
-            # Checks if the accelerator has performed an optimization step behind the scenes
-            if accelerator.sync_gradients:
+                # Checks if the accelerator has performed an optimization step behind the scenes
                 progress_bar.update(1)
                 completed_steps += 1
 
@@ -997,7 +878,7 @@ def main():
 
                 if args.logging_steps and completed_steps % args.logging_steps == 0:
                     avg_loss = (
-                            accelerator.gather(total_loss).mean().item()
+                            torch.distributed.all_reduce(total_loss, torch.distributed.ReduceOp.MEAN).item()
                             / args.gradient_accumulation_steps
                             / args.logging_steps
                     )
@@ -1005,11 +886,10 @@ def main():
                           f" eMFU: {running_emfu * 100:.2f}%, MFU: {running_mfu * 100:.2f},"
                           f" Total Norm: {total_norm:.2f},"
                           f" Effective Num Tokens (%): {effective_num_tokens_percentage:.2f},"
-                          # f" Effective Num Tokens Per Instance: {effective_num_tokens_per_fwdbwd / (args.per_device_train_batch_size * args.gradient_accumulation_steps):.2f}"
                           f" Effective Num Tokens Per Instance: {effective_num_tokens_per_fwdbwd / args.gradient_accumulation_steps:.2f}"
                           f" Seq Length: {seq_length_per_fwdbwd / args.gradient_accumulation_steps:.2f}")
-                    if args.with_tracking:
-                        accelerator.log(
+                    if args.with_tracking and args.local_rank == 0:
+                        wandb.log(
                             {
                                 "learning_rate": lr_scheduler.get_last_lr()[0],
                                 "train_loss": avg_loss,
@@ -1023,17 +903,6 @@ def main():
                             },
                             step=completed_steps,
                         )
-                        if _loss_quantiles is not None:
-                            accelerator.log(
-                                {
-                                    "loss_quantiles (10%)": _loss_quantiles[0].item(),
-                                    "loss_quantiles (25%)": _loss_quantiles[1].item(),
-                                    "loss_quantiles (50%)": _loss_quantiles[2].item(),
-                                    "loss_quantiles (75%)": _loss_quantiles[3].item(),
-                                    "loss_quantiles (90%)": _loss_quantiles[4].item(),
-                                },
-                                step=completed_steps,
-                            )
                     total_loss = 0
 
                 seq_length_per_fwdbwd = 0
@@ -1044,15 +913,7 @@ def main():
                         output_dir = f"step_{completed_steps}"
                         if args.output_dir is not None:
                             output_dir = os.path.join(args.output_dir, output_dir)
-                        save_with_accelerate(accelerator, model, tokenizer, output_dir, args)
-
-                # if args.lr_scheduler_type == "wsd" and \
-                #         completed_steps + int(args.max_train_steps * args.cooldown_ratio) == args.max_train_steps:
-                #     # save the model before cooling down
-                #     output_dir = f"step_{completed_steps}"
-                #     if args.output_dir is not None:
-                #         output_dir = os.path.join(args.output_dir, output_dir)
-                #     save_with_accelerate(accelerator, model, tokenizer, output_dir, args)
+                        save_model(model_engine, args.local_rank, output_dir)
 
                 if completed_steps >= args.max_train_steps:
                     break
@@ -1061,20 +922,16 @@ def main():
             output_dir = f"epoch_{epoch}"
             if args.output_dir is not None:
                 output_dir = os.path.join(args.output_dir, output_dir)
-            save_with_accelerate(accelerator, model, tokenizer, output_dir, args)
+            save_model(model_engine, args.local_rank, output_dir)
 
     torch.distributed.barrier()
     # last evaluation
-    test_model(args, model, test_data_loaders, selected_validation_dataset_names,
-               accelerator, completed_steps, embedding_size)
+    test_model(args, model, test_data_loaders, selected_validation_dataset_names, completed_steps, embedding_size)
 
     if args.output_dir is not None:
-        if accelerator.is_main_process:
+        if args.local_rank == 0:
             tokenizer.save_pretrained(args.output_dir)
-        save_with_accelerate(accelerator, model, tokenizer, args.output_dir, args)
-
-        if args.save_state:
-            accelerator.save_state(args.output_dir)
+        model.save_pretrained(args.output_dir)
 
     torch.distributed.barrier()
 
