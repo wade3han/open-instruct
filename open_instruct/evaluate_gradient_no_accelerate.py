@@ -17,7 +17,6 @@
 import logging
 import os
 import random
-from collections import defaultdict
 from functools import partial
 
 import datasets
