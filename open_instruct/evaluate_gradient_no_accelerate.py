@@ -340,6 +340,8 @@ def main():
                 module.gradient_checkpointing = True
                 module._gradient_checkpointing_func = gradient_checkpointing_func
 
+    model.train()
+
     if args.local_rank == 0:
         print(f"Is gradient checkpointing enabled?: {deepspeed.checkpointing.is_configured()}")
 
@@ -470,6 +472,7 @@ def main():
     optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=args.learning_rate)
 
     model_engine, optimizer, _, _ = deepspeed.initialize(model=model, optimizer=optimizer, config=ds_config)
+    model_engine.train()
 
     measure_gradient(args.local_rank, model_engine, optimizer,
                      test_data_loaders, selected_validation_dataset_names, device,
