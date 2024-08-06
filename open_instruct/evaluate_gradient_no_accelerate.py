@@ -49,7 +49,7 @@ torch.backends.cuda.matmul.allow_tf32 = True
 # The flag below controls whether to allow TF32 on cuDNN. This flag defaults to True.
 torch.backends.cudnn.allow_tf32 = True
 
-EVAL_MAX_SEQ_LENGTH = 4096
+EVAL_MAX_SEQ_LENGTH = 8192
 EVAL_BATCH_SIZE = 4
 
 
@@ -178,9 +178,9 @@ def measure_gradient(local_rank: int,
             for n, p in model_engine.named_parameters():
                 grad = safe_get_full_grad(p).detach().cpu()
                 if n not in grad_per_params:
-                    grad_per_params[n] = grad.flatten() * batch_size
+                    grad_per_params[n] = grad * batch_size
                 else:
-                    grad_per_params[n] += grad.flatten() * batch_size
+                    grad_per_params[n] += grad * batch_size
 
             # zero the gradients
             optimizer.zero_grad(set_to_none=True)
@@ -456,7 +456,7 @@ def main():
         },
     ]
     optimizer = deepspeed.ops.adam.FusedAdam(optimizer_grouped_parameters, lr=args.learning_rate,
-                                             weight_decay=0.0,)
+                                             weight_decay=0.0, )
     # optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=args.learning_rate)
 
     model_engine, optimizer, _, _ = deepspeed.initialize(model=model, optimizer=optimizer, config=ds_config)
