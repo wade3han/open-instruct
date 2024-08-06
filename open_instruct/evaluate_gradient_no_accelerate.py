@@ -220,7 +220,11 @@ def main():
     if args.seed is not None:
         set_seed(args.seed)
 
-    device = torch.device(get_accelerator().device_name())
+    # device = torch.device(get_accelerator().device_name())
+    get_accelerator().set_device(args.local_rank)
+    device = torch.device(get_accelerator().device_name(), args.local_rank)
+    deepspeed.init_distributed()
+    
     # hard-coded for now.
     offload = False
     zero_stage = 2
