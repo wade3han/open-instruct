@@ -166,8 +166,7 @@ def measure_gradient(model,
         loss_count = 0
         grad_per_params = defaultdict(list)
         for eval_batch in test_data_loader:
-            print(eval_batch.keys())
-            eval_batch_device = {k: v.to(device).to(torch.bfloat16) for k, v in eval_batch.items()}
+            eval_batch_device = {k: v.to(device) for k, v in eval_batch.items()}
 
             outputs = model(**eval_batch_device, use_cache=False)
             loss = outputs.loss
