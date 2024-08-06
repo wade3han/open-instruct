@@ -455,7 +455,9 @@ def main():
             "weight_decay": 0.0,
         },
     ]
-    optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=args.learning_rate)
+    optimizer = deepspeed.ops.adam.FusedAdam(optimizer_grouped_parameters, lr=args.learning_rate,
+                                             weight_decay=0.0,)
+    # optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=args.learning_rate)
 
     model_engine, optimizer, _, _ = deepspeed.initialize(model=model, optimizer=optimizer, config=ds_config)
 
