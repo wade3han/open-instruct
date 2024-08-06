@@ -156,7 +156,7 @@ def encode_with_messages_format(example, tokenizer, max_seq_length, add_bos=Fals
     }
 
 
-def measure_gradient(model,
+def measure_gradient(model_engine,
                      test_data_loaders: list[DataLoader],
                      test_data_loaders_names: list[str],
                      device: torch.device,
@@ -168,12 +168,13 @@ def measure_gradient(model,
         for eval_batch in test_data_loader:
             eval_batch_device = {k: v.to(device) for k, v in eval_batch.items()}
 
-            outputs = model(**eval_batch_device, use_cache=False)
+            outputs = model_engine(**eval_batch_device, use_cache=False)
             loss = outputs.loss
+            model_engine.backward(loss)
             loss_count += 1
-            print(loss)
 
-            for n, p in model.named_parameters():
+            for n, p in model_engine.named_parameters():
+                print(n)
                 if p.grad is None:
                     continue
                 grad = p.grad
@@ -183,7 +184,7 @@ def measure_gradient(model,
                 grad_per_params[n].append(grad.flatten().detach().cpu().numpy())
 
             # zero the gradients
-            model.zero_grad()
+            model_engine.zero_grad()
 
             if loss_count == 3:
                 break
