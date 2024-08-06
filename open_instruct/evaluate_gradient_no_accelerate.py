@@ -325,7 +325,7 @@ def main():
             revision=args.model_revision,
             token=os.getenv("HF_TOKEN", None),
             force_download=False,
-        )
+        ).cuda()
 
     if args.gradient_checkpointing:
         gradient_checkpointing_func = deepspeed.checkpointing.checkpoint
