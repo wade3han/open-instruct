@@ -335,6 +335,9 @@ def main():
                 module.gradient_checkpointing = True
                 module._gradient_checkpointing_func = gradient_checkpointing_func
 
+    if args.local_rank == 0:
+        print(f"Is gradient checkpointing enabled?: {deepspeed.checkpointing.is_configured()}")
+
     # no default pad token for llama!
     # here we add all special tokens again, because the default ones are not in the special_tokens_map
     if isinstance(tokenizer, LlamaTokenizer) or isinstance(tokenizer, LlamaTokenizerFast):
