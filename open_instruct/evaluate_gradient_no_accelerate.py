@@ -49,7 +49,7 @@ torch.backends.cuda.matmul.allow_tf32 = True
 # The flag below controls whether to allow TF32 on cuDNN. This flag defaults to True.
 torch.backends.cudnn.allow_tf32 = True
 
-EVAL_MAX_SEQ_LENGTH = 4096
+EVAL_MAX_SEQ_LENGTH = 2048
 EVAL_BATCH_SIZE = 4
 
 
@@ -186,7 +186,6 @@ def measure_gradient(local_rank: int,
 
             # zero the gradients
             optimizer.zero_grad(set_to_none=True)
-            torch.cuda.empty_cache()
             if local_rank == 0:
                 print(f"Processed {loss_count} samples for {dataset_name}.")
             print(
@@ -198,8 +197,9 @@ def measure_gradient(local_rank: int,
             acc_grad_per_params[n] = acc_grad_per_params[n] / loss_count
 
         # save the gradient norm for each parameter group
-        output_path = f"{output_dir}/{dataset_name}_gradient_norms.safetensors"
-        save_file(acc_grad_per_params, output_path)
+        if local_rank == 0:
+            output_path = f"{output_dir}/{dataset_name}_gradient_norms.safetensors"
+            save_file(acc_grad_per_params, output_path)
 
 
 def set_seed(seed=42):
