@@ -184,8 +184,10 @@ def measure_gradient(local_rank: int,
 
             # zero the gradients
             optimizer.zero_grad(set_to_none=True)
-            print(f"Processed {loss_count} samples for {dataset_name}.")
-            print(f"Rank {local_rank}: eval batch input_ids: {eval_batch['input_ids'][0, :20]}")
+            if local_rank == 0:
+                print(f"Processed {loss_count} samples for {dataset_name}.")
+            print(
+                f"Rank {local_rank}: eval batch input_ids: {eval_batch['input_ids'][0, :20]}, {eval_batch['input_ids'].shape}")
 
         # get the average gradient norm for each parameter group
         acc_grad_per_params = {}

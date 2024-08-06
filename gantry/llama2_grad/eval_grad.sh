@@ -12,7 +12,6 @@ gantry run --beaker-image seungjuh/open-instruct-public-240806-preview \
   -- deepspeed open_instruct/evaluate_gradient_no_accelerate.py \
   --model_name_or_path meta-llama/Llama-2-7b-hf \
   --use_flash_attn --tokenizer_name meta-llama/Llama-2-7b-hf \
-  --max_seq_length 8192 \
   --train_file dummy.jsonl \
   --preprocessing_num_workers 128 \
   --output_dir /results/$NAME \

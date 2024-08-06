@@ -455,6 +455,8 @@ def main():
     if args.gradient_checkpointing:
         gradient_checkpointing_func = deepspeed.checkpointing.checkpoint
         deepspeed.checkpointing.configure(mpu_=None)
+        model._gradient_checkpointing_func = gradient_checkpointing_func
+        model.gradient_checkpointing = True
         for module in model.modules():
             if hasattr(module, "gradient_checkpointing"):
                 module.gradient_checkpointing = True
@@ -642,12 +644,6 @@ def main():
             batch_sampler=sampler,
             collate_fn=collate_fn,
         )
-
-        # for data in train_dataloader:
-        #     break
-        # input_ids, attention_mask, labels = data["input_ids"], data["attention_mask"], data["labels"]
-        # from open_instruct.multipack import get_unpad_data
-        # indices, cu_len, max_seq_len = get_unpad_data(attention_mask)
 
         ds_config['train_micro_batch_size_per_gpu'] = batch_size
         ds_config['train_batch_size'] = batch_size * int(os.environ["WORLD_SIZE"])
