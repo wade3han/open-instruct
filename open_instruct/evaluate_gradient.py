@@ -177,10 +177,13 @@ def measure_gradient(args,
             loss = outputs.loss
             loss_count += 1
             accelerator.backward(loss)
+            print(f"Loss for {dataset_name}: {loss.item()} in RANK {accelerator.rank}")
+            print(f"Params: {model.named_parameters()}")
+            print(f"Unwrapped model: {accelerator.unwrap_model(model).named_parameters()}")
 
             # get the gradient norm for the all parameters
             # this is a list of tensors, one for each parameter group
-            for n, p in model.named_parameters():
+            for n, p in accelerator.unwrap_model(model).named_parameters():
                 if p.grad is not None:
                     param_norm = p.grad.data.norm(2)
                     grad_per_params[n].append(param_norm.detach().cpu().numpy())
