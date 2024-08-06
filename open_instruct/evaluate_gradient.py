@@ -163,7 +163,7 @@ def measure_gradient(args,
                      test_data_loaders: list[DataLoader],
                      test_data_loaders_names: list[str],
                      accelerator,
-                     optimizer,
+                     # optimizer,
                      ):
     total_eval_loss = 0
     DIVIDE_CONSTANT = EVAL_MAX_SEQ_LENGTH * EVAL_BATCH_SIZE
@@ -177,7 +177,8 @@ def measure_gradient(args,
             outputs = model(**eval_batch, use_cache=False)
             loss = outputs.loss
             loss_count += 1
-            accelerator.backward(loss)
+            loss.backward()
+            # accelerator.backward(loss)
             # accelerator.wait_for_everyone()
 
             # get the gradient norm for the all parameters
@@ -191,7 +192,9 @@ def measure_gradient(args,
                     print(grad.detach().cpu().numpy().flatten())
                     # flatten the gradient tensor
                     grad_per_params[n].append(grad.detach().cpu().numpy().flatten())
-            optimizer.zero_grad()
+            # zero the gradients
+            model.zero_grad()
+            # optimizer.zero_grad()
 
             if loss_count == 3:
                 break
@@ -451,6 +454,7 @@ def main():
                 desc="Tokenizing and reformatting instruction data",
             )
             lm_datasets_test.set_format(type="pt")
+            lm_datasets_test = lm_datasets_test.filter(lambda example: (example["labels"] != -100).any())
             lm_datasets_tests.append(lm_datasets_test)
 
     test_datasets = [lm_datasets_test["test"] for lm_datasets_test in lm_datasets_tests]
@@ -475,40 +479,42 @@ def main():
             os.environ["WANDB_PROJECT"], experiment_config,
             init_kwargs={"wandb": {"entity": os.environ["WANDB_ENTITY"]}}
         )
-
-    # Optimizer
-    # Split weights in two groups, one with weight decay and the other not.
-    no_decay = ["bias", "layer_norm.weight"]
-    optimizer_grouped_parameters = [
-        {
-            "params": [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)],
-            "weight_decay": args.weight_decay,
-        },
-        {
-            "params": [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)],
-            "weight_decay": 0.0,
-        },
-    ]
-    if args.use_qlora:
-        from bitsandbytes.optim import AdamW
-
-        optimizer = AdamW(
-            optimizer_grouped_parameters,
-            lr=args.learning_rate,
-            optim_bits=8 if args.use_8bit_optimizer else 32,
-            is_paged=True,
-        )
-    else:
-        optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=args.learning_rate)
+    #
+    # # Optimizer
+    # # Split weights in two groups, one with weight decay and the other not.
+    # no_decay = ["bias", "layer_norm.weight"]
+    # optimizer_grouped_parameters = [
+    #     {
+    #         "params": [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)],
+    #         "weight_decay": args.weight_decay,
+    #     },
+    #     {
+    #         "params": [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)],
+    #         "weight_decay": 0.0,
+    #     },
+    # ]
+    # if args.use_qlora:
+    #     from bitsandbytes.optim import AdamW
+    #
+    #     optimizer = AdamW(
+    #         optimizer_grouped_parameters,
+    #         lr=args.learning_rate,
+    #         optim_bits=8 if args.use_8bit_optimizer else 32,
+    #         is_paged=True,
+    #     )
+    # else:
+    #     optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=args.learning_rate)
 
     # Prepare everything with `accelerator`.
-    model, optimizer, *test_data_loaders = accelerator.prepare(
-        model, optimizer, *test_data_loaders,
+    model, *test_data_loaders = accelerator.prepare(
+        model, *test_data_loaders,
     )
 
     # last evaluation
     accelerator.print("***** Running Evaluation *****")
-    measure_gradient(args, model, test_data_loaders, selected_validation_dataset_names, accelerator, optimizer, )
+    measure_gradient(args, model, test_data_loaders, selected_validation_dataset_names, accelerator,
+                     )
+    # optimizer, )
     accelerator.print("***** Evaluation finished *****")
 
 
