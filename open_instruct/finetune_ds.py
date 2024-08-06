@@ -167,6 +167,7 @@ def test_model(args,
                test_data_loaders_names: list[str],
                completed_steps: int,
                embedding_size: int,
+               device: torch.device,
                ):
     model_engine.eval()
     total_eval_loss = 0
@@ -177,7 +178,8 @@ def test_model(args,
             eval_loss = 0
             loss_count = 0
             for eval_batch in test_data_loader:
-                outputs = model_engine(**eval_batch, use_cache=False)
+                eval_batch_device = {k: v.to(device) for k, v in eval_batch.items()}
+                outputs = model_engine(**eval_batch_device, use_cache=False)
                 loss = outputs.loss
                 # logits = outputs.logits
                 # labels = eval_batch["labels"]
@@ -809,7 +811,8 @@ def main():
         active_dataloader = train_dataloader
 
         for step, batch in enumerate(active_dataloader):
-            outputs = model_engine(**batch, use_cache=False)
+            batch_device = {k: v.to(device) for k, v in batch.items()}
+            outputs = model_engine(**batch_device, use_cache=False)
             if args.reduce_loss == "mean":
                 assert args.loss_masking == "default", "mean loss only works with default loss masking"
                 loss = outputs.loss
@@ -822,7 +825,7 @@ def main():
                 # see https://github.com/huggingface/transformers/issues/24725 for
                 # more discussion and details.
                 logits = outputs.logits
-                labels = batch["labels"]
+                labels = batch_device["labels"]
                 # Shift so that tokens < n predict n
                 shift_logits = logits[..., :-1, :].contiguous()
                 shift_labels = labels[..., 1:].contiguous()
@@ -846,13 +849,13 @@ def main():
             if hasattr(total_norm, "item"):
                 total_norm = total_norm.item()
 
-            seq_length_per_fwdbwd += batch["labels"].shape[-1]
-            effective_num_tokens_per_fwdbwd += (batch["labels"] != -100).detach().sum().item()
+            seq_length_per_fwdbwd += batch_device["labels"].shape[-1]
+            effective_num_tokens_per_fwdbwd += (batch_device["labels"] != -100).detach().sum().item()
 
             if model_engine.is_gradient_accumulation_boundary():
                 if completed_steps % args.eval_per_steps == 0 and completed_steps > 0:
                     test_model(args, model_engine, test_data_loaders, selected_validation_dataset_names,
-                               completed_steps, embedding_size)
+                               completed_steps, embedding_size, device)
 
                 # Checks if the accelerator has performed an optimization step behind the scenes
                 progress_bar.update(1)
@@ -931,7 +934,8 @@ def main():
 
     torch.distributed.barrier()
     # last evaluation
-    test_model(args, model, test_data_loaders, selected_validation_dataset_names, completed_steps, embedding_size)
+    test_model(args, model, test_data_loaders, selected_validation_dataset_names,
+               completed_steps, embedding_size, device)
 
     if args.output_dir is not None:
         if args.local_rank == 0:
