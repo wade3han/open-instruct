@@ -25,7 +25,6 @@ import deepspeed
 import numpy as np
 import torch
 import transformers
-import wandb
 from datasets import load_dataset
 from deepspeed import get_accelerator, DeepSpeedEngine
 from deepspeed.utils import safe_get_full_grad
@@ -444,14 +443,6 @@ def main():
         for test_dataset in test_datasets
     ]
 
-    # We need to initialize the trackers we use, and also store our configuration.
-    # The trackers initializes automatically on the main process.
-    if args.with_tracking and global_rank == 0:
-        experiment_config = vars(args)
-        # TensorBoard cannot log Enums, need the raw value
-        experiment_config["lr_scheduler_type"] = experiment_config["lr_scheduler_type"]
-        wandb.init(entity=os.environ["WANDB_ENTITY"], project=os.environ["WANDB_PROJECT"], config=experiment_config)
-    #
     # Optimizer
     # Split weights in two groups, one with weight decay and the other not.
     no_decay = ["bias", "layer_norm.weight"]
