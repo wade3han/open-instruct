@@ -191,6 +191,7 @@ def measure_gradient(args,
                 print(grad.detach().cpu().numpy().flatten())
                 # flatten the gradient tensor
                 grad_per_params[n].append(grad.detach().cpu().numpy().flatten())
+            optimizer.step()
             optimizer.zero_grad()
 
             if loss_count == 3:
