@@ -249,7 +249,6 @@ def main():
         },
         "bfloat16": {"enabled": True},
         "gradient_clipping": 1.0,
-        "zero_allow_untested_optimizer": True,
     }
 
     torch.distributed.barrier()
@@ -466,7 +465,7 @@ def main():
             "weight_decay": 0.0,
         },
     ]
-    optimizer = torch.optim.SGD(optimizer_grouped_parameters, lr=args.learning_rate)
+    optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=args.learning_rate)
 
     # # Prepare everything with `accelerator`.
     # model, *test_data_loaders = accelerator.prepare(model, *test_data_loaders)
