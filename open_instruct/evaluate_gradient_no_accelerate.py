@@ -182,6 +182,7 @@ def measure_gradient(local_rank: int,
                 grad_per_params[n].append(grad.flatten().numpy())
 
             # zero the gradients
+            optimizer.step()
             optimizer.zero_grad(set_to_none=True)
             # model_engine.zero_grad()
 
@@ -328,6 +329,9 @@ def main():
             token=os.getenv("HF_TOKEN", None),
             force_download=False,
         )
+
+    if args.gradient_checkpointing:
+        model.gradient_checkpointing_enable()
 
     # no default pad token for llama!
     # here we add all special tokens again, because the default ones are not in the special_tokens_map
