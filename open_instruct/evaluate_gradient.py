@@ -163,8 +163,6 @@ def measure_gradient(args,
                      test_data_loaders_names: list[str],
                      accelerator,
                      optimizer,
-                     completed_steps: int,
-                     embedding_size: int,
                      ):
     total_eval_loss = 0
     DIVIDE_CONSTANT = EVAL_MAX_SEQ_LENGTH * EVAL_BATCH_SIZE
@@ -500,8 +498,7 @@ def main():
     )
 
     # last evaluation
-    measure_gradient(args, model, test_data_loaders, selected_validation_dataset_names, optimizer,
-                     accelerator, 0, embedding_size)
+    measure_gradient(args, model, test_data_loaders, selected_validation_dataset_names, accelerator, optimizer, )
 
 
 if __name__ == "__main__":
