@@ -196,7 +196,7 @@ def measure_gradient(model,
 
         # check whether different devices have the same gradient norm
         for i, n in enumerate(acc_grad_per_params):
-            print(f"Gradient for {n}: {acc_grad_per_params[n]} in RANK {accelerator.local_process_index}")
+            print(f"Gradient for {n}: {acc_grad_per_params[n]} in RANK {device}")
             if i == 3:
                 break
 
@@ -384,7 +384,7 @@ def main():
     TEST_DATASET_DIR = "/net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/"
     selected_validation_dataset_names = [
         "lmsyschat",
-        "tulu2mix-code_alpaca",
+        # "tulu2mix-code_alpaca",
         # "tulu2mix-cot",
         # "tulu2mix-flan_v2",
         # "tulu2mix-gpt4_alpaca",
@@ -473,7 +473,7 @@ def main():
 
     # # Prepare everything with `accelerator`.
     # model, *test_data_loaders = accelerator.prepare(model, *test_data_loaders)
-    model_engine = deepspeed.initialize(model=model, config=ds_config)
+    model_engine, _, _, _ = deepspeed.initialize(model=model, config=ds_config)
 
     # last evaluation
     print("***** Running Evaluation *****")
