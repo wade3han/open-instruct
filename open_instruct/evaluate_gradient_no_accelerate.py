@@ -170,6 +170,7 @@ def measure_gradient(local_rank: int,
         for eval_batch in test_data_loader:
             if local_rank == 0:
                 print(f"STEP {loss_count}")
+                print(f"{eval_batch['input_ids'].shape}")
             eval_batch_device = {k: v.to(device) for k, v in eval_batch.items()}
 
             outputs = model_engine(**eval_batch_device, use_cache=False)
@@ -182,9 +183,7 @@ def measure_gradient(local_rank: int,
                 grad_per_params[n].append(grad.flatten().numpy())
 
             # zero the gradients
-            optimizer.step()
             optimizer.zero_grad(set_to_none=True)
-            # model_engine.zero_grad()
 
             if loss_count == 3:
                 break
@@ -330,8 +329,8 @@ def main():
             force_download=False,
         )
 
-    if args.gradient_checkpointing:
-        model.gradient_checkpointing_enable()
+    # if args.gradient_checkpointing:
+    #     model.gradient_checkpointing_enable()
 
     # no default pad token for llama!
     # here we add all special tokens again, because the default ones are not in the special_tokens_map
@@ -462,7 +461,7 @@ def main():
             "weight_decay": 0.0,
         },
     ]
-    optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=args.learning_rate)
+    optimizer = torch.optim.SGD(optimizer_grouped_parameters, lr=args.learning_rate)
 
     # # Prepare everything with `accelerator`.
     # model, *test_data_loaders = accelerator.prepare(model, *test_data_loaders)
