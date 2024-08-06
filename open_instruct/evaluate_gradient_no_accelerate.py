@@ -159,6 +159,7 @@ def encode_with_messages_format(example, tokenizer, max_seq_length, add_bos=Fals
 
 def measure_gradient(local_rank: int,
                      model_engine,
+                     optimizer,
                      test_data_loaders: list[DataLoader],
                      test_data_loaders_names: list[str],
                      device: torch.device,
@@ -181,7 +182,8 @@ def measure_gradient(local_rank: int,
                 grad_per_params[n].append(grad.flatten().numpy())
 
             # zero the gradients
-            model_engine.zero_grad()
+            optimizer.zero_grad(set_to_none=True)
+            # model_engine.zero_grad()
 
             if loss_count == 3:
                 break
@@ -460,10 +462,11 @@ def main():
 
     # # Prepare everything with `accelerator`.
     # model, *test_data_loaders = accelerator.prepare(model, *test_data_loaders)
-    model_engine, _, _, _ = deepspeed.initialize(model=model, optimizer=optimizer, config=ds_config)
+    model_engine, optimizer, _, _ = deepspeed.initialize(model=model, optimizer=optimizer, config=ds_config)
 
     # last evaluation
-    measure_gradient(args.local_rank, model_engine, test_data_loaders, selected_validation_dataset_names, device)
+    measure_gradient(args.local_rank, model_engine, optimizer,
+                     test_data_loaders, selected_validation_dataset_names, device)
     # optimizer, )
 
 
