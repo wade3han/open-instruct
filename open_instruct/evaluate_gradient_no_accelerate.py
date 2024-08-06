@@ -27,7 +27,7 @@ import torch
 import transformers
 import wandb
 from datasets import load_dataset
-from deepspeed import get_accelerator
+from deepspeed import get_accelerator, DeepSpeedEngine
 from deepspeed.utils import safe_get_full_grad
 from torch.utils.data import DataLoader
 from transformers import (
@@ -158,7 +158,7 @@ def encode_with_messages_format(example, tokenizer, max_seq_length, add_bos=Fals
 
 
 def measure_gradient(local_rank: int,
-                     model_engine,
+                     model_engine: DeepSpeedEngine,
                      optimizer,
                      test_data_loaders: list[DataLoader],
                      test_data_loaders_names: list[str],
@@ -178,9 +178,9 @@ def measure_gradient(local_rank: int,
             model_engine.backward(loss)
             loss_count += 1
 
-            for n, p in model_engine.named_parameters():
-                grad = safe_get_full_grad(p).detach().cpu()
-                grad_per_params[n].append(grad.flatten().numpy())
+            # for n, p in model_engine.named_parameters():
+            #     grad = safe_get_full_grad(p).detach().cpu()
+            #     grad_per_params[n].append(grad.flatten().numpy())
 
             # zero the gradients
             optimizer.zero_grad(set_to_none=True)
@@ -231,7 +231,7 @@ def main():
 
     # hard-coded for now.
     offload = False
-    zero_stage = 2
+    zero_stage = 0
 
     offload_device = "cpu" if offload else "none"
 
