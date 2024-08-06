@@ -28,6 +28,8 @@ import transformers
 from datasets import load_dataset
 from deepspeed import get_accelerator, DeepSpeedEngine
 from deepspeed.utils import safe_get_full_grad
+from safetensors import safe_open
+from safetensors.torch import save_file
 from torch.utils.data import DataLoader
 from transformers import (
     AutoConfig,
@@ -161,6 +163,7 @@ def measure_gradient(local_rank: int,
                      test_data_loaders: list[DataLoader],
                      test_data_loaders_names: list[str],
                      device: torch.device,
+                     output_dir: str,
                      ):
     for test_data_loader, dataset_name in zip(test_data_loaders, test_data_loaders_names):
         loss_count = 0
@@ -178,7 +181,7 @@ def measure_gradient(local_rank: int,
 
             for n, p in model_engine.named_parameters():
                 grad = safe_get_full_grad(p).detach().cpu()
-                grad_per_params[n].append(grad.flatten().numpy())
+                grad_per_params[n].append(grad.flatten())
 
             # zero the gradients
             optimizer.zero_grad(set_to_none=True)
@@ -189,13 +192,11 @@ def measure_gradient(local_rank: int,
         # get the average gradient norm for each parameter group
         acc_grad_per_params = {}
         for n in grad_per_params:
-            acc_grad_per_params[n] = np.mean(np.stack(grad_per_params[n], axis=0), axis=0)
+            acc_grad_per_params[n] = torch.stack(grad_per_params[n], dim=0).mean(dim=0).to(torch.bfloat16)
 
-        # check whether different devices have the same gradient norm
-        for i, n in enumerate(acc_grad_per_params):
-            print(f"Gradient for {n}: {acc_grad_per_params[n]} in RANK {local_rank}")
-            if i == 3:
-                break
+        # save the gradient norm for each parameter group
+        output_path = f"{output_dir}/{dataset_name}_gradient_norms.safetensors"
+        save_file(acc_grad_per_params, output_path)
 
 
 def set_seed(seed=42):
@@ -460,13 +461,11 @@ def main():
     ]
     optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=args.learning_rate)
 
-    # # Prepare everything with `accelerator`.
-    # model, *test_data_loaders = accelerator.prepare(model, *test_data_loaders)
     model_engine, optimizer, _, _ = deepspeed.initialize(model=model, optimizer=optimizer, config=ds_config)
 
-    # last evaluation
     measure_gradient(args.local_rank, model_engine, optimizer,
-                     test_data_loaders, selected_validation_dataset_names, device)
+                     test_data_loaders, selected_validation_dataset_names, device,
+                     args.output_dir)
 
 
 if __name__ == "__main__":
