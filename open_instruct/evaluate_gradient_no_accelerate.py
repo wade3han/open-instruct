@@ -157,16 +157,18 @@ def encode_with_messages_format(example, tokenizer, max_seq_length, add_bos=Fals
     }
 
 
-def measure_gradient(model_engine,
+def measure_gradient(local_rank: int,
+                     model_engine,
                      test_data_loaders: list[DataLoader],
                      test_data_loaders_names: list[str],
                      device: torch.device,
                      ):
     for test_data_loader, dataset_name in zip(test_data_loaders, test_data_loaders_names):
-        print(f"***** Running Evaluation for {dataset_name} *****")
         loss_count = 0
         grad_per_params = defaultdict(list)
         for eval_batch in test_data_loader:
+            if local_rank == 0:
+                print(f"STEP {loss_count}")
             eval_batch_device = {k: v.to(device) for k, v in eval_batch.items()}
 
             outputs = model_engine(**eval_batch_device, use_cache=False)
@@ -175,9 +177,10 @@ def measure_gradient(model_engine,
             loss_count += 1
 
             for n, p in model_engine.named_parameters():
-                print(n)
                 grad = safe_get_full_grad(p)
-                print(grad)
+                if local_rank == 0:
+                    print(n)
+                    print(grad)
                 # if p.grad is None:
                 #     continue
                 # grad = p.grad
@@ -200,7 +203,7 @@ def measure_gradient(model_engine,
 
         # check whether different devices have the same gradient norm
         for i, n in enumerate(acc_grad_per_params):
-            print(f"Gradient for {n}: {acc_grad_per_params[n]} in RANK {device}")
+            print(f"Gradient for {n}: {acc_grad_per_params[n]} in RANK {local_rank}")
             if i == 3:
                 break
 
@@ -470,10 +473,8 @@ def main():
     model_engine, _, _, _ = deepspeed.initialize(model=model, optimizer=optimizer, config=ds_config)
 
     # last evaluation
-    print("***** Running Evaluation *****")
-    measure_gradient(model_engine, test_data_loaders, selected_validation_dataset_names, device)
+    measure_gradient(args.local_rank, model_engine, test_data_loaders, selected_validation_dataset_names, device)
     # optimizer, )
-    print("***** Evaluation finished *****")
 
 
 if __name__ == "__main__":
