@@ -234,8 +234,8 @@ def main():
     offload_device = "cpu" if offload else "none"
 
     ds_config = {
-        "train_micro_batch_size_per_gpu": args.per_device_train_batch_size,
-        "train_batch_size": args.per_device_train_batch_size * int(os.environ["WORLD_SIZE"]),
+        "train_micro_batch_size_per_gpu": EVAL_BATCH_SIZE,
+        "train_batch_size": EVAL_BATCH_SIZE * int(os.environ["WORLD_SIZE"]),
         "zero_optimization": {
             "stage": zero_stage,
             "offload_param": {"device": offload_device},
