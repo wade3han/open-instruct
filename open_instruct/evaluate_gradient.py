@@ -184,13 +184,14 @@ def measure_gradient(args,
 
             # get the gradient norm for the all parameters
             # this is a list of tensors, one for each parameter group
-            for n, p in model.named_parameters():
-                print(n)
-                grad = safe_get_full_grad(p)
-                print(grad)
-                print(grad.detach().cpu().numpy().flatten())
-                # flatten the gradient tensor
-                grad_per_params[n].append(grad.detach().cpu().numpy().flatten())
+            if accelerator.sync_gradients:
+                for n, p in model.named_parameters():
+                    print(n)
+                    grad = safe_get_full_grad(p)
+                    print(grad)
+                    print(grad.detach().cpu().numpy().flatten())
+                    # flatten the gradient tensor
+                    grad_per_params[n].append(grad.detach().cpu().numpy().flatten())
             optimizer.step()
             optimizer.zero_grad()
 
