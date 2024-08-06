@@ -180,7 +180,7 @@ def measure_gradient(args,
             loss = outputs.loss
             loss_count += 1
             accelerator.backward(loss)
-            accelerator.wait_for_everyone()
+            # accelerator.wait_for_everyone()
 
             # get the gradient norm for the all parameters
             # this is a list of tensors, one for each parameter group
