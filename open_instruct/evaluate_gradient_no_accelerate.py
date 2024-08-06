@@ -49,7 +49,7 @@ torch.backends.cuda.matmul.allow_tf32 = True
 # The flag below controls whether to allow TF32 on cuDNN. This flag defaults to True.
 torch.backends.cudnn.allow_tf32 = True
 
-EVAL_MAX_SEQ_LENGTH = 2048
+EVAL_MAX_SEQ_LENGTH = 8192
 EVAL_BATCH_SIZE = 4
 
 
@@ -193,14 +193,13 @@ def measure_gradient(local_rank: int,
                 f"[END] Rank {local_rank}: eval batch input_ids: {eval_batch['input_ids'][0, :20]}, {eval_batch['input_ids'].shape}")
 
         # get the average gradient norm for each parameter group
-        acc_grad_per_params = {}
         for n in grad_per_params:
-            acc_grad_per_params[n] = acc_grad_per_params[n] / loss_count
+            grad_per_params[n] = grad_per_params[n] / loss_count
 
         # save the gradient norm for each parameter group
         if local_rank == 0:
             output_path = f"{output_dir}/{dataset_name}_gradient_norms.safetensors"
-            save_file(acc_grad_per_params, output_path)
+            save_file(grad_per_params, output_path)
 
 
 def set_seed(seed=42):
@@ -338,6 +337,7 @@ def main():
             if hasattr(module, "gradient_checkpointing"):
                 module.gradient_checkpointing = True
                 module._gradient_checkpointing_func = torch.utils.checkpoint.checkpoint
+        # TODO: why deepspeed checkpointing doesn't work?
         # gradient_checkpointing_func = deepspeed.checkpointing.checkpoint
         # deepspeed.checkpointing.configure(mpu_=None)
         # model._gradient_checkpointing_func = gradient_checkpointing_func
