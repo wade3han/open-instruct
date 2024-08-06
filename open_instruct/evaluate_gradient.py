@@ -20,6 +20,9 @@ from collections import defaultdict
 from datetime import timedelta
 from functools import partial
 
+import numpy as np
+from deepspeed.utils import safe_get_full_fp32_param, safe_get_full_grad, safe_get_full_optimizer_state
+
 import datasets
 import torch
 import transformers
@@ -184,21 +187,24 @@ def measure_gradient(args,
             # get the gradient norm for the all parameters
             # this is a list of tensors, one for each parameter group
             for n, p in accelerator.unwrap_model(model).named_parameters():
-                if p.grad is not None:
-                    param_norm = p.grad.data.norm(2)
-                    grad_per_params[n].append(param_norm.detach().cpu().numpy())
+                grad = safe_get_full_grad(p)
+                print(grad)
+                print(grad.detach().cpu().numpy().flatten())
+                # flatten the gradient tensor
+                grad_per_params[n].append(grad.detach().cpu().numpy().flatten())
             optimizer.zero_grad()
 
             if loss_count == 3:
                 break
 
         # get the average gradient norm for each parameter group
+        acc_grad_per_params = {}
         for n in grad_per_params:
-            grad_per_params[n] = sum(grad_per_params[n]) / len(grad_per_params[n])
+            acc_grad_per_params[n] = np.mean(np.stack(grad_per_params[n], axis=0))
 
         # check whether different devices have the same gradient norm
-        for i, n in enumerate(grad_per_params):
-            print(f"Gradient norm for {n}: {grad_per_params[n]} in RANK {accelerator.local_process_index}")
+        for i, n in enumerate(acc_grad_per_params):
+            print(f"Gradient for {n}: {acc_grad_per_params[n]} in RANK {accelerator.local_process_index}")
             if i == 3:
                 break
 
