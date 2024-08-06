@@ -20,10 +20,8 @@ from collections import defaultdict
 from datetime import timedelta
 from functools import partial
 
-import numpy as np
-from deepspeed.utils import safe_get_full_fp32_param, safe_get_full_grad, safe_get_full_optimizer_state
-
 import datasets
+import numpy as np
 import torch
 import transformers
 from accelerate import Accelerator
@@ -186,13 +184,13 @@ def measure_gradient(args,
             # this is a list of tensors, one for each parameter group
             if accelerator.sync_gradients:
                 for n, p in model.named_parameters():
-                    print(n)
-                    grad = safe_get_full_grad(p)
+                    if p.grad is None:
+                        continue
+                    grad = p.grad
                     print(grad)
                     print(grad.detach().cpu().numpy().flatten())
                     # flatten the gradient tensor
                     grad_per_params[n].append(grad.detach().cpu().numpy().flatten())
-            optimizer.step()
             optimizer.zero_grad()
 
             if loss_count == 3:
