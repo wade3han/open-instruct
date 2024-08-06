@@ -180,9 +180,7 @@ def measure_gradient(args,
             loss = outputs.loss
             loss_count += 1
             accelerator.backward(loss)
-            print(f"Loss for {dataset_name}: {loss.item()} in RANK {accelerator.local_process_index}")
-            print(f"Params: {model.named_parameters()}")
-            print(f"Unwrapped model: {accelerator.unwrap_model(model).named_parameters()}")
+            accelerator.wait_for_everyone()
 
             # get the gradient norm for the all parameters
             # this is a list of tensors, one for each parameter group
