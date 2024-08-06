@@ -334,7 +334,7 @@ def main():
         gradient_checkpointing_func = deepspeed.checkpointing.checkpoint
         for module in model.modules():
             if hasattr(module, "gradient_checkpointing"):
-                module._gradient_checkpointing = True
+                module.gradient_checkpointing = True
                 module._gradient_checkpointing_func = gradient_checkpointing_func
 
     # no default pad token for llama!
