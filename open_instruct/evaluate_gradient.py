@@ -52,7 +52,7 @@ torch.backends.cuda.matmul.allow_tf32 = True
 # The flag below controls whether to allow TF32 on cuDNN. This flag defaults to True.
 torch.backends.cudnn.allow_tf32 = True
 
-EVAL_MAX_SEQ_LENGTH = 512
+EVAL_MAX_SEQ_LENGTH = 8192
 EVAL_BATCH_SIZE = 1
 
 
@@ -158,8 +158,7 @@ def encode_with_messages_format(example, tokenizer, max_seq_length, add_bos=Fals
     }
 
 
-def measure_gradient(args,
-                     model,
+def measure_gradient(model,
                      test_data_loaders: list[DataLoader],
                      test_data_loaders_names: list[str],
                      accelerator,
@@ -177,9 +176,7 @@ def measure_gradient(args,
             outputs = model(**eval_batch, use_cache=False)
             loss = outputs.loss
             loss_count += 1
-            loss.backward()
-            # accelerator.backward(loss)
-            # accelerator.wait_for_everyone()
+            accelerator.backward(loss)
 
             # get the gradient norm for the all parameters
             # this is a list of tensors, one for each parameter group
@@ -192,9 +189,9 @@ def measure_gradient(args,
                     print(grad.detach().cpu().numpy().flatten())
                     # flatten the gradient tensor
                     grad_per_params[n].append(grad.detach().cpu().numpy().flatten())
-            # zero the gradients
-            model.zero_grad()
-            # optimizer.zero_grad()
+
+                # zero the gradients
+                model.zero_grad()
 
             if loss_count == 3:
                 break
@@ -400,8 +397,6 @@ def main():
     if len(tokenizer) > embedding_size:
         # pad to multiple for tensor cores.
         model.resize_token_embeddings(len(tokenizer), pad_to_multiple_of=8)
-    embeddings = model.get_input_embeddings()
-    embedding_size = embeddings.weight.shape[0]
 
     # set the tokenizer chat template to the tulu format
     # this makes evaluation/etc easier down the line.
@@ -506,13 +501,11 @@ def main():
     #     optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=args.learning_rate)
 
     # Prepare everything with `accelerator`.
-    model, *test_data_loaders = accelerator.prepare(
-        model, *test_data_loaders,
-    )
+    model, *test_data_loaders = accelerator.prepare(model, *test_data_loaders)
 
     # last evaluation
     accelerator.print("***** Running Evaluation *****")
-    measure_gradient(args, model, test_data_loaders, selected_validation_dataset_names, accelerator,
+    measure_gradient(model, test_data_loaders, selected_validation_dataset_names, accelerator,
                      )
     # optimizer, )
     accelerator.print("***** Evaluation finished *****")
