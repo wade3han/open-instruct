@@ -29,7 +29,7 @@ import transformers
 import wandb
 from datasets import load_dataset
 from deepspeed import get_accelerator, DeepSpeedEngine
-from torch.utils.data import DataLoader, Sampler
+from torch.utils.data import DataLoader, RandomSampler
 from torch.utils.data._utils.fetch import _BaseDatasetFetcher
 from torch.utils.data._utils.worker import _worker_loop
 from tqdm.auto import tqdm
@@ -610,7 +610,7 @@ def main():
 
     sampler = MultipackBatchSampler(
         # DistributedSampler(train_dataset, num_replicas=int(os.environ["WORLD_SIZE"]), rank=int(os.environ["RANK"])),
-        Sampler(train_dataset),
+        RandomSampler(train_dataset),
         lengths=get_dataset_lengths(train_dataset),
         packing_efficiency_estimate=1.0,
         batch_max_len=batch_max_len,
@@ -644,7 +644,7 @@ def main():
     print(f"WORLD_SIZE: {int(os.environ['WORLD_SIZE'])}, RANK: {int(os.environ['RANK'])}")
 
     test_samplers = [MultipackBatchSampler(
-        Sampler(test_dataset),
+        RandomSampler(test_dataset),
         lengths=get_dataset_lengths(test_dataset),
         packing_efficiency_estimate=1.0,
         batch_max_len=EVAL_MAX_SEQ_LENGTH * EVAL_BATCH_SIZE,

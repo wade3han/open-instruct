@@ -30,7 +30,7 @@ from deepspeed import get_accelerator, DeepSpeedEngine
 from deepspeed.utils import safe_get_full_grad
 from safetensors.torch import save_file
 from torch import nn
-from torch.utils.data import DataLoader, Sampler
+from torch.utils.data import DataLoader, RandomSampler
 from torch.utils.data._utils.fetch import _BaseDatasetFetcher
 from torch.utils.data._utils.worker import _worker_loop
 from transformers import (
@@ -523,7 +523,7 @@ def main():
     )
 
     samplers = [MultipackBatchSampler(
-        Sampler(test_dataset),
+        RandomSampler(test_dataset),
         lengths=get_dataset_lengths(test_dataset),
         packing_efficiency_estimate=1.0,
         batch_max_len=batch_max_len,
