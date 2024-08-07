@@ -29,7 +29,7 @@ import transformers
 import wandb
 from datasets import load_dataset
 from deepspeed import get_accelerator, DeepSpeedEngine
-from torch.utils.data import DataLoader, DistributedSampler
+from torch.utils.data import DataLoader, DistributedSampler, Sampler
 from tqdm.auto import tqdm
 from transformers import (
     AutoConfig,
@@ -608,12 +608,15 @@ def main():
         batch_size = 1
 
         sampler = MultipackBatchSampler(
-            DistributedSampler(train_dataset, num_replicas=int(os.environ["WORLD_SIZE"]), rank=int(os.environ["RANK"])),
+            # DistributedSampler(train_dataset, num_replicas=int(os.environ["WORLD_SIZE"]), rank=int(os.environ["RANK"])),
+            Sampler(train_dataset),
             lengths=get_dataset_lengths(train_dataset),
             packing_efficiency_estimate=1.0,
             batch_max_len=batch_max_len,
             batch_size=batch_size,
             drop_last=True,
+            num_replicas=int(os.environ["WORLD_SIZE"]),
+            rank=int(os.environ["RANK"]),
         )
 
         if args.use_compile:
@@ -637,7 +640,8 @@ def main():
         )
 
         ds_config['train_micro_batch_size_per_gpu'] = batch_size  # 1
-        ds_config['train_batch_size'] = batch_size * int(os.environ["WORLD_SIZE"]) * args.gradient_accumulation_steps  # 4 * 8 = 64
+        ds_config['train_batch_size'] = batch_size * int(
+            os.environ["WORLD_SIZE"]) * args.gradient_accumulation_steps  # 4 * 8 = 64
 
         # monkeypatch
         if args.use_flash_attn:
@@ -770,6 +774,8 @@ def main():
         model_engine.train()
         total_loss = 0
         active_dataloader = train_dataloader
+        # set epoch
+        train_dataloader.sampler.set_epoch(epoch)
 
         for step, batch in enumerate(active_dataloader):
             batch_device = {k: v.to(device) for k, v in batch.items()}
@@ -813,7 +819,7 @@ def main():
             seq_length_per_fwdbwd += batch_device["labels"].shape[-1]
             effective_num_tokens_per_fwdbwd += (batch_device["labels"] != -100).detach().sum().item()
 
-            if model_engine.is_gradient_accumulation_boundary():
+            if model_engine.micro_steps % model_engine.gradient_accumulation_steps() == 0:
                 if completed_steps % args.eval_per_steps == 0 and completed_steps > 0:
                     test_model(args, model_engine, test_data_loaders, selected_validation_dataset_names,
                                completed_steps, embedding_size, device)
@@ -851,15 +857,15 @@ def main():
                             / args.gradient_accumulation_steps
                             / args.logging_steps
                     )
-                    print_rank_zero(f"  Step: {completed_steps if completed_steps is not None else -1}, "
-                                    f" LR: {lr_scheduler.get_last_lr()[0] if lr_scheduler.get_last_lr()[0] is not None else -1}, "
-                                    f" Loss: {avg_loss if avg_loss is not None else -1:.4f},"
-                                    f" eMFU: {running_emfu * 100 if running_emfu is not None else -1:.2f},"
-                                    f" MFU: {running_mfu * 100 if running_mfu is not None else -1:.2f},"
-                                    f" Total Norm: {total_norm if total_norm is not None else -1:.2f},"
-                                    f" Effective Num Tokens (%): {effective_num_tokens_percentage if effective_num_tokens_percentage is not None else -1:.2f},"
-                                    f" Effective Num Tokens Per Instance: {effective_num_tokens_per_fwdbwd / args.gradient_accumulation_steps if effective_num_tokens_per_fwdbwd is not None else -1:.2f},"
-                                    f" Seq Length: {seq_length_per_fwdbwd / args.gradient_accumulation_steps if seq_length_per_fwdbwd is not None else -1:.2f}")
+                    print_rank_zero(f"  Step: {completed_steps}, "
+                                    f" LR: {lr_scheduler.get_last_lr()[0]}, "
+                                    f" Loss: {avg_loss:.4f},"
+                                    f" eMFU: {running_emfu * 100:.2f},"
+                                    f" MFU: {running_mfu * 100:.2f},"
+                                    f" Total Norm: {total_norm:.2f},"
+                                    f" Effective Num Tokens (%): {effective_num_tokens_percentage:.2f},"
+                                    f" Effective Num Tokens Per Instance: {effective_num_tokens_per_fwdbwd / args.gradient_accumulation_steps:.2f},"
+                                    f" Seq Length: {seq_length_per_fwdbwd / args.gradient_accumulation_steps:.2f}")
                     if args.with_tracking and int(os.environ["RANK"]) == 0:
                         wandb.log(
                             {
