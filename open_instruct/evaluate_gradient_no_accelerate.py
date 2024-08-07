@@ -41,6 +41,9 @@ from transformers import (
     OPTForCausalLM,
 )
 
+from open_instruct.multipack import SUPPORTED_MULTIPACK_MODEL_TYPES, MultipackBatchSampler, \
+    V2BatchSamplerDataCollatorForSeq2SeqPadding, V2BatchSamplerDataCollatorForSeq2Seq, get_dataset_lengths, \
+    patch_for_multipack
 from open_instruct.utils import ArgumentParserPlus, FlatArguments
 
 # The flag below controls whether to allow TF32 on matmul. This flag defaults to False
@@ -450,16 +453,87 @@ def main():
 
     test_datasets = [lm_datasets_test["test"] for lm_datasets_test in lm_datasets_tests]
 
+    # DataLoaders creation:
+    assert args.use_compile, "Multipack only works with compile. TODO: fix this."
+    assert not args.mask_padding, "Mask padding is not supported with multipack."
+    assert config.model_type in SUPPORTED_MULTIPACK_MODEL_TYPES, f"Model type {config.model_type} not supported."
+
+    from torch.utils.data._utils.fetch import _BaseDatasetFetcher
+    from torch.utils.data._utils.worker import _worker_loop
+
+    class _MapDatasetFetcher(_BaseDatasetFetcher):
+        def fetch(self, possibly_batched_index):
+            if isinstance(possibly_batched_index[0], list):
+                data = [None for i in possibly_batched_index]
+                for i, possibly_batched_index_ in enumerate(possibly_batched_index):
+                    if self.auto_collation:
+                        if (
+                                hasattr(self.dataset, "__getitems__")
+                                and self.dataset.__getitems__
+                        ):
+                            data[i] = self.dataset.__getitems__(possibly_batched_index_)
+                        else:
+                            data[i] = [self.dataset[idx] for idx in possibly_batched_index_]
+                    else:
+                        data[i] = self.dataset[possibly_batched_index_]
+            else:
+                if self.auto_collation:
+                    if hasattr(self.dataset, "__getitems__") and self.dataset.__getitems__:
+                        data = self.dataset.__getitems__(possibly_batched_index)
+                    else:
+                        data = [self.dataset[idx] for idx in possibly_batched_index]
+                else:
+                    data = self.dataset[possibly_batched_index]
+            return self.collate_fn(data)
+
+    def patch_fetchers():
+        torch.utils.data._utils.fetch._MapDatasetFetcher = _MapDatasetFetcher
+        torch.utils.data.dataloader._utils.fetch._MapDatasetFetcher = _MapDatasetFetcher
+
+    def patched_worker_loop(*args, **kwargs):
+        patch_fetchers()
+        return _worker_loop(*args, **kwargs)
+
+    torch.utils.data._utils.worker._worker_loop = patched_worker_loop
+    patch_fetchers()
+
+    batch_max_len = EVAL_BATCH_SIZE * EVAL_MAX_SEQ_LENGTH
+    batch_size = 1
+
+    if args.use_compile:
+        collate_fn = V2BatchSamplerDataCollatorForSeq2SeqPadding(
+            tokenizer=tokenizer,
+            model=model,
+            padding="longest",
+            max_length=batch_max_len,
+        )
+    else:
+        collate_fn = V2BatchSamplerDataCollatorForSeq2Seq(
+            tokenizer=tokenizer,
+            model=model,
+            padding="longest",
+        )
+
+    samplers = [MultipackBatchSampler(
+        DistributedSampler(test_dataset, num_replicas=int(os.environ["WORLD_SIZE"]), rank=args.local_rank),
+        lengths=get_dataset_lengths(test_dataset),
+        packing_efficiency_estimate=1.0,
+        batch_max_len=batch_max_len,
+        batch_size=batch_size,
+        drop_last=True,
+    ) for test_dataset in test_datasets]
+
     test_data_loaders = [
         DataLoader(
             test_dataset,
-            shuffle=False,
-            collate_fn=DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="longest"),
-            batch_size=EVAL_BATCH_SIZE,
-            sampler=DistributedSampler(test_dataset, num_replicas=int(os.environ["WORLD_SIZE"]), rank=args.local_rank),
+            batch_sampler=sampler,
+            collate_fn=collate_fn,
         )
-        for test_dataset in test_datasets
+        for test_dataset, sampler in zip(test_datasets, samplers)
     ]
+
+    if args.use_flash_attn:
+        patch_for_multipack(config.model_type, model_name=config._name_or_path)
 
     # Optimizer
     # Split weights in two groups, one with weight decay and the other not.
@@ -476,7 +550,6 @@ def main():
     ]
     optimizer = deepspeed.ops.adam.FusedAdam(optimizer_grouped_parameters, lr=args.learning_rate,
                                              weight_decay=0.0, )
-    # optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=args.learning_rate)  # not a problem.
 
     model_engine, optimizer, _, _ = deepspeed.initialize(model=model, optimizer=optimizer, config=ds_config)
     model_engine.train()
