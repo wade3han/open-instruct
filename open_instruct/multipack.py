@@ -218,32 +218,32 @@ class MultipackBatchSampler(BatchSampler):
         return self.eff_total_used / self.eff_total_slots
 
     def __len__(self):
-        self.num_batches()
-        return self._len_est()
+        return self.num_batches()
+        # return self._len_est()
 
-    def _len_est(self):
-        world_size = int(os.getenv("WORLD_SIZE", "1"))
-        lengths_sum = np.sum(self.lengths)
-        lengths_sum_per_device = lengths_sum // world_size
-        LOG.info(
-            f"packing_efficiency_estimate: {self.packing_efficiency_estimate} "
-            f"total_num_tokens per device: {lengths_sum_per_device}"
-        )
-
-        # shave off 1% + 1 for dealing with variance in packing from random sampler to sampler
-        return max(
-            0,
-            (
-                    world_size
-                    * math.floor(
-                0.99
-                * lengths_sum_per_device
-                / self.packing_efficiency_estimate
-                // (self.batch_max_len * self.batch_size)
-            )
-                    - 1
-            ),
-        )
+    # def _len_est(self):
+    #     world_size = int(os.getenv("WORLD_SIZE", "1"))
+    #     lengths_sum = np.sum(self.lengths)
+    #     lengths_sum_per_device = lengths_sum // world_size
+    #     LOG.info(
+    #         f"packing_efficiency_estimate: {self.packing_efficiency_estimate} "
+    #         f"total_num_tokens per device: {lengths_sum_per_device}"
+    #     )
+    #
+    #     # shave off 1% + 1 for dealing with variance in packing from random sampler to sampler
+    #     return max(
+    #         0,
+    #         (
+    #                 world_size
+    #                 * math.floor(
+    #             0.99
+    #             * lengths_sum_per_device
+    #             / self.packing_efficiency_estimate
+    #             // (self.batch_max_len * self.batch_size)
+    #         )
+    #                 - 1
+    #         ),
+    #     )
 
 
 @dataclass

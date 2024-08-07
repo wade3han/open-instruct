@@ -42,7 +42,7 @@ from transformers import (
     LlamaTokenizer,
     LlamaTokenizerFast,
     OPTForCausalLM,
-    get_scheduler,
+    get_scheduler, LlamaForCausalLM,
 )
 
 from open_instruct.multipack import MultipackBatchSampler, get_dataset_lengths, \
@@ -308,7 +308,7 @@ def main():
 
     # hard-coded for now.
     offload = False
-    zero_stage = 2
+    ZERO_STAGE = 2
 
     offload_device = "cpu" if offload else "none"
 
@@ -316,7 +316,7 @@ def main():
         "train_micro_batch_size_per_gpu": args.per_device_train_batch_size,
         "train_batch_size": args.per_device_train_batch_size * int(os.environ["WORLD_SIZE"]),
         "zero_optimization": {
-            "stage": zero_stage,
+            "stage": ZERO_STAGE,
             "offload_param": {"device": offload_device},
             "offload_optimizer": {"device": offload_device},
             "stage3_param_persistence_threshold": 1e4,
@@ -354,6 +354,7 @@ def main():
             revision=args.model_revision,
             token=os.getenv("HF_TOKEN", None),
             force_download=True,
+            attn_implementation="flash_attention_2" if args.use_flash_attn else None,
         )
     elif args.model_name_or_path:
         config = AutoConfig.from_pretrained(
@@ -362,6 +363,7 @@ def main():
             revision=args.model_revision,
             token=os.getenv("HF_TOKEN", None),
             force_download=True,
+            attn_implementation="flash_attention_2" if args.use_flash_attn else None,
         )
     else:
         raise ValueError(
@@ -401,22 +403,22 @@ def main():
             "You can do it from another script, save it, and load it from here, using --tokenizer_name."
         )
 
-    with deepspeed.zero.Init(enabled=(zero_stage == 3)):
-        if args.model_name_or_path:
-            model = AutoModelForCausalLM.from_pretrained(
-                args.model_name_or_path,
-                from_tf=bool(".ckpt" in args.model_name_or_path),
-                config=config,
-                trust_remote_code=args.trust_remote_code,
-                low_cpu_mem_usage=args.low_cpu_mem_usage,
-                use_flash_attention_2=True if args.use_flash_attn else False,
-                revision=args.model_revision,
-                token=os.getenv("HF_TOKEN", None),
-                force_download=True,
-            )
-        else:
-            print_rank_zero("Training new model from scratch")
-            model = AutoModelForCausalLM.from_config(config)
+    model_weights = AutoModelForCausalLM.from_pretrained(
+        args.model_name_or_path,
+        from_tf=bool(".ckpt" in args.model_name_or_path),
+        config=config,
+        trust_remote_code=args.trust_remote_code,
+        low_cpu_mem_usage=args.low_cpu_mem_usage,
+        revision=args.model_revision,
+        token=os.getenv("HF_TOKEN", None),
+        force_download=False,
+    ).state_dict()
+    # change the state name.
+    model_weights = {"module." + k: v for k, v in model_weights.items()}
+
+    with deepspeed.zero.Init(enabled=(ZERO_STAGE == 3)):
+        model = LlamaForCausalLM(config=config).cuda()
+        model.load_state_dict(model_weights, strict=False)
 
     model = torch.compile(model)
 
