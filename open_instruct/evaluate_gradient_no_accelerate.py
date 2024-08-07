@@ -54,7 +54,7 @@ torch.backends.cudnn.allow_tf32 = True
 
 # hard-coded for now.
 EVAL_MAX_SEQ_LENGTH = 8192
-EVAL_BATCH_SIZE = 1
+EVAL_BATCH_SIZE = 4
 OFFLOAD = False
 # ZERO_STAGE = 3
 ZERO_STAGE = 2
@@ -514,7 +514,7 @@ def main():
         padding="longest",
         max_length=batch_max_len,
     )
-    # model = torch.compile(model)
+    model = torch.compile(model)
 
     samplers = [MultipackBatchSampler(
         DistributedSampler(test_dataset, num_replicas=int(os.environ["WORLD_SIZE"]), rank=args.local_rank),
