@@ -29,6 +29,7 @@ import transformers
 import wandb
 from datasets import load_dataset
 from deepspeed import get_accelerator, DeepSpeedEngine
+from torch import nn
 from torch.utils.data import DataLoader, RandomSampler
 from torch.utils.data._utils.fetch import _BaseDatasetFetcher
 from torch.utils.data._utils.worker import _worker_loop
@@ -427,7 +428,7 @@ def main():
         else:
             model.load_state_dict(model_weights, strict=False)
 
-    model = torch.compile(model)
+    model: nn.Module = torch.compile(model)
 
     # no default pad token for llama!
     # here we add all special tokens again, because the default ones are not in the special_tokens_map
