@@ -402,7 +402,8 @@ def main():
     embeddings = model.get_input_embeddings()
     embedding_size = embeddings.weight.shape[0]
     # resize does its own gather
-    if len(tokenizer) > embedding_size:
+    if len(tokenizer) > embedding_size and len(
+            embeddings.weight.shape) == 2:  # if zero stage 3, only some parts are on gpu
         # pad to multiple for tensor cores.
         model.resize_token_embeddings(len(tokenizer), pad_to_multiple_of=8)
 
