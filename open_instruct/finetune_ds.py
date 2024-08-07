@@ -417,11 +417,10 @@ def main():
 
     with deepspeed.zero.Init(enabled=(ZERO_STAGE == 3)):
         model = LlamaForCausalLM(config=config).cuda()
-        state_dict = model.state_dict()
         if int(os.environ["RANK"]) == 0:
-            print(f"Model state dict keys: {list(state_dict.keys())}")
+            print(f"Model state dict keys: {list(model.state_dict().keys())}")
             print(f"Loaded model state dict keys: {list(model_weights.keys())}")
-        if "module." in list(state_dict.keys())[0]:
+        if "module." in list(model.state_dict().keys())[0]:
             model_weights = {"module." + k: v for k, v in model_weights.items()}
             model.load_state_dict(model_weights, strict=False)
         else:
