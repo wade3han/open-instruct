@@ -774,8 +774,8 @@ def main():
         model_engine.train()
         total_loss = 0
         active_dataloader = train_dataloader
-        # set epoch
-        train_dataloader.sampler.set_epoch(epoch)
+        # # set epoch
+        # train_dataloader.sampler.set_epoch(epoch)
 
         for step, batch in enumerate(active_dataloader):
             batch_device = {k: v.to(device) for k, v in batch.items()}

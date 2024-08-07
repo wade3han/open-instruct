@@ -29,7 +29,7 @@ from datasets import load_dataset
 from deepspeed import get_accelerator, DeepSpeedEngine
 from deepspeed.utils import safe_get_full_grad
 from safetensors.torch import save_file
-from torch.utils.data import DataLoader, DistributedSampler
+from torch.utils.data import DataLoader, Sampler
 from transformers import (
     AutoConfig,
     AutoModelForCausalLM,
@@ -517,12 +517,14 @@ def main():
     model = torch.compile(model)
 
     samplers = [MultipackBatchSampler(
-        DistributedSampler(test_dataset, num_replicas=int(os.environ["WORLD_SIZE"]), rank=args.local_rank),
+        Sampler(test_dataset),
         lengths=get_dataset_lengths(test_dataset),
         packing_efficiency_estimate=1.0,
         batch_max_len=batch_max_len,
         batch_size=batch_size,
         drop_last=True,
+        num_replicas=int(os.environ["WORLD_SIZE"]),
+        rank=int(os.environ["RANK"]),
     ) for test_dataset in test_datasets]
 
     test_data_loaders = [
