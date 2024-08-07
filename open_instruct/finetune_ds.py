@@ -29,13 +29,14 @@ import transformers
 import wandb
 from datasets import load_dataset
 from deepspeed import get_accelerator, DeepSpeedEngine
-from torch.utils.data import DataLoader, DistributedSampler, Sampler
+from torch.utils.data import DataLoader, Sampler
+from torch.utils.data._utils.fetch import _BaseDatasetFetcher
+from torch.utils.data._utils.worker import _worker_loop
 from tqdm.auto import tqdm
 from transformers import (
     AutoConfig,
     AutoModelForCausalLM,
     AutoTokenizer,
-    DataCollatorForSeq2Seq,
     GPT2Tokenizer,
     GPTNeoXTokenizerFast,
     LlamaTokenizer,
@@ -44,10 +45,50 @@ from transformers import (
     get_scheduler,
 )
 
-from open_instruct.multipack import V2BatchSamplerDataCollatorForSeq2Seq, MultipackBatchSampler, get_dataset_lengths, \
+from open_instruct.multipack import MultipackBatchSampler, get_dataset_lengths, \
     patch_for_multipack, SUPPORTED_MULTIPACK_MODEL_TYPES, V2BatchSamplerDataCollatorForSeq2SeqPadding
 from open_instruct.utils import ArgumentParserPlus, FlatArguments, MFUEstimator, print_rank_zero
 from open_instruct.wsd_scheduler import get_constant_schedule_with_warmup_and_cooldown
+
+
+class _MapDatasetFetcher(_BaseDatasetFetcher):
+    def fetch(self, possibly_batched_index):
+        if isinstance(possibly_batched_index[0], list):
+            data = [None for i in possibly_batched_index]
+            for i, possibly_batched_index_ in enumerate(possibly_batched_index):
+                if self.auto_collation:
+                    if (
+                            hasattr(self.dataset, "__getitems__")
+                            and self.dataset.__getitems__
+                    ):
+                        data[i] = self.dataset.__getitems__(possibly_batched_index_)
+                    else:
+                        data[i] = [self.dataset[idx] for idx in possibly_batched_index_]
+                else:
+                    data[i] = self.dataset[possibly_batched_index_]
+        else:
+            if self.auto_collation:
+                if hasattr(self.dataset, "__getitems__") and self.dataset.__getitems__:
+                    data = self.dataset.__getitems__(possibly_batched_index)
+                else:
+                    data = [self.dataset[idx] for idx in possibly_batched_index]
+            else:
+                data = self.dataset[possibly_batched_index]
+        return self.collate_fn(data)
+
+
+def patch_fetchers():
+    torch.utils.data._utils.fetch._MapDatasetFetcher = _MapDatasetFetcher
+    torch.utils.data.dataloader._utils.fetch._MapDatasetFetcher = _MapDatasetFetcher
+
+
+def patched_worker_loop(*args, **kwargs):
+    patch_fetchers()
+    return _worker_loop(*args, **kwargs)
+
+
+torch.utils.data._utils.worker._worker_loop = patched_worker_loop
+patch_fetchers()
 
 # The flag below controls whether to allow TF32 on matmul. This flag defaults to False
 # in PyTorch 1.12 and later.
@@ -377,8 +418,7 @@ def main():
             print_rank_zero("Training new model from scratch")
             model = AutoModelForCausalLM.from_config(config)
 
-    if args.use_compile:
-        model = torch.compile(model)
+    model = torch.compile(model)
 
     # no default pad token for llama!
     # here we add all special tokens again, because the default ones are not in the special_tokens_map
@@ -438,6 +478,7 @@ def main():
         tokenizer.chat_template = "{{ bos_token }}" + tokenizer.chat_template
 
     if args.gradient_checkpointing:
+        deepspeed.checkpointing.configure(mpu_=None)
         model.gradient_checkpointing = True
         model._gradient_checkpointing_func = torch.utils.checkpoint.checkpoint
         for module in model.modules():
@@ -445,7 +486,6 @@ def main():
                 module.gradient_checkpointing = True
                 module._gradient_checkpointing_func = torch.utils.checkpoint.checkpoint
         # gradient_checkpointing_func = deepspeed.checkpointing.checkpoint
-        # deepspeed.checkpointing.configure(mpu_=None)
         # model._gradient_checkpointing_func = gradient_checkpointing_func
         # model.gradient_checkpointing = True
         # for module in model.modules():
@@ -560,113 +600,67 @@ def main():
             print_rank_zero(f"Sample {index} of the training set: {train_dataset[index]}.")
 
     # DataLoaders creation:
-    if args.use_multipack:
-        assert args.use_compile, "Multipack only works with compile. TODO: fix this."
-        assert not args.mask_padding, "Mask padding is not supported with multipack."
-        assert config.model_type in SUPPORTED_MULTIPACK_MODEL_TYPES, f"Model type {config.model_type} not supported."
+    assert args.use_multipack, "Only multipack is supported. TODO: fix this."
+    assert args.use_compile, "Multipack only works with compile. TODO: fix this."
+    assert not args.mask_padding, "Mask padding is not supported with multipack."
+    assert config.model_type in SUPPORTED_MULTIPACK_MODEL_TYPES, f"Model type {config.model_type} not supported."
 
-        from torch.utils.data._utils.fetch import _BaseDatasetFetcher
-        from torch.utils.data._utils.worker import _worker_loop
+    batch_max_len = args.per_device_train_batch_size * args.max_seq_length  # 4 * 8192 = 32768
+    batch_size = 1
 
-        class _MapDatasetFetcher(_BaseDatasetFetcher):
-            def fetch(self, possibly_batched_index):
-                if isinstance(possibly_batched_index[0], list):
-                    data = [None for i in possibly_batched_index]
-                    for i, possibly_batched_index_ in enumerate(possibly_batched_index):
-                        if self.auto_collation:
-                            if (
-                                    hasattr(self.dataset, "__getitems__")
-                                    and self.dataset.__getitems__
-                            ):
-                                data[i] = self.dataset.__getitems__(possibly_batched_index_)
-                            else:
-                                data[i] = [self.dataset[idx] for idx in possibly_batched_index_]
-                        else:
-                            data[i] = self.dataset[possibly_batched_index_]
-                else:
-                    if self.auto_collation:
-                        if hasattr(self.dataset, "__getitems__") and self.dataset.__getitems__:
-                            data = self.dataset.__getitems__(possibly_batched_index)
-                        else:
-                            data = [self.dataset[idx] for idx in possibly_batched_index]
-                    else:
-                        data = self.dataset[possibly_batched_index]
-                return self.collate_fn(data)
+    sampler = MultipackBatchSampler(
+        # DistributedSampler(train_dataset, num_replicas=int(os.environ["WORLD_SIZE"]), rank=int(os.environ["RANK"])),
+        Sampler(train_dataset),
+        lengths=get_dataset_lengths(train_dataset),
+        packing_efficiency_estimate=1.0,
+        batch_max_len=batch_max_len,
+        batch_size=batch_size,
+        drop_last=True,
+        num_replicas=int(os.environ["WORLD_SIZE"]),
+        rank=int(os.environ["RANK"]),
+    )
 
-        def patch_fetchers():
-            torch.utils.data._utils.fetch._MapDatasetFetcher = _MapDatasetFetcher
-            torch.utils.data.dataloader._utils.fetch._MapDatasetFetcher = _MapDatasetFetcher
+    collate_fn = V2BatchSamplerDataCollatorForSeq2SeqPadding(
+        tokenizer=tokenizer,
+        model=model,
+        padding="longest",
+        max_length=batch_max_len,
+    )
 
-        def patched_worker_loop(*args, **kwargs):
-            patch_fetchers()
-            return _worker_loop(*args, **kwargs)
+    train_dataloader = DataLoader(
+        train_dataset,
+        batch_sampler=sampler,
+        collate_fn=collate_fn,
+    )
 
-        torch.utils.data._utils.worker._worker_loop = patched_worker_loop
-        patch_fetchers()
+    ds_config['train_micro_batch_size_per_gpu'] = batch_size  # 1
+    ds_config['train_batch_size'] = batch_size * int(
+        os.environ["WORLD_SIZE"]) * args.gradient_accumulation_steps  # 4 * 8 = 64
 
-        batch_max_len = args.per_device_train_batch_size * args.max_seq_length  # 4 * 8192 = 32768
-        batch_size = 1
-
-        sampler = MultipackBatchSampler(
-            # DistributedSampler(train_dataset, num_replicas=int(os.environ["WORLD_SIZE"]), rank=int(os.environ["RANK"])),
-            Sampler(train_dataset),
-            lengths=get_dataset_lengths(train_dataset),
-            packing_efficiency_estimate=1.0,
-            batch_max_len=batch_max_len,
-            batch_size=batch_size,
-            drop_last=True,
-            num_replicas=int(os.environ["WORLD_SIZE"]),
-            rank=int(os.environ["RANK"]),
-        )
-
-        if args.use_compile:
-            collate_fn = V2BatchSamplerDataCollatorForSeq2SeqPadding(
-                tokenizer=tokenizer,
-                model=model,
-                padding="longest",
-                max_length=batch_max_len,
-            )
-        else:
-            collate_fn = V2BatchSamplerDataCollatorForSeq2Seq(
-                tokenizer=tokenizer,
-                model=model,
-                padding="longest",
-            )
-
-        train_dataloader = DataLoader(
-            train_dataset,
-            batch_sampler=sampler,
-            collate_fn=collate_fn,
-        )
-
-        ds_config['train_micro_batch_size_per_gpu'] = batch_size  # 1
-        ds_config['train_batch_size'] = batch_size * int(
-            os.environ["WORLD_SIZE"]) * args.gradient_accumulation_steps  # 4 * 8 = 64
-
-        # monkeypatch
-        if args.use_flash_attn:
-            patch_for_multipack(config.model_type, model_name=config._name_or_path)
-
-    else:
-        train_dataloader = DataLoader(
-            train_dataset,
-            shuffle=False,
-            collate_fn=DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="longest"),
-            batch_size=args.per_device_train_batch_size,
-            sampler=DistributedSampler(train_dataset, num_replicas=int(os.environ["WORLD_SIZE"]), rank=args.local_rank),
-        )
+    # monkeypatch
+    if args.use_flash_attn:
+        patch_for_multipack(config.model_type, model_name=config._name_or_path)
 
     print(f"WORLD_SIZE: {int(os.environ['WORLD_SIZE'])}, RANK: {int(os.environ['RANK'])}")
+
+    test_samplers = [MultipackBatchSampler(
+        Sampler(test_dataset),
+        lengths=get_dataset_lengths(test_dataset),
+        packing_efficiency_estimate=1.0,
+        batch_max_len=EVAL_MAX_SEQ_LENGTH * EVAL_BATCH_SIZE,
+        batch_size=1,
+        drop_last=False,
+        num_replicas=int(os.environ["WORLD_SIZE"]),
+        rank=int(os.environ["RANK"]),
+    ) for test_dataset in test_datasets]
 
     test_data_loaders = [
         DataLoader(
             test_dataset,
-            shuffle=False,
-            collate_fn=DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="longest"),
-            batch_size=EVAL_BATCH_SIZE,
-            sampler=DistributedSampler(test_dataset, num_replicas=int(os.environ["WORLD_SIZE"]), rank=args.local_rank),
+            batch_sampler=test_sampler,
+            collate_fn=collate_fn,
         )
-        for test_dataset in test_datasets
+        for test_dataset, test_sampler in zip(test_datasets, test_samplers)
     ]
 
     # Optimizer
@@ -682,7 +676,9 @@ def main():
             "weight_decay": 0.0,
         },
     ]
-    optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=args.learning_rate)
+    # optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=args.learning_rate)
+    optimizer = deepspeed.ops.adam.FusedAdam(optimizer_grouped_parameters, lr=args.learning_rate,
+                                             weight_decay=0.0, )
 
     # Scheduler and math around the number of training steps.
     num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)

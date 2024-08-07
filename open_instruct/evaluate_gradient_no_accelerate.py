@@ -29,7 +29,10 @@ from datasets import load_dataset
 from deepspeed import get_accelerator, DeepSpeedEngine
 from deepspeed.utils import safe_get_full_grad
 from safetensors.torch import save_file
+from torch import nn
 from torch.utils.data import DataLoader, Sampler
+from torch.utils.data._utils.fetch import _BaseDatasetFetcher
+from torch.utils.data._utils.worker import _worker_loop
 from transformers import (
     AutoConfig,
     AutoModelForCausalLM,
@@ -45,6 +48,46 @@ from open_instruct.multipack import SUPPORTED_MULTIPACK_MODEL_TYPES, MultipackBa
     V2BatchSamplerDataCollatorForSeq2SeqPadding, get_dataset_lengths, \
     patch_for_multipack
 from open_instruct.utils import ArgumentParserPlus, FlatArguments
+
+
+class _MapDatasetFetcher(_BaseDatasetFetcher):
+    def fetch(self, possibly_batched_index):
+        if isinstance(possibly_batched_index[0], list):
+            data = [None for i in possibly_batched_index]
+            for i, possibly_batched_index_ in enumerate(possibly_batched_index):
+                if self.auto_collation:
+                    if (
+                            hasattr(self.dataset, "__getitems__")
+                            and self.dataset.__getitems__
+                    ):
+                        data[i] = self.dataset.__getitems__(possibly_batched_index_)
+                    else:
+                        data[i] = [self.dataset[idx] for idx in possibly_batched_index_]
+                else:
+                    data[i] = self.dataset[possibly_batched_index_]
+        else:
+            if self.auto_collation:
+                if hasattr(self.dataset, "__getitems__") and self.dataset.__getitems__:
+                    data = self.dataset.__getitems__(possibly_batched_index)
+                else:
+                    data = [self.dataset[idx] for idx in possibly_batched_index]
+            else:
+                data = self.dataset[possibly_batched_index]
+        return self.collate_fn(data)
+
+
+def patch_fetchers():
+    torch.utils.data._utils.fetch._MapDatasetFetcher = _MapDatasetFetcher
+    torch.utils.data.dataloader._utils.fetch._MapDatasetFetcher = _MapDatasetFetcher
+
+
+def patched_worker_loop(*args, **kwargs):
+    patch_fetchers()
+    return _worker_loop(*args, **kwargs)
+
+
+torch.utils.data._utils.worker._worker_loop = patched_worker_loop
+patch_fetchers()
 
 # The flag below controls whether to allow TF32 on matmul. This flag defaults to False
 # in PyTorch 1.12 and later.
@@ -340,6 +383,8 @@ def main():
         model = LlamaForCausalLM(config=config).cuda()
         model.load_state_dict(model_weights, strict=False)
 
+    model: nn.Module = torch.compile(model)
+
     if args.gradient_checkpointing:
         deepspeed.checkpointing.configure(mpu_=None)
         model.gradient_checkpointing = True
@@ -462,48 +507,10 @@ def main():
     test_datasets = [lm_datasets_test["test"] for lm_datasets_test in lm_datasets_tests]
 
     # DataLoaders creation:
+    assert args.use_multipack, "Only multipack is supported. TODO: fix this."
     assert args.use_compile, "Multipack only works with compile. TODO: fix this."
     assert not args.mask_padding, "Mask padding is not supported with multipack."
     assert config.model_type in SUPPORTED_MULTIPACK_MODEL_TYPES, f"Model type {config.model_type} not supported."
-
-    from torch.utils.data._utils.fetch import _BaseDatasetFetcher
-    from torch.utils.data._utils.worker import _worker_loop
-
-    class _MapDatasetFetcher(_BaseDatasetFetcher):
-        def fetch(self, possibly_batched_index):
-            if isinstance(possibly_batched_index[0], list):
-                data = [None for i in possibly_batched_index]
-                for i, possibly_batched_index_ in enumerate(possibly_batched_index):
-                    if self.auto_collation:
-                        if (
-                                hasattr(self.dataset, "__getitems__")
-                                and self.dataset.__getitems__
-                        ):
-                            data[i] = self.dataset.__getitems__(possibly_batched_index_)
-                        else:
-                            data[i] = [self.dataset[idx] for idx in possibly_batched_index_]
-                    else:
-                        data[i] = self.dataset[possibly_batched_index_]
-            else:
-                if self.auto_collation:
-                    if hasattr(self.dataset, "__getitems__") and self.dataset.__getitems__:
-                        data = self.dataset.__getitems__(possibly_batched_index)
-                    else:
-                        data = [self.dataset[idx] for idx in possibly_batched_index]
-                else:
-                    data = self.dataset[possibly_batched_index]
-            return self.collate_fn(data)
-
-    def patch_fetchers():
-        torch.utils.data._utils.fetch._MapDatasetFetcher = _MapDatasetFetcher
-        torch.utils.data.dataloader._utils.fetch._MapDatasetFetcher = _MapDatasetFetcher
-
-    def patched_worker_loop(*args, **kwargs):
-        patch_fetchers()
-        return _worker_loop(*args, **kwargs)
-
-    torch.utils.data._utils.worker._worker_loop = patched_worker_loop
-    patch_fetchers()
 
     batch_max_len = EVAL_BATCH_SIZE * EVAL_MAX_SEQ_LENGTH
     batch_size = 1
@@ -514,7 +521,6 @@ def main():
         padding="longest",
         max_length=batch_max_len,
     )
-    model = torch.compile(model)
 
     samplers = [MultipackBatchSampler(
         Sampler(test_dataset),
