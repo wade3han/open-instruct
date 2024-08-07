@@ -842,7 +842,7 @@ def main():
                 running_mfu = mfu if running_mfu == -1.0 else 0.9 * running_mfu + 0.1 * mfu
 
                 if args.logging_steps and completed_steps % args.logging_steps == 0:
-                    torch.distribued.all_reduce(total_loss)
+                    torch.distributed.all_reduce(total_loss)
                     avg_loss = (
                             total_loss / int(os.environ["WORLD_SIZE"])
                             / args.gradient_accumulation_steps
