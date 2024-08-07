@@ -185,6 +185,8 @@ class MultipackBatchSampler(BatchSampler):
             ]
             for i in range(0, len(batches), self.batch_size)
         ]
+        # debug
+        print("generated_batches", generated_batches[0])
 
         if len(generated_batches[-1]) < self.batch_size:
             generated_batches.pop()
