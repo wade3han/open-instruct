@@ -42,7 +42,7 @@ from transformers import (
 )
 
 from open_instruct.multipack import SUPPORTED_MULTIPACK_MODEL_TYPES, MultipackBatchSampler, \
-    V2BatchSamplerDataCollatorForSeq2SeqPadding, V2BatchSamplerDataCollatorForSeq2Seq, get_dataset_lengths, \
+    V2BatchSamplerDataCollatorForSeq2SeqPadding, get_dataset_lengths, \
     patch_for_multipack
 from open_instruct.utils import ArgumentParserPlus, FlatArguments
 
@@ -56,8 +56,8 @@ torch.backends.cudnn.allow_tf32 = True
 EVAL_MAX_SEQ_LENGTH = 8192
 EVAL_BATCH_SIZE = 1
 OFFLOAD = False
-# zero_stage = 2
-ZERO_STAGE = 3
+# ZERO_STAGE = 3
+ZERO_STAGE = 2
 
 
 def encode_with_prompt_completion_format(example, tokenizer, max_seq_length, add_bos=False):
@@ -508,20 +508,13 @@ def main():
     batch_max_len = EVAL_BATCH_SIZE * EVAL_MAX_SEQ_LENGTH
     batch_size = 1
 
-    if args.use_compile:
-        collate_fn = V2BatchSamplerDataCollatorForSeq2SeqPadding(
-            tokenizer=tokenizer,
-            model=model,
-            padding="longest",
-            max_length=batch_max_len,
-        )
-        model = torch.compile(model)
-    else:
-        collate_fn = V2BatchSamplerDataCollatorForSeq2Seq(
-            tokenizer=tokenizer,
-            model=model,
-            padding="longest",
-        )
+    collate_fn = V2BatchSamplerDataCollatorForSeq2SeqPadding(
+        tokenizer=tokenizer,
+        model=model,
+        padding="longest",
+        max_length=batch_max_len,
+    )
+    model = torch.compile(model)
 
     samplers = [MultipackBatchSampler(
         DistributedSampler(test_dataset, num_replicas=int(os.environ["WORLD_SIZE"]), rank=args.local_rank),
