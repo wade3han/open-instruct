@@ -850,7 +850,9 @@ def main():
                             / args.gradient_accumulation_steps
                             / args.logging_steps
                     )
-                    print_rank_zero(f"  Step: {completed_steps}, LR: {lr_scheduler.get_last_lr()[0]}, Loss: {avg_loss},"
+                    print_rank_zero(f"  Step: {completed_steps}, "
+                                    f" LR: {lr_scheduler.get_last_lr()[0]}, "
+                                    f" Loss: {avg_loss},"
                                     f" eMFU: {running_emfu * 100:.2f}%, MFU: {running_mfu * 100:.2f},"
                                     f" Total Norm: {total_norm:.2f},"
                                     f" Effective Num Tokens (%): {effective_num_tokens_percentage:.2f},"
