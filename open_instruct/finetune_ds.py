@@ -850,14 +850,15 @@ def main():
                             / args.gradient_accumulation_steps
                             / args.logging_steps
                     )
-                    print_rank_zero(f"  Step: {completed_steps}, "
-                                    f" LR: {lr_scheduler.get_last_lr()[0]}, "
-                                    f" Loss: {avg_loss},"
-                                    f" eMFU: {running_emfu * 100:.2f}%, MFU: {running_mfu * 100:.2f},"
-                                    f" Total Norm: {total_norm:.2f},"
-                                    f" Effective Num Tokens (%): {effective_num_tokens_percentage:.2f},"
-                                    f" Effective Num Tokens Per Instance: {effective_num_tokens_per_fwdbwd / args.gradient_accumulation_steps:.2f}"
-                                    f" Seq Length: {seq_length_per_fwdbwd / args.gradient_accumulation_steps:.2f}")
+                    print_rank_zero(f"  Step: {completed_steps if completed_steps is not None else -1}, "
+                                    f" LR: {lr_scheduler.get_last_lr()[0] if lr_scheduler.get_last_lr()[0] is not None else -1}, "
+                                    f" Loss: {avg_loss if avg_loss is not None else -1:.4f},"
+                                    f" eMFU: {running_emfu * 100 if running_emfu is not None else -1:.2f},"
+                                    f" MFU: {running_mfu * 100 if running_mfu is not None else -1:.2f},"
+                                    f" Total Norm: {total_norm if total_norm is not None else -1:.2f},"
+                                    f" Effective Num Tokens (%): {effective_num_tokens_percentage if effective_num_tokens_percentage is not None else -1:.2f},"
+                                    f" Effective Num Tokens Per Instance: {effective_num_tokens_per_fwdbwd / args.gradient_accumulation_steps if effective_num_tokens_per_fwdbwd is not None else -1:.2f},"
+                                    f" Seq Length: {seq_length_per_fwdbwd / args.gradient_accumulation_steps if seq_length_per_fwdbwd is not None else -1:.2f}")
                     if args.with_tracking and int(os.environ["RANK"]) == 0:
                         wandb.log(
                             {
