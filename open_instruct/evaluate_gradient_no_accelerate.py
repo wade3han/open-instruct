@@ -176,8 +176,8 @@ def measure_gradient(local_rank: int,
         for i, eval_batch in enumerate(test_data_loader):
             start_time = time.time()
             eval_batch_device = {k: v.to(device) for k, v in eval_batch.items()}
-            # print(
-            #     f"[START] Rank {local_rank}: eval batch input_ids: {eval_batch['input_ids'][0, :20]}, {eval_batch['input_ids'].shape}")
+            print(
+                f"[START] Rank {local_rank}: eval batch input_ids: {eval_batch['input_ids'][0, :20]}, {eval_batch['input_ids'].shape}")
 
             # print(model_engine.model.embed_tokens(eval_batch_device['input_ids']).shape)
             outputs = model_engine(**eval_batch_device, use_cache=False)
