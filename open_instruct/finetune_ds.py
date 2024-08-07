@@ -637,7 +637,7 @@ def main():
         )
 
         ds_config['train_micro_batch_size_per_gpu'] = batch_size
-        ds_config['train_batch_size'] = batch_size * int(os.environ["WORLD_SIZE"])
+        ds_config['train_batch_size'] = batch_size * int(os.environ["WORLD_SIZE"]) * args.gradient_accumulation_steps
 
         # monkeypatch
         if args.use_flash_attn:
