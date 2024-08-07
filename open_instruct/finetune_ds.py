@@ -28,7 +28,7 @@ import torch
 import transformers
 import wandb
 from datasets import load_dataset
-from deepspeed import get_accelerator
+from deepspeed import get_accelerator, DeepSpeedEngine
 from torch.utils.data import DataLoader, DistributedSampler
 from tqdm.auto import tqdm
 from transformers import (
@@ -226,7 +226,7 @@ def set_seed(seed: int, deterministic: bool = False):
         torch.use_deterministic_algorithms(True)
 
 
-def save_model(model_engine, local_rank, output_dir):
+def save_model(model_engine: DeepSpeedEngine, local_rank, output_dir):
     if local_rank == 0:
         torch.save(model_engine.state_dict(), os.path.join(output_dir, "model.pth"))
 
@@ -681,17 +681,6 @@ def main():
     overrode_max_train_steps = True
 
     # Create the learning rate scheduler.
-    # Note: the current accelerator.step() calls the .step() of the real scheduler
-    # for the `num_processes` times. This is because they assume
-    # the user initialize the scheduler with the entire training set.
-    # In the case of data parallel training, each process only
-    # sees a subset (1/num_processes) of the training set.
-    # So each time the process needs to update the lr multiple times so that the total
-    # number of updates in the end matches the num_training_steps here.
-    # Here we need to set the num_training_steps to either using
-    # the entire training set (when epochs is specified) or we need to multiply the
-    # num_training_steps by num_processes so that the total number
-    # of updates matches the num_training_steps.
     num_training_steps_for_scheduler = args.max_train_steps
     if args.lr_scheduler_type == "wsd":
         num_cooldown_steps = int(num_training_steps_for_scheduler * args.cooldown_ratio)
@@ -719,11 +708,7 @@ def main():
     # Load weights and states from a trained model, but not resuming.
     if args.load_from_checkpoint:
         print(f"Loading from checkpoint: {args.load_from_checkpoint}")
-
-        # MODEL_NAME = "pytorch_model"
-        # input_dir = args.load_from_checkpoint
-        # for i, model in enumerate(model_engine._models):
-        #     model.load_checkpoint(input_dir, f"{MODEL_NAME}" if i == 0 else f"{MODEL_NAME}_{i}")
+        model_engine.load_checkpoint(args.load_from_checkpoint)
 
     # We need to recalculate our total training steps as the size of the training dataloader may have changed.
     num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
@@ -761,35 +746,6 @@ def main():
     completed_steps = 0
     starting_epoch = 0
 
-    if args.resume_from_checkpoint:
-        raise NotImplementedError("Should not use this.")
-        # if args.resume_from_checkpoint is not None or args.resume_from_checkpoint != "":
-        #     checkpoint_path = args.resume_from_checkpoint
-        #     path = os.path.basename(args.resume_from_checkpoint)
-        # else:
-        #     # Get the most recent checkpoint
-        #     dirs = [f.name for f in os.scandir(os.getcwd()) if f.is_dir()]
-        #     dirs.sort(key=os.path.getctime)
-        #     path = dirs[-1]  # Sorts folders by date modified, most recent checkpoint is the last
-        #     checkpoint_path = path
-        #     path = os.path.basename(checkpoint_path)
-        #
-        # accelerator.print(f"Resumed from checkpoint: {checkpoint_path}")
-        # accelerator.load_state(path)
-        # # Extract `epoch_{i}` or `step_{i}`
-        # training_difference = os.path.splitext(path)[0]
-        #
-        # if "epoch" in training_difference:
-        #     starting_epoch = int(training_difference.replace("epoch_", "")) + 1
-        #     resume_step = None
-        #     completed_steps = starting_epoch * num_update_steps_per_epoch
-        # else:
-        #     # need to multiply `gradient_accumulation_steps` to reflect real steps
-        #     resume_step = int(training_difference.replace("step_", "")) * args.gradient_accumulation_steps
-        #     starting_epoch = resume_step // len(train_dataloader)
-        #     completed_steps = resume_step // args.gradient_accumulation_steps
-        #     resume_step -= starting_epoch * len(train_dataloader)
-
     # update the progress_bar if load from checkpoint
     progress_bar.update(completed_steps)
 
@@ -809,11 +765,6 @@ def main():
     for epoch in range(starting_epoch, args.num_train_epochs):
         model_engine.train()
         total_loss = 0
-        # if args.resume_from_checkpoint and epoch == starting_epoch and resume_step is not None:
-        #     # We skip the first `n` batches in the dataloader when resuming from a checkpoint
-        #     active_dataloader = accelerator.skip_first_batches(train_dataloader, resume_step)
-        # else:
-        #     active_dataloader = train_dataloader
         active_dataloader = train_dataloader
 
         for step, batch in enumerate(active_dataloader):
@@ -863,7 +814,6 @@ def main():
                     test_model(args, model_engine, test_data_loaders, selected_validation_dataset_names,
                                completed_steps, embedding_size, device)
 
-                # Checks if the accelerator has performed an optimization step behind the scenes
                 progress_bar.update(1)
                 completed_steps += 1
 
@@ -940,13 +890,14 @@ def main():
 
     torch.distributed.barrier()
     # last evaluation
-    test_model(args, model, test_data_loaders, selected_validation_dataset_names,
+    test_model(args, model_engine, test_data_loaders, selected_validation_dataset_names,
                completed_steps, embedding_size, device)
 
     if args.output_dir is not None:
         if args.local_rank == 0:
             tokenizer.save_pretrained(args.output_dir)
-        model.save_pretrained(args.output_dir)
+        if args.save_state:
+            model_engine.save_checkpoint(args.output_dir)
 
     torch.distributed.barrier()
 
