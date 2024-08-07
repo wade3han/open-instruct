@@ -33,7 +33,6 @@ from transformers import (
     AutoConfig,
     AutoModelForCausalLM,
     AutoTokenizer,
-    DataCollatorForSeq2Seq,
     GPT2Tokenizer,
     GPTNeoXTokenizerFast,
     LlamaTokenizer,
@@ -52,8 +51,12 @@ torch.backends.cuda.matmul.allow_tf32 = True
 # The flag below controls whether to allow TF32 on cuDNN. This flag defaults to True.
 torch.backends.cudnn.allow_tf32 = True
 
+# hard-coded for now.
 EVAL_MAX_SEQ_LENGTH = 8192
-EVAL_BATCH_SIZE = 4
+EVAL_BATCH_SIZE = 1
+OFFLOAD = False
+# zero_stage = 2
+ZERO_STAGE = 3
 
 
 def encode_with_prompt_completion_format(example, tokenizer, max_seq_length, add_bos=False):
@@ -191,7 +194,7 @@ def measure_gradient(local_rank: int,
             # zero the gradients
             optimizer.zero_grad(set_to_none=True)
             if local_rank == 0:
-                print(f"Processed {loss_count} samples for {dataset_name}.")
+                print(f"Processed {loss_count}/{len(test_data_loader)} samples for {dataset_name}.")
             # print(
             #     f"[END] Rank {local_rank}: eval batch input_ids: {eval_batch['input_ids'][0, :20]}, {eval_batch['input_ids'].shape}")
 
@@ -233,17 +236,13 @@ def main():
     device = torch.device(get_accelerator().device_name(), args.local_rank)
     deepspeed.init_distributed()
 
-    # hard-coded for now.
-    offload = False
-    zero_stage = 2
-
-    offload_device = "cpu" if offload else "none"
+    offload_device = "cpu" if OFFLOAD else "none"
 
     ds_config = {
         "train_micro_batch_size_per_gpu": EVAL_BATCH_SIZE,
         "train_batch_size": EVAL_BATCH_SIZE * int(os.environ["WORLD_SIZE"]),
         "zero_optimization": {
-            "stage": zero_stage,
+            "stage": ZERO_STAGE,
             "offload_param": {"device": offload_device},
             "offload_optimizer": {"device": offload_device},
             "stage3_param_persistence_threshold": 1e4,
@@ -320,7 +319,7 @@ def main():
 
     assert args.model_name_or_path is not None, "You need to specify a model name or path"
 
-    with deepspeed.zero.Init(enabled=(zero_stage == 3)):
+    with deepspeed.zero.Init(enabled=(ZERO_STAGE == 3)):
         model = AutoModelForCausalLM.from_pretrained(
             args.model_name_or_path,
             from_tf=bool(".ckpt" in args.model_name_or_path),
@@ -507,6 +506,7 @@ def main():
             padding="longest",
             max_length=batch_max_len,
         )
+        model = torch.compile(model)
     else:
         collate_fn = V2BatchSamplerDataCollatorForSeq2Seq(
             tokenizer=tokenizer,

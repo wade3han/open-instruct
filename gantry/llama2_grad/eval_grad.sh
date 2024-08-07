@@ -16,7 +16,6 @@ gantry run --beaker-image seungjuh/open-instruct-public-240806-preview \
   --preprocessing_num_workers 128 \
   --output_dir /results/$NAME \
   --gradient_accumulation_steps 1 \
-  --gradient_checkpointing \
   --learning_rate 1e-7 \
   --use_multipack \
   --use_compile
