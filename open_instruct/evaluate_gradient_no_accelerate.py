@@ -341,6 +341,7 @@ def main():
         model.load_state_dict(model_weights, strict=False)
 
     if args.gradient_checkpointing:
+        deepspeed.checkpointing.configure(mpu_=None)
         model.gradient_checkpointing = True
         model._gradient_checkpointing_func = torch.utils.checkpoint.checkpoint
         for module in model.modules():
@@ -349,7 +350,6 @@ def main():
                 module._gradient_checkpointing_func = torch.utils.checkpoint.checkpoint
         # TODO: why deepspeed checkpointing doesn't work?
         # gradient_checkpointing_func = deepspeed.checkpointing.checkpoint
-        # deepspeed.checkpointing.configure(mpu_=None)
         # model._gradient_checkpointing_func = gradient_checkpointing_func
         # model.gradient_checkpointing = True
         # for module in model.modules():
@@ -514,7 +514,7 @@ def main():
         padding="longest",
         max_length=batch_max_len,
     )
-    model = torch.compile(model)
+    # model = torch.compile(model)
 
     samplers = [MultipackBatchSampler(
         DistributedSampler(test_dataset, num_replicas=int(os.environ["WORLD_SIZE"]), rank=args.local_rank),
