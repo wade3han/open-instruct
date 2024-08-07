@@ -46,7 +46,7 @@ from transformers import (
 
 from open_instruct.multipack import V2BatchSamplerDataCollatorForSeq2Seq, MultipackBatchSampler, get_dataset_lengths, \
     patch_for_multipack, SUPPORTED_MULTIPACK_MODEL_TYPES, V2BatchSamplerDataCollatorForSeq2SeqPadding
-from open_instruct.utils import ArgumentParserPlus, FlatArguments, MFUEstimator
+from open_instruct.utils import ArgumentParserPlus, FlatArguments, MFUEstimator, print_rank_zero
 from open_instruct.wsd_scheduler import get_constant_schedule_with_warmup_and_cooldown
 
 # The flag below controls whether to allow TF32 on matmul. This flag defaults to False
@@ -197,12 +197,12 @@ def test_model(args,
             torch.distributed.all_reduce(eval_loss)
             eval_loss = eval_loss / loss_count / int(os.environ["WORLD_SIZE"])
             total_eval_loss += eval_loss
-            print(f"Eval loss for {dataset_name}: {eval_loss}")
-            if args.with_tracking:
+            print_rank_zero(f"Eval loss for {dataset_name}: {eval_loss}")
+            if args.with_tracking and int(os.environ["RANK"]) == 0:
                 wandb.log({f"eval_loss_{dataset_name}": eval_loss}, step=completed_steps)
     total_eval_loss /= len(test_data_loaders)
-    print(f"Total eval loss: {total_eval_loss}")
-    if args.with_tracking:
+    print_rank_zero(f"Total eval loss: {total_eval_loss}")
+    if args.with_tracking and int(os.environ["RANK"]) == 0:
         wandb.log({"eval_loss": total_eval_loss}, step=completed_steps)
 
     model_engine.train()
@@ -227,8 +227,8 @@ def set_seed(seed: int, deterministic: bool = False):
         torch.use_deterministic_algorithms(True)
 
 
-def save_model(model_engine: DeepSpeedEngine, local_rank, output_dir):
-    if local_rank == 0:
+def save_model(model_engine: DeepSpeedEngine, output_dir):
+    if int(os.environ["RANK"]) == 0:
         torch.save(model_engine.state_dict(), os.path.join(output_dir, "model.pth"))
 
 
@@ -242,12 +242,6 @@ def main():
         datefmt="%m/%d/%Y %H:%M:%S",
         level=logging.INFO,
     )
-    if args.local_rank == 0:
-        datasets.utils.logging.set_verbosity_warning()
-        transformers.utils.logging.set_verbosity_info()
-    else:
-        datasets.utils.logging.set_verbosity_error()
-        transformers.utils.logging.set_verbosity_error()
 
     # If passed along, set the training seed now.
     if args.seed is not None:
@@ -257,8 +251,15 @@ def main():
     device = torch.device(get_accelerator().device_name(), args.local_rank)
     deepspeed.init_distributed()
 
-    if args.local_rank:
-        print(f"Arguments: {args}")
+    if int(os.environ["RANK"]) == 0:
+        datasets.utils.logging.set_verbosity_warning()
+        transformers.utils.logging.set_verbosity_info()
+    else:
+        datasets.utils.logging.set_verbosity_error()
+        transformers.utils.logging.set_verbosity_error()
+
+    if int(os.environ["RANK"]) == 0:
+        print_rank_zero(f"Arguments: {args}")
         if args.output_dir is not None:
             os.makedirs(args.output_dir, exist_ok=True)
 
@@ -284,6 +285,7 @@ def main():
         },
         "bfloat16": {"enabled": True},
         "gradient_clipping": 1.0,
+        "gradient_accumulation_steps": args.gradient_accumulation_steps,
     }
 
     if args.dataset_name is not None:
@@ -332,7 +334,7 @@ def main():
         # use case.
         warning = f"""Requested tokenizer revision `{tokenizer_revision}` is different
                    from the model revision `{args.model_revision}`."""
-        print(warning)
+        print_rank_zero(warning)
 
     if args.tokenizer_name:
         tokenizer = AutoTokenizer.from_pretrained(
@@ -372,7 +374,7 @@ def main():
                 force_download=True,
             )
         else:
-            print("Training new model from scratch")
+            print_rank_zero("Training new model from scratch")
             model = AutoModelForCausalLM.from_config(config)
 
     if args.use_compile:
@@ -549,13 +551,13 @@ def main():
     # debugging tool for fewer samples
     if args.max_train_samples is not None:
         max_train_samples = min(len(train_dataset), args.max_train_samples)
-        print(f"Limiting training samples to {max_train_samples} from {len(train_dataset)}.")
+        print_rank_zero(f"Limiting training samples to {max_train_samples} from {len(train_dataset)}.")
         train_dataset = train_dataset.select(range(max_train_samples))
 
     # Log a few random samples from the training set:
-    if args.local_rank == 0:
+    if int(os.environ["RANK"]) == 0:
         for index in random.sample(range(len(train_dataset)), 3):
-            print(f"Sample {index} of the training set: {train_dataset[index]}.")
+            print_rank_zero(f"Sample {index} of the training set: {train_dataset[index]}.")
 
     # DataLoaders creation:
     if args.use_multipack:
@@ -708,7 +710,7 @@ def main():
 
     # Load weights and states from a trained model, but not resuming.
     if args.load_from_checkpoint:
-        print(f"Loading from checkpoint: {args.load_from_checkpoint}")
+        print_rank_zero(f"Loading from checkpoint: {args.load_from_checkpoint}")
         model_engine.load_checkpoint(args.load_from_checkpoint)
 
     # We need to recalculate our total training steps as the size of the training dataloader may have changed.
@@ -735,15 +737,15 @@ def main():
     total_batch_size = args.per_device_train_batch_size * int(os.environ["WORLD_SIZE"]) * \
                        args.gradient_accumulation_steps
 
-    print("***** Running training *****")
-    print(f"  Num examples = {len(train_dataset)}")
-    print(f"  Num Epochs = {args.num_train_epochs}")
-    print(f"  Instantaneous batch size per device = {args.per_device_train_batch_size}")
-    print(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")
-    print(f"  Gradient Accumulation steps = {args.gradient_accumulation_steps}")
-    print(f"  Total optimization steps = {args.max_train_steps}")
+    print_rank_zero("***** Running training *****")
+    print_rank_zero(f"  Num examples = {len(train_dataset)}")
+    print_rank_zero(f"  Num Epochs = {args.num_train_epochs}")
+    print_rank_zero(f"  Instantaneous batch size per device = {args.per_device_train_batch_size}")
+    print_rank_zero(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")
+    print_rank_zero(f"  Gradient Accumulation steps = {args.gradient_accumulation_steps}")
+    print_rank_zero(f"  Total optimization steps = {args.max_train_steps}")
     # Only show the progress bar once on each machine.
-    progress_bar = tqdm(range(args.max_train_steps), disable=not args.local_rank)
+    progress_bar = tqdm(range(args.max_train_steps), disable=int(os.environ["RANK"]) != 0)
     completed_steps = 0
     starting_epoch = 0
 
@@ -848,13 +850,13 @@ def main():
                             / args.gradient_accumulation_steps
                             / args.logging_steps
                     )
-                    print(f"  Step: {completed_steps}, LR: {lr_scheduler.get_last_lr()[0]}, Loss: {avg_loss},"
-                          f" eMFU: {running_emfu * 100:.2f}%, MFU: {running_mfu * 100:.2f},"
-                          f" Total Norm: {total_norm:.2f},"
-                          f" Effective Num Tokens (%): {effective_num_tokens_percentage:.2f},"
-                          f" Effective Num Tokens Per Instance: {effective_num_tokens_per_fwdbwd / args.gradient_accumulation_steps:.2f}"
-                          f" Seq Length: {seq_length_per_fwdbwd / args.gradient_accumulation_steps:.2f}")
-                    if args.with_tracking and args.local_rank == 0:
+                    print_rank_zero(f"  Step: {completed_steps}, LR: {lr_scheduler.get_last_lr()[0]}, Loss: {avg_loss},"
+                                    f" eMFU: {running_emfu * 100:.2f}%, MFU: {running_mfu * 100:.2f},"
+                                    f" Total Norm: {total_norm:.2f},"
+                                    f" Effective Num Tokens (%): {effective_num_tokens_percentage:.2f},"
+                                    f" Effective Num Tokens Per Instance: {effective_num_tokens_per_fwdbwd / args.gradient_accumulation_steps:.2f}"
+                                    f" Seq Length: {seq_length_per_fwdbwd / args.gradient_accumulation_steps:.2f}")
+                    if args.with_tracking and int(os.environ["RANK"]) == 0:
                         wandb.log(
                             {
                                 "learning_rate": lr_scheduler.get_last_lr()[0],
@@ -879,7 +881,7 @@ def main():
                         output_dir = f"step_{completed_steps}"
                         if args.output_dir is not None:
                             output_dir = os.path.join(args.output_dir, output_dir)
-                        save_model(model_engine, args.local_rank, output_dir)
+                        save_model(model_engine, output_dir)
 
                 if completed_steps >= args.max_train_steps:
                     break
@@ -888,7 +890,7 @@ def main():
             output_dir = f"epoch_{epoch}"
             if args.output_dir is not None:
                 output_dir = os.path.join(args.output_dir, output_dir)
-            save_model(model_engine, args.local_rank, output_dir)
+            save_model(model_engine, output_dir)
 
     torch.distributed.barrier()
     # last evaluation
@@ -896,7 +898,7 @@ def main():
                completed_steps, embedding_size, device)
 
     if args.output_dir is not None:
-        if args.local_rank == 0:
+        if int(os.environ["RANK"]) == 0:
             tokenizer.save_pretrained(args.output_dir)
         if args.save_state:
             model_engine.save_checkpoint(args.output_dir)

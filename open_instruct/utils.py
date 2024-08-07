@@ -421,3 +421,8 @@ class MFUEstimator:
         flops_promised = 989e12  # H100
         mfu = flops_achieved / flops_promised
         return mfu
+
+
+def print_rank_zero(content):
+    if os.environ.get("RANK", None) == "0":
+        print(content)
