@@ -604,11 +604,11 @@ def main():
         torch.utils.data._utils.worker._worker_loop = patched_worker_loop
         patch_fetchers()
 
-        batch_max_len = args.per_device_train_batch_size * args.max_seq_length
+        batch_max_len = args.per_device_train_batch_size * args.max_seq_length  # 4 * 8192 = 32768
         batch_size = 1
 
         sampler = MultipackBatchSampler(
-            DistributedSampler(train_dataset, num_replicas=int(os.environ["WORLD_SIZE"]), rank=args.local_rank),
+            DistributedSampler(train_dataset, num_replicas=int(os.environ["WORLD_SIZE"]), rank=int(os.environ["RANK"])),
             lengths=get_dataset_lengths(train_dataset),
             packing_efficiency_estimate=1.0,
             batch_max_len=batch_max_len,
@@ -636,8 +636,8 @@ def main():
             collate_fn=collate_fn,
         )
 
-        ds_config['train_micro_batch_size_per_gpu'] = batch_size
-        ds_config['train_batch_size'] = batch_size * int(os.environ["WORLD_SIZE"]) * args.gradient_accumulation_steps
+        ds_config['train_micro_batch_size_per_gpu'] = batch_size  # 1
+        ds_config['train_batch_size'] = batch_size * int(os.environ["WORLD_SIZE"]) * args.gradient_accumulation_steps  # 4 * 8 = 64
 
         # monkeypatch
         if args.use_flash_attn:
@@ -651,6 +651,8 @@ def main():
             batch_size=args.per_device_train_batch_size,
             sampler=DistributedSampler(train_dataset, num_replicas=int(os.environ["WORLD_SIZE"]), rank=args.local_rank),
         )
+
+    print(f"WORLD_SIZE: {int(os.environ['WORLD_SIZE'])}, RANK: {int(os.environ['RANK'])}")
 
     test_data_loaders = [
         DataLoader(

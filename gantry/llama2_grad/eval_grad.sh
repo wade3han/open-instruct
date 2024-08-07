@@ -19,4 +19,5 @@ gantry run --beaker-image seungjuh/open-instruct-public-240806-preview \
   --gradient_accumulation_steps 1 \
   --learning_rate 1e-7 \
   --use_multipack \
-  --use_compile
+  --use_compile \
+  --gradient_checkpointing
