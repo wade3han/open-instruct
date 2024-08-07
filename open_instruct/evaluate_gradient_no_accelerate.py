@@ -38,7 +38,7 @@ from transformers import (
     GPTNeoXTokenizerFast,
     LlamaTokenizer,
     LlamaTokenizerFast,
-    OPTForCausalLM,
+    OPTForCausalLM, LlamaForCausalLM,
 )
 
 from open_instruct.multipack import SUPPORTED_MULTIPACK_MODEL_TYPES, MultipackBatchSampler, \
@@ -197,7 +197,7 @@ def measure_gradient(local_rank: int,
             optimizer.zero_grad(set_to_none=True)
             if local_rank == 0:
                 print(
-                    f"Processed {loss_count}/{len(test_data_loader)} samples for {dataset_name}. Spend {time.time() - start_time:.2f}s.")
+                    f"Processed {loss_count}/{len(test_data_loader)} samples for {dataset_name}. Loss: {loss}. Spend {time.time() - start_time:.2f}s.")
             # print(
             #     f"[END] Rank {local_rank}: eval batch input_ids: {eval_batch['input_ids'][0, :20]}, {eval_batch['input_ids'].shape}")
 
@@ -273,6 +273,7 @@ def main():
             revision=args.model_revision,
             token=os.getenv("HF_TOKEN", None),
             force_download=False,
+            attn_implementation="flash_attention_2" if args.use_flash_attn else None,
         )
     elif args.model_name_or_path:
         config = AutoConfig.from_pretrained(
@@ -281,6 +282,7 @@ def main():
             revision=args.model_revision,
             token=os.getenv("HF_TOKEN", None),
             force_download=False,
+            attn_implementation="flash_attention_2" if args.use_flash_attn else None,
         )
     else:
         raise ValueError(
@@ -321,19 +323,20 @@ def main():
         )
 
     assert args.model_name_or_path is not None, "You need to specify a model name or path"
+    model_weights = AutoModelForCausalLM.from_pretrained(
+        args.model_name_or_path,
+        from_tf=bool(".ckpt" in args.model_name_or_path),
+        config=config,
+        trust_remote_code=args.trust_remote_code,
+        low_cpu_mem_usage=args.low_cpu_mem_usage,
+        revision=args.model_revision,
+        token=os.getenv("HF_TOKEN", None),
+        force_download=False,
+    ).state_dict()
 
     with deepspeed.zero.Init(enabled=(ZERO_STAGE == 3)):
-        model = AutoModelForCausalLM.from_pretrained(
-            args.model_name_or_path,
-            from_tf=bool(".ckpt" in args.model_name_or_path),
-            config=config,
-            trust_remote_code=args.trust_remote_code,
-            low_cpu_mem_usage=args.low_cpu_mem_usage,
-            use_flash_attention_2=True if args.use_flash_attn else False,
-            revision=args.model_revision,
-            token=os.getenv("HF_TOKEN", None),
-            force_download=False,
-        ).cuda()
+        model = LlamaForCausalLM(config=config).cuda()
+        model.load_state_dict(model_weights, strict=False)
 
     if args.gradient_checkpointing:
         model.gradient_checkpointing = True
