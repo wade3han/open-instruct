@@ -333,6 +333,8 @@ def main():
         token=os.getenv("HF_TOKEN", None),
         force_download=False,
     ).state_dict()
+    # change the state name.
+    model_weights = {"module." + k: v for k, v in model_weights.items()}
 
     with deepspeed.zero.Init(enabled=(ZERO_STAGE == 3)):
         model = LlamaForCausalLM(config=config).cuda()
