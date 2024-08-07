@@ -168,8 +168,8 @@ def measure_gradient(local_rank: int,
         grad_per_params = {}
         for i, eval_batch in enumerate(test_data_loader):
             eval_batch_device = {k: v.to(device) for k, v in eval_batch.items()}
-            print(
-                f"[START] Rank {local_rank}: eval batch input_ids: {eval_batch['input_ids'][0, :20]}, {eval_batch['input_ids'].shape}")
+            # print(
+            #     f"[START] Rank {local_rank}: eval batch input_ids: {eval_batch['input_ids'][0, :20]}, {eval_batch['input_ids'].shape}")
 
             # print(model_engine.model.embed_tokens(eval_batch_device['input_ids']).shape)
             outputs = model_engine(**eval_batch_device, use_cache=False)
@@ -189,8 +189,8 @@ def measure_gradient(local_rank: int,
             optimizer.zero_grad(set_to_none=True)
             if local_rank == 0:
                 print(f"Processed {loss_count} samples for {dataset_name}.")
-            print(
-                f"[END] Rank {local_rank}: eval batch input_ids: {eval_batch['input_ids'][0, :20]}, {eval_batch['input_ids'].shape}")
+            # print(
+            #     f"[END] Rank {local_rank}: eval batch input_ids: {eval_batch['input_ids'][0, :20]}, {eval_batch['input_ids'].shape}")
 
         # get the average gradient norm for each parameter group
         for n in grad_per_params:

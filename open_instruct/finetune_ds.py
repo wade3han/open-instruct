@@ -194,7 +194,7 @@ def test_model(args,
                 # loss = loss / DIVIDE_CONSTANT
                 eval_loss += loss
                 loss_count += 1
-            eval_loss = torch.distributed.all_reduce(eval_loss, torch.distributed.ReduceOp.MEAN).item() / loss_count
+            eval_loss = torch.distributed.all_reduce(eval_loss).item() / loss_count / int(os.environ["WORLD_SIZE"])
             total_eval_loss += eval_loss
             print(f"Eval loss for {dataset_name}: {eval_loss}")
             if args.with_tracking:
@@ -892,7 +892,7 @@ def main():
 
                 if args.logging_steps and completed_steps % args.logging_steps == 0:
                     avg_loss = (
-                            torch.distributed.all_reduce(total_loss, torch.distributed.ReduceOp.MEAN).item()
+                            torch.distributed.all_reduce(total_loss).item() / int(os.environ["WORLD_SIZE"])
                             / args.gradient_accumulation_steps
                             / args.logging_steps
                     )
