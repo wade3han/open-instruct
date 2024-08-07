@@ -17,6 +17,7 @@
 import logging
 import os
 import random
+import time
 from functools import partial
 
 import datasets
@@ -173,6 +174,7 @@ def measure_gradient(local_rank: int,
         loss_count = 0
         grad_per_params = {}
         for i, eval_batch in enumerate(test_data_loader):
+            start_time = time.time()
             eval_batch_device = {k: v.to(device) for k, v in eval_batch.items()}
             # print(
             #     f"[START] Rank {local_rank}: eval batch input_ids: {eval_batch['input_ids'][0, :20]}, {eval_batch['input_ids'].shape}")
@@ -194,7 +196,8 @@ def measure_gradient(local_rank: int,
             # zero the gradients
             optimizer.zero_grad(set_to_none=True)
             if local_rank == 0:
-                print(f"Processed {loss_count}/{len(test_data_loader)} samples for {dataset_name}.")
+                print(
+                    f"Processed {loss_count}/{len(test_data_loader)} samples for {dataset_name}. Spend {time.time() - start_time:.2f}s.")
             # print(
             #     f"[END] Rank {local_rank}: eval batch input_ids: {eval_batch['input_ids'][0, :20]}, {eval_batch['input_ids'].shape}")
 
