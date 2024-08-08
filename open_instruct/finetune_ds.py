@@ -428,7 +428,8 @@ def main():
         else:
             model.load_state_dict(model_weights, strict=False)
 
-    model: nn.Module = torch.compile(model)
+    # FIXME: compile is not working properly.
+    # model: nn.Module = torch.compile(model)
 
     # no default pad token for llama!
     # here we add all special tokens again, because the default ones are not in the special_tokens_map
