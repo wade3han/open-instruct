@@ -170,6 +170,9 @@ def save_with_accelerate(accelerator, model, tokenizer, output_dir, args):
     # set the generation config to an empty setting to be safe.
     # we usually do greedy decoding for generation, so this should be okay.
     # otherwise, we get an error thrown at save time.
+    if accelerator.is_main_process:
+        tokenizer.save_pretrained(output_dir)
+
     model.generation_config = transformers.GenerationConfig(
         temperature=None, top_p=None, eos_token_id=tokenizer.eos_token_id, bos_token_id=tokenizer.bos_token_id
     )
