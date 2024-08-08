@@ -224,7 +224,7 @@ def test_model(args,
             for eval_batch in test_data_loader:
                 eval_batch_device = {k: v.to(device) for k, v in eval_batch.items()}
                 outputs = model_engine(**eval_batch_device, use_cache=False)
-                loss = outputs.loss
+                loss = outputs.loss.detach().float()
                 # logits = outputs.logits
                 # labels = eval_batch["labels"]
                 # # Shift so that tokens < n predict n
@@ -429,7 +429,7 @@ def main():
             model.load_state_dict(model_weights, strict=False)
 
     # FIXME: compile is not working properly.
-    # model: nn.Module = torch.compile(model)
+    model: nn.Module = torch.compile(model)
 
     # no default pad token for llama!
     # here we add all special tokens again, because the default ones are not in the special_tokens_map
