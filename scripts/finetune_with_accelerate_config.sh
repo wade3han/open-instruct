@@ -30,5 +30,5 @@ accelerate launch \
     --num_processes $NUM_GPUS \
     --use_deepspeed \
     --deepspeed_config_file configs/ds_configs/stage3_no_offloading_accelerate.conf \
-    open_instruct/finetune.py \
+    open_instruct/finetune_accelerate.py \
     "$2"

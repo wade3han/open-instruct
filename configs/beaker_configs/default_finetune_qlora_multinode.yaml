@@ -18,7 +18,7 @@ tasks:
         --machine_rank $BEAKER_REPLICA_RANK
         --main_process_ip $BEAKER_LEADER_REPLICA_HOSTNAME
         --main_process_port 29400
-        open_instruct/finetune.py
+        open_instruct/finetune_accelerate.py
         --model_name_or_path /net/nfs.cirrascale/allennlp/yizhongw/hf_llama2_models/70B
         --tokenizer_name /net/nfs.cirrascale/allennlp/yizhongw/hf_llama2_models/70B
         --use_slow_tokenizer
