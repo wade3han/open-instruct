@@ -211,7 +211,7 @@ def test_model(args,
                embedding_size: int,
                device: torch.device,
                ):
-    model_engine.eval()
+    # model_engine.eval()
     total_eval_loss = 0
     DIVIDE_CONSTANT = EVAL_MAX_SEQ_LENGTH * EVAL_BATCH_SIZE
     loss_fct = torch.nn.CrossEntropyLoss(reduction="sum")
@@ -247,7 +247,7 @@ def test_model(args,
     if args.with_tracking and int(os.environ["RANK"]) == 0:
         wandb.log({"eval_loss": total_eval_loss}, step=completed_steps)
 
-    model_engine.train()
+    # model_engine.train()
 
 
 def set_seed(seed: int, deterministic: bool = False):
