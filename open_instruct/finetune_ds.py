@@ -911,6 +911,10 @@ def main():
                         output_dir = f"step_{completed_steps}"
                         if args.output_dir is not None:
                             output_dir = os.path.join(args.output_dir, output_dir)
+                        if int(os.environ["RANK"]) == 0:
+                            tokenizer.save_pretrained(output_dir)
+                            # save config.
+                            model.config.save_pretrained(output_dir)
                         save_model(model_engine, output_dir)
 
                 if completed_steps >= args.max_train_steps:
@@ -920,6 +924,10 @@ def main():
             output_dir = f"epoch_{epoch}"
             if args.output_dir is not None:
                 output_dir = os.path.join(args.output_dir, output_dir)
+            if int(os.environ["RANK"]) == 0:
+                tokenizer.save_pretrained(output_dir)
+                # save config.
+                model.config.save_pretrained(output_dir)
             save_model(model_engine, output_dir)
 
     torch.distributed.barrier()
@@ -930,6 +938,9 @@ def main():
     if args.output_dir is not None:
         if int(os.environ["RANK"]) == 0:
             tokenizer.save_pretrained(args.output_dir)
+            # save config.
+            model.config.save_pretrained(args.output_dir)
+
         save_model(model_engine, args.output_dir)
         if args.save_state:
             model_engine.save_checkpoint(args.output_dir)
