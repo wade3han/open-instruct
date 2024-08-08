@@ -31,7 +31,7 @@ gantry run --beaker-image seungjuh/open-instruct-public-240711 --venv base \
   --use_deepspeed \
   --main_process_port 2950 \
   --deepspeed_config_file configs/ds_configs/stage3_no_offloading_accelerate.conf \
-  open_instruct/finetune.py \
+  open_instruct/finetune_accelerate.py \
   --mask_users \
   --model_name_or_path meta-llama/Llama-2-7b-hf \
   --use_flash_attn \

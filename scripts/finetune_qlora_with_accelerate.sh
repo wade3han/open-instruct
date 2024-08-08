@@ -11,7 +11,7 @@ echo "Training llama model ${MODEL_SIZE} using $NUM_GPUS GPUs, $BATCH_SIZE_PER_G
 accelerate launch \
     --num_machines 1 \
     --num_processes $NUM_GPUS \
-    open_instruct/finetune.py \
+    open_instruct/finetune_accelerate.py \
     --model_name_or_path ../hf_llama2_models/${MODEL_SIZE} \
     --gradient_checkpointing \
     --use_qlora \

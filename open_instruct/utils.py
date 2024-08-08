@@ -305,6 +305,14 @@ class FlatArguments:
         default=None,
         metadata={"help": "If the training should continue from a checkpoint folder."},
     )
+    eval_per_steps: int = field(
+        default=100,
+        metadata={"help": "The number of steps between each evaluation run."},
+    )
+    local_rank: int = field(
+        default=-1,
+        metadata={"help": "Local rank for distributed training (-1: not distributed)."},
+    )
 
     def __post_init__(self):
         if self.reduce_loss not in ["mean", "sum"]:
@@ -413,3 +421,8 @@ class MFUEstimator:
         flops_promised = 989e12  # H100
         mfu = flops_achieved / flops_promised
         return mfu
+
+
+def print_rank_zero(content):
+    if os.environ.get("RANK", None) == "0":
+        print(content)

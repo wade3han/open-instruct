@@ -60,6 +60,9 @@ torch.backends.cuda.matmul.allow_tf32 = True
 # The flag below controls whether to allow TF32 on cuDNN. This flag defaults to True.
 torch.backends.cudnn.allow_tf32 = True
 
+EVAL_MAX_SEQ_LENGTH = 8192
+EVAL_BATCH_SIZE = 8
+
 
 def encode_with_prompt_completion_format(example, tokenizer, max_seq_length, add_bos=False):
     """
@@ -167,6 +170,9 @@ def save_with_accelerate(accelerator, model, tokenizer, output_dir, args):
     # set the generation config to an empty setting to be safe.
     # we usually do greedy decoding for generation, so this should be okay.
     # otherwise, we get an error thrown at save time.
+    if accelerator.is_main_process:
+        tokenizer.save_pretrained(output_dir)
+
     model.generation_config = transformers.GenerationConfig(
         temperature=None, top_p=None, eos_token_id=tokenizer.eos_token_id, bos_token_id=tokenizer.bos_token_id
     )
@@ -191,6 +197,51 @@ def save_with_accelerate(accelerator, model, tokenizer, output_dir, args):
             state_dict=state_dict,
             safe_serialization=False,
         )
+
+
+def test_model(args,
+               model,
+               test_data_loaders: list[DataLoader],
+               test_data_loaders_names: list[str],
+               accelerator,
+               completed_steps: int,
+               embedding_size: int,
+               ):
+    model.eval()
+    total_eval_loss = 0
+    DIVIDE_CONSTANT = EVAL_MAX_SEQ_LENGTH * EVAL_BATCH_SIZE
+    loss_fct = torch.nn.CrossEntropyLoss(reduction="sum")
+    with torch.no_grad():
+        for test_data_loader, dataset_name in zip(test_data_loaders, test_data_loaders_names):
+            eval_loss = 0
+            loss_count = 0
+            for eval_batch in test_data_loader:
+                outputs = model(**eval_batch, use_cache=False)
+                loss = outputs.loss
+                # logits = outputs.logits
+                # labels = eval_batch["labels"]
+                # # Shift so that tokens < n predict n
+                # shift_logits = logits[..., :-1, :].contiguous()
+                # shift_labels = labels[..., 1:].contiguous()
+                # shift_logits = shift_logits.view(-1, embedding_size)
+                # shift_labels = shift_labels.view(-1)
+                # # Enable model parallelism
+                # shift_labels = shift_labels.to(shift_logits.device)
+                # loss = loss_fct(shift_logits, shift_labels)
+                # loss = loss / DIVIDE_CONSTANT
+                eval_loss += loss
+                loss_count += 1
+            eval_loss = accelerator.gather(eval_loss).mean().item() / loss_count
+            total_eval_loss += eval_loss
+            logger.info(f"Eval loss for {dataset_name}: {eval_loss}")
+            if args.with_tracking:
+                accelerator.log({f"eval_loss_{dataset_name}": eval_loss}, step=completed_steps)
+    total_eval_loss /= len(test_data_loaders)
+    logger.info(f"Total eval loss: {total_eval_loss}")
+    if args.with_tracking:
+        accelerator.log({"eval_loss": total_eval_loss}, step=completed_steps)
+
+    model.train()
 
 
 def main():
@@ -481,35 +532,53 @@ def main():
         lm_datasets = lm_datasets.filter(lambda example: (example["labels"] != -100).any())
 
     with accelerator.main_process_first():
-        TEST_DATASET_PATH = "/net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/tulu-v2-sft-mixture-held-out.jsonl"
-        data_files = {"test": TEST_DATASET_PATH}
-        raw_datasets_test = load_dataset(
-            "json",
-            data_files=data_files,
-        )
-        encode_function_mask_non_assistant = partial(
-            encode_with_messages_format,
-            tokenizer=tokenizer,
-            mask_padding=False,
-            mask_users=True,
-            max_seq_length=8192,  # HARD-CODED
-            add_bos=args.add_bos,
-        )
-        lm_datasets_test = raw_datasets_test.map(
-            encode_function_mask_non_assistant,
-            batched=False,
-            num_proc=args.preprocessing_num_workers,
-            load_from_cache_file=not args.overwrite_cache,
-            remove_columns=[name for name in raw_datasets_test["test"].column_names if
-                            name not in ["input_ids", "labels", "attention_mask"]],
-            desc="Tokenizing and reformatting instruction data",
-        )
-        lm_datasets_test.set_format(type="pt")
-
-        print(f"Dataset size: {len(lm_datasets_test['test'])}")
+        # TEST_DATASET_PATH = "/net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/tulu-v2-sft-mixture-held-out.jsonl"
+        TEST_DATASET_DIR = "/net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/"
+        selected_validation_dataset_names = [
+            "lmsyschat",
+            "tulu2mix-code_alpaca",
+            "tulu2mix-cot",
+            "tulu2mix-flan_v2",
+            "tulu2mix-gpt4_alpaca",
+            "tulu2mix-oasst1",
+            "tulu2mix-open_orca",
+            "tulu2mix-science",
+            "tulu2mix-sharegpt",
+            "tulu2mix-wizardlm",
+            "ultrachat",
+            "ultrainteract",
+            "wildchat-gpt-4-0125-preview",
+        ]
+        lm_datasets_tests = []
+        for dataset_name in selected_validation_dataset_names:
+            validation_datapath = f"{TEST_DATASET_DIR}/megamixv2_dedup_{dataset_name}_validation.jsonl"
+            data_files = {"test": validation_datapath}
+            raw_datasets_test = load_dataset(
+                "json",
+                data_files=data_files,
+            )
+            encode_function_mask_non_assistant = partial(
+                encode_with_messages_format,
+                tokenizer=tokenizer,
+                mask_padding=False,
+                mask_users=True,
+                max_seq_length=EVAL_MAX_SEQ_LENGTH,  # HARD-CODED
+                add_bos=args.add_bos,
+            )
+            lm_datasets_test = raw_datasets_test.map(
+                encode_function_mask_non_assistant,
+                batched=False,
+                num_proc=args.preprocessing_num_workers,
+                load_from_cache_file=not args.overwrite_cache,
+                remove_columns=[name for name in raw_datasets_test["test"].column_names if
+                                name not in ["input_ids", "labels", "attention_mask"]],
+                desc="Tokenizing and reformatting instruction data",
+            )
+            lm_datasets_test.set_format(type="pt")
+            lm_datasets_tests.append(lm_datasets_test)
 
     train_dataset = lm_datasets["train"]
-    test_dataset = lm_datasets_test["test"]
+    test_datasets = [lm_datasets_test["test"] for lm_datasets_test in lm_datasets_tests]
 
     # debugging tool for fewer samples
     if args.max_train_samples is not None:
@@ -619,12 +688,16 @@ def main():
             collate_fn=DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="longest"),
             batch_size=args.per_device_train_batch_size,
         )
-    test_data_loader = DataLoader(
-        test_dataset,
-        shuffle=False,
-        collate_fn=DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="longest"),
-        batch_size=8,
-    )
+
+    test_data_loaders = [
+        DataLoader(
+            test_dataset,
+            shuffle=False,
+            collate_fn=DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="longest"),
+            batch_size=EVAL_BATCH_SIZE,
+        )
+        for test_dataset in test_datasets
+    ]
 
     # Optimizer
     # Split weights in two groups, one with weight decay and the other not.
@@ -690,8 +763,8 @@ def main():
         )
 
     # Prepare everything with `accelerator`.
-    model, optimizer, lr_scheduler, train_dataloader, test_data_loader = accelerator.prepare(
-        model, optimizer, lr_scheduler, train_dataloader, test_data_loader,
+    model, optimizer, lr_scheduler, train_dataloader, *test_data_loaders = accelerator.prepare(
+        model, optimizer, lr_scheduler, train_dataloader, *test_data_loaders,
     )
 
     # Load weights and states from a trained model, but not resuming.
@@ -931,25 +1004,9 @@ def main():
                 effective_num_tokens_per_fwdbwd += (batch["labels"] != -100).detach().sum().item()
 
             if accelerator.sync_gradients:
-                if completed_steps % 100 == 0 and completed_steps > 0:
-                    model.eval()
-                    with torch.no_grad():
-                        eval_loss = 0
-                        loss_count = 0
-                        for eval_step, eval_batch in enumerate(test_data_loader):
-                            outputs = model(**eval_batch, use_cache=False)
-                            eval_loss += outputs.loss
-                            loss_count += 1
-                        eval_loss = accelerator.gather(eval_loss).mean().item() / loss_count
-                        logger.info(f"Validation loss: {eval_loss}")
-                        if args.with_tracking:
-                            accelerator.log(
-                                {
-                                    "eval_loss": eval_loss,
-                                },
-                                step=completed_steps,
-                            )
-                    model.train()
+                if completed_steps % args.eval_per_steps == 0 and completed_steps > 0:
+                    test_model(args, model, test_data_loaders, selected_validation_dataset_names,
+                               accelerator, completed_steps, embedding_size)
 
             # Checks if the accelerator has performed an optimization step behind the scenes
             if accelerator.sync_gradients:
@@ -1030,13 +1087,13 @@ def main():
                             output_dir = os.path.join(args.output_dir, output_dir)
                         save_with_accelerate(accelerator, model, tokenizer, output_dir, args)
 
-                if args.lr_scheduler_type == "wsd" and \
-                        completed_steps + int(args.max_train_steps * args.cooldown_ratio) == args.max_train_steps:
-                    # save the model before cooling down
-                    output_dir = f"step_{completed_steps}"
-                    if args.output_dir is not None:
-                        output_dir = os.path.join(args.output_dir, output_dir)
-                    save_with_accelerate(accelerator, model, tokenizer, output_dir, args)
+                # if args.lr_scheduler_type == "wsd" and \
+                #         completed_steps + int(args.max_train_steps * args.cooldown_ratio) == args.max_train_steps:
+                #     # save the model before cooling down
+                #     output_dir = f"step_{completed_steps}"
+                #     if args.output_dir is not None:
+                #         output_dir = os.path.join(args.output_dir, output_dir)
+                #     save_with_accelerate(accelerator, model, tokenizer, output_dir, args)
 
                 if completed_steps >= args.max_train_steps:
                     break
@@ -1046,6 +1103,11 @@ def main():
             if args.output_dir is not None:
                 output_dir = os.path.join(args.output_dir, output_dir)
             save_with_accelerate(accelerator, model, tokenizer, output_dir, args)
+
+    accelerator.wait_for_everyone()
+    # last evaluation
+    test_model(args, model, test_data_loaders, selected_validation_dataset_names,
+               accelerator, completed_steps, embedding_size)
 
     if args.output_dir is not None:
         if accelerator.is_main_process:
