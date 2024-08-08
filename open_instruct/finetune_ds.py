@@ -222,18 +222,18 @@ def test_model(args,
             for eval_batch in test_data_loader:
                 eval_batch_device = {k: v.to(device) for k, v in eval_batch.items()}
                 outputs = model_engine(**eval_batch_device, use_cache=False)
-                loss = outputs.loss
-                # logits = outputs.logits
-                # labels = eval_batch["labels"]
-                # # Shift so that tokens < n predict n
-                # shift_logits = logits[..., :-1, :].contiguous()
-                # shift_labels = labels[..., 1:].contiguous()
-                # shift_logits = shift_logits.view(-1, embedding_size)
-                # shift_labels = shift_labels.view(-1)
-                # # Enable model parallelism
-                # shift_labels = shift_labels.to(shift_logits.device)
-                # loss = loss_fct(shift_logits, shift_labels)
-                # loss = loss / DIVIDE_CONSTANT
+                # loss = outputs.loss
+                logits = outputs.logits
+                labels = eval_batch["labels"]
+                # Shift so that tokens < n predict n
+                shift_logits = logits[..., :-1, :].contiguous()
+                shift_labels = labels[..., 1:].contiguous()
+                shift_logits = shift_logits.view(-1, embedding_size)
+                shift_labels = shift_labels.view(-1)
+                # Enable model parallelism
+                shift_labels = shift_labels.to(shift_logits.device)
+                loss = loss_fct(shift_logits, shift_labels)
+                loss = loss / DIVIDE_CONSTANT
                 eval_loss += loss
                 loss_count += 1
             torch.distributed.all_reduce(eval_loss)
@@ -740,7 +740,8 @@ def main():
         experiment_config = vars(args)
         # TensorBoard cannot log Enums, need the raw value
         experiment_config["lr_scheduler_type"] = experiment_config["lr_scheduler_type"]
-        wandb.init(project=os.environ["WANDB_PROJECT"], entity=os.environ["WANDB_ENTITY"], config=experiment_config)
+        if int(os.environ["RANK"]) == 0:
+            wandb.init(project=os.environ["WANDB_PROJECT"], entity=os.environ["WANDB_ENTITY"], config=experiment_config)
 
     # Train!
     total_batch_size = args.per_device_train_batch_size * int(os.environ["WORLD_SIZE"]) * \
