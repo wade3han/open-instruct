@@ -222,18 +222,18 @@ def test_model(args,
             for eval_batch in test_data_loader:
                 eval_batch_device = {k: v.to(device) for k, v in eval_batch.items()}
                 outputs = model_engine(**eval_batch_device, use_cache=False)
-                # loss = outputs.loss
-                logits = outputs.logits
-                labels = eval_batch["labels"]
-                # Shift so that tokens < n predict n
-                shift_logits = logits[..., :-1, :].contiguous()
-                shift_labels = labels[..., 1:].contiguous()
-                shift_logits = shift_logits.view(-1, embedding_size)
-                shift_labels = shift_labels.view(-1)
-                # Enable model parallelism
-                shift_labels = shift_labels.to(shift_logits.device)
-                loss = loss_fct(shift_logits, shift_labels)
-                loss = loss / DIVIDE_CONSTANT
+                loss = outputs.loss
+                # logits = outputs.logits
+                # labels = eval_batch["labels"]
+                # # Shift so that tokens < n predict n
+                # shift_logits = logits[..., :-1, :].contiguous()
+                # shift_labels = labels[..., 1:].contiguous()
+                # shift_logits = shift_logits.view(-1, embedding_size)
+                # shift_labels = shift_labels.view(-1)
+                # # Enable model parallelism
+                # shift_labels = shift_labels.to(shift_logits.device)
+                # loss = loss_fct(shift_logits, shift_labels)
+                # loss = loss / DIVIDE_CONSTANT
                 eval_loss += loss
                 loss_count += 1
             torch.distributed.all_reduce(eval_loss)
@@ -915,6 +915,7 @@ def main():
     if args.output_dir is not None:
         if int(os.environ["RANK"]) == 0:
             tokenizer.save_pretrained(args.output_dir)
+        save_model(model_engine, args.output_dir)
         if args.save_state:
             model_engine.save_checkpoint(args.output_dir)
 
