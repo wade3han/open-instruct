@@ -43,7 +43,9 @@ from transformers import (
     LlamaTokenizer,
     LlamaTokenizerFast,
     OPTForCausalLM,
-    get_scheduler, LlamaForCausalLM,
+    get_scheduler,
+    LlamaForCausalLM,
+    DataCollatorForSeq2Seq,
 )
 
 from open_instruct.multipack import MultipackBatchSampler, get_dataset_lengths, \
@@ -204,14 +206,14 @@ def encode_with_messages_format(example, tokenizer, max_seq_length, add_bos=Fals
 
 
 def test_model(args,
-               model_engine,
+               model_engine: DeepSpeedEngine,
                test_data_loaders: list[DataLoader],
                test_data_loaders_names: list[str],
                completed_steps: int,
                embedding_size: int,
                device: torch.device,
                ):
-    # model_engine.eval()
+    model_engine.eval()
     total_eval_loss = 0
     DIVIDE_CONSTANT = EVAL_MAX_SEQ_LENGTH * EVAL_BATCH_SIZE
     loss_fct = torch.nn.CrossEntropyLoss(reduction="sum")
@@ -247,7 +249,7 @@ def test_model(args,
     if args.with_tracking and int(os.environ["RANK"]) == 0:
         wandb.log({"eval_loss": total_eval_loss}, step=completed_steps)
 
-    # model_engine.train()
+    model_engine.train()
 
 
 def set_seed(seed: int, deterministic: bool = False):
@@ -651,24 +653,34 @@ def main():
 
     print(f"WORLD_SIZE: {int(os.environ['WORLD_SIZE'])}, RANK: {int(os.environ['RANK'])}")
 
-    test_samplers = [MultipackBatchSampler(
-        RandomSampler(test_dataset),
-        lengths=get_dataset_lengths(test_dataset),
-        packing_efficiency_estimate=1.0,
-        batch_max_len=EVAL_MAX_SEQ_LENGTH * EVAL_BATCH_SIZE,
-        batch_size=1,
-        drop_last=False,
-        num_replicas=int(os.environ["WORLD_SIZE"]),
-        rank=int(os.environ["RANK"]),
-    ) for test_dataset in test_datasets]
+    # test_samplers = [MultipackBatchSampler(
+    #     RandomSampler(test_dataset),
+    #     lengths=get_dataset_lengths(test_dataset),
+    #     packing_efficiency_estimate=1.0,
+    #     batch_max_len=EVAL_MAX_SEQ_LENGTH * EVAL_BATCH_SIZE,
+    #     batch_size=1,
+    #     drop_last=False,
+    #     num_replicas=int(os.environ["WORLD_SIZE"]),
+    #     rank=int(os.environ["RANK"]),
+    # ) for test_dataset in test_datasets]
+    #
+    # test_data_loaders = [
+    #     DataLoader(
+    #         test_dataset,
+    #         batch_sampler=test_sampler,
+    #         collate_fn=collate_fn,
+    #     )
+    #     for test_dataset, test_sampler in zip(test_datasets, test_samplers)
+    # ]
 
     test_data_loaders = [
         DataLoader(
             test_dataset,
-            batch_sampler=test_sampler,
-            collate_fn=collate_fn,
+            shuffle=False,
+            collate_fn=DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="longest"),
+            batch_size=EVAL_BATCH_SIZE,
         )
-        for test_dataset, test_sampler in zip(test_datasets, test_samplers)
+        for test_dataset in test_datasets
     ]
 
     # Optimizer
