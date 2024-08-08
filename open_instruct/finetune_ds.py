@@ -30,7 +30,7 @@ import wandb
 from datasets import load_dataset
 from deepspeed import get_accelerator, DeepSpeedEngine
 from torch import nn
-from torch.utils.data import DataLoader, RandomSampler
+from torch.utils.data import DataLoader, RandomSampler, DistributedSampler
 from torch.utils.data._utils.fetch import _BaseDatasetFetcher
 from torch.utils.data._utils.worker import _worker_loop
 from tqdm.auto import tqdm
@@ -677,6 +677,8 @@ def main():
         DataLoader(
             test_dataset,
             shuffle=False,
+            sampler=DistributedSampler(test_dataset, num_replicas=int(os.environ["WORLD_SIZE"]),
+                                       rank=int(os.environ["RANK"])),
             collate_fn=DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="longest"),
             batch_size=EVAL_BATCH_SIZE,
         )
