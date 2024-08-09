@@ -60,8 +60,8 @@ class LAdamW(Optimizer):
             raise ValueError(f"Invalid beta parameter: {betas[2]} - should be in [0.0, 1.0)")
         if not 0.0 <= eps:
             raise ValueError(f"Invalid epsilon value: {eps} - should be >= 0.0")
-        # defaults = {"lr": lr, "betas": betas, "eps": eps, "weight_decay": weight_decay, "correct_bias": correct_bias}
-        super().__init__(params, {})
+        defaults = {"lr": lr, "betas": betas, "eps": eps, "weight_decay": weight_decay, "correct_bias": correct_bias}
+        super().__init__(params, defaults)
 
         max_size = 0
         for group in self.param_groups:
