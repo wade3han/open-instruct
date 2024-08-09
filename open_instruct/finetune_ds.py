@@ -271,9 +271,17 @@ def set_seed(seed: int, deterministic: bool = False):
         torch.use_deterministic_algorithms(True)
 
 
-def save_model(model_engine: DeepSpeedEngine, output_dir):
+def save_model(model_engine: DeepSpeedEngine, output_dir, config, tokenizer):
     if int(os.environ["RANK"]) == 0:
-        torch.save(model_engine.state_dict(), os.path.join(output_dir, "model.pth"))
+        state_dict = {}
+        for k, v in model_engine.state_dict().items():
+            state_dict[k.replace("module._orig_mod.", "")] = v
+
+        model = AutoModelForCausalLM.from_config(config)
+        model.load_state_dict(state_dict)
+        model.save_pretrained(output_dir)
+        tokenizer.save_pretrained(output_dir)
+        config.save_pretrained(output_dir)
 
 
 def main():
@@ -911,11 +919,7 @@ def main():
                         output_dir = f"step_{completed_steps}"
                         if args.output_dir is not None:
                             output_dir = os.path.join(args.output_dir, output_dir)
-                        if int(os.environ["RANK"]) == 0:
-                            tokenizer.save_pretrained(output_dir)
-                            # save config.
-                            model.config.save_pretrained(output_dir)
-                        save_model(model_engine, output_dir)
+                        save_model(model_engine, output_dir, model.config, tokenizer)
 
                 if completed_steps >= args.max_train_steps:
                     break
@@ -924,11 +928,7 @@ def main():
             output_dir = f"epoch_{epoch}"
             if args.output_dir is not None:
                 output_dir = os.path.join(args.output_dir, output_dir)
-            if int(os.environ["RANK"]) == 0:
-                tokenizer.save_pretrained(output_dir)
-                # save config.
-                model.config.save_pretrained(output_dir)
-            save_model(model_engine, output_dir)
+            save_model(model_engine, output_dir, model.config, tokenizer)
 
     torch.distributed.barrier()
     # last evaluation
@@ -936,12 +936,7 @@ def main():
                completed_steps, embedding_size, device)
 
     if args.output_dir is not None:
-        if int(os.environ["RANK"]) == 0:
-            tokenizer.save_pretrained(args.output_dir)
-            # save config.
-            model.config.save_pretrained(args.output_dir)
-
-        save_model(model_engine, args.output_dir)
+        save_model(model_engine, args.output_dir, model.config, tokenizer)
         if args.save_state:
             model_engine.save_checkpoint(args.output_dir)
 
