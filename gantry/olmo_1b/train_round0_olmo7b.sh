@@ -36,4 +36,5 @@ gantry run --beaker-image seungjuh/open-instruct-public-240806-preview --venv ba
   --lr_scheduler_type "wsd" \
   --cooldown_ratio 0.2 \
   --logging_steps 1 \
-  --gradient_checkpointing
+  --gradient_checkpointing \
+  --per_device_eval_batch_size 2

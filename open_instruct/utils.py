@@ -313,6 +313,10 @@ class FlatArguments:
         default=-1,
         metadata={"help": "Local rank for distributed training (-1: not distributed)."},
     )
+    per_device_eval_batch_size: int = field(
+        default=8,
+        metadata={"help": "Batch size per GPU/TPU core/CPU for evaluation."},
+    )
 
     # LADAMW
     beta0: float = field(
