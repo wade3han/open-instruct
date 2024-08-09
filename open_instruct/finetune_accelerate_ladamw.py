@@ -451,6 +451,9 @@ def main():
     if len(tokenizer) > embedding_size:
         # pad to multiple for tensor cores.
         model.resize_token_embeddings(len(tokenizer), pad_to_multiple_of=8)
+    # update embedding size after resizing for sum loss
+    embeddings = model.get_input_embeddings()
+    embedding_size = embeddings.weight.shape[0]
 
     # set the tokenizer chat template to the tulu format
     # this makes evaluation/etc easier down the line.
