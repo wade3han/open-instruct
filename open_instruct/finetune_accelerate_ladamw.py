@@ -447,16 +447,10 @@ def main():
     # We resize the embeddings only when necessary to avoid index errors. If you are creating a model from scratch
     # gather deepspeed to get "real" embedding size
     embeddings = model.get_input_embeddings()
-    with deepspeed.zero.GatheredParameters(embeddings.weight, modifier_rank=None):
-        embedding_size = embeddings.weight.shape[0]
-    # resize does its own gather
+    embedding_size = embeddings.weight.shape[0]
     if len(tokenizer) > embedding_size:
         # pad to multiple for tensor cores.
         model.resize_token_embeddings(len(tokenizer), pad_to_multiple_of=8)
-    # update embedding size after resizing for sum loss
-    embeddings = model.get_input_embeddings()
-    with deepspeed.zero.GatheredParameters(embeddings.weight, modifier_rank=None):
-        embedding_size = embeddings.weight.shape[0]
 
     # set the tokenizer chat template to the tulu format
     # this makes evaluation/etc easier down the line.
@@ -673,10 +667,6 @@ def main():
         # input_ids, attention_mask, labels = data["input_ids"], data["attention_mask"], data["labels"]
         # from open_instruct.multipack import get_unpad_data
         # indices, cu_len, max_seq_len = get_unpad_data(attention_mask)
-
-        accelerator.state.deepspeed_plugin.deepspeed_config[
-            'train_micro_batch_size_per_gpu'] = batch_size
-        accelerator.even_batches = False
 
         # monkeypatch
         if args.use_flash_attn:
