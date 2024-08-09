@@ -338,6 +338,7 @@ def main():
         "bfloat16": {"enabled": True},
         "gradient_clipping": 1.0,
         "gradient_accumulation_steps": args.gradient_accumulation_steps,
+        "zero_allow_untested_optimizer": True,
     }
 
     if args.dataset_name is not None:
