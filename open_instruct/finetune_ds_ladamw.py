@@ -319,7 +319,8 @@ def main():
 
     # hard-coded for now.
     offload = False
-    ZERO_STAGE = 2
+    # ZERO_STAGE = 2
+    ZERO_STAGE = 0
 
     offload_device = "cpu" if offload else "none"
 
