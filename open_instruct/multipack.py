@@ -342,6 +342,7 @@ SUPPORTED_MULTIPACK_MODEL_TYPES = [
     "gemmoe",
     "starcoder2",
     "deepseek_v2",
+    "olmo",
 ]
 
 
