@@ -25,13 +25,13 @@ gantry run --beaker-image seungjuh/open-instruct-public-240806-preview --venv ba
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
   --learning_rate 5e-5 \
   --add_bos \
+  --use_slow_tokenizer False \
   --warmup_ratio 0.03 \
   --weight_decay 0. \
   --num_train_epochs 2 \
   --output_dir /results/$NAME \
   --with_tracking \
   --report_to wandb \
-  --gradient_checkpointing \
   --reduce_loss "sum" \
   --lr_scheduler_type "wsd" \
   --cooldown_ratio 0.2 \
