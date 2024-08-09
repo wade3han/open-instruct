@@ -425,6 +425,10 @@ def patch_for_multipack(model_type, model_name=None):
         patch_remote(model_name, ".configuration_jamba", ".modeling_jamba")
     elif model_type == "deepseek_v2":
         patch_remote(model_name, ".configuration_deepseek", ".modeling_deepseek")
+    elif model_type == "olmo":
+        transformers.models.olmo.modeling_olmo._get_unpad_data = (  # pylint: disable=protected-access
+            get_unpad_data
+        )
 
 
 def patch_remote(model_name, config_name, modeling_name):

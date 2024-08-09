@@ -44,7 +44,6 @@ from transformers import (
     LlamaTokenizerFast,
     OPTForCausalLM,
     get_scheduler,
-    LlamaForCausalLM,
     DataCollatorForSeq2Seq,
 )
 
@@ -426,7 +425,7 @@ def main():
     ).state_dict()
 
     with deepspeed.zero.Init(enabled=(ZERO_STAGE == 3)):
-        model = LlamaForCausalLM(config=config).cuda()
+        model = AutoModelForCausalLM.from_config(config=config).cuda()
         if int(os.environ["RANK"]) == 0:
             print(f"Model state dict keys: {list(model.state_dict().keys())}")
             print(f"Loaded model state dict keys: {list(model_weights.keys())}")
