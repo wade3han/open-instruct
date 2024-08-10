@@ -18,6 +18,8 @@ gantry run --beaker-image seungjuh/open-instruct-public-240806-preview --venv ba
   --use_multipack \
   --use_compile \
   --mask_users \
+  --add_bos \
+  --use_slow_tokenizer False \
   --eval_per_steps 20 \
   --model_name_or_path meta-llama/Llama-2-7b-hf \
   --use_flash_attn \

@@ -20,10 +20,12 @@ gantry run --beaker-image seungjuh/open-instruct-public-240806-preview --venv ba
   --use_multipack \
   --use_compile \
   --mask_users \
+  --add_bos \
+  --use_slow_tokenizer False \
   --eval_per_steps 20 \
-  --model_name_or_path meta-llama/Llama-2-7b-hf \
+  --model_name_or_path allenai/OLMo-1B-hf \
   --use_flash_attn \
-  --tokenizer_name meta-llama/Llama-2-7b-hf \
+  --tokenizer_name allenai/OLMo-1B-hf \
   --train_file /net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/tulu-v2-sft-mixture_train.jsonl \
   --max_seq_length 2048 \
   --preprocessing_num_workers 128 \
