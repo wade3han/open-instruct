@@ -694,7 +694,7 @@ def main():
             test_dataset,
             shuffle=False,
             collate_fn=DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="longest"),
-            batch_size=EVAL_BATCH_SIZE,
+            batch_size=args.per_device_eval_batch_size,
         )
         for test_dataset in test_datasets
     ]
