@@ -7,7 +7,7 @@ echo "Training llama model using $NUM_GPUS GPUs, $BATCH_SIZE_PER_GPU batch size 
 # You can also set --gradient_checkpointing or use `stage3_offloading_accelerate.conf` to save memory,
 # but it will trade off speed.
 # sweep learning rate from 2e-5 to 1e-6
-NAME=ds_gemma_2b_batch1_seq2048_sum_wsd20_user_mask_lr5e-5_round0
+NAME=ds_gemma_2b_batch1_seq2048_sum_wsd20_user_mask_lr5e-5_round0_no_multipack
 
 gantry run --beaker-image seungjuh/open-instruct-public-240806-preview \
   --venv base \
@@ -32,7 +32,6 @@ gantry run --beaker-image seungjuh/open-instruct-public-240806-preview \
   --main_process_port 2950 \
   --deepspeed_config_file configs/ds_configs/stage2_accelerate.conf \
   open_instruct/finetune_accelerate.py \
-  --use_multipack \
   --use_compile \
   --mask_users \
   --eval_per_steps 20 \
