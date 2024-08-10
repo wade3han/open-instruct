@@ -34,4 +34,5 @@ gantry run --beaker-image seungjuh/open-instruct-public-240806-preview --venv ba
   --reduce_loss "sum" \
   --lr_scheduler_type "wsd" \
   --cooldown_ratio 0.2 \
+  --ladamw_rank 32 \
   --logging_steps 1
