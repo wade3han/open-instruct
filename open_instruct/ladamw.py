@@ -1,12 +1,13 @@
 import math
 import warnings
-from typing import Callable, Iterable, Tuple
+from typing import Callable, Iterable, Tuple, TypeAlias, Union, Dict, Any
 
 import torch
 from torch import nn
 from torch.optim import Optimizer
-from torch.optim.optimizer import ParamsT
 from transformers.utils.versions import require_version
+
+ParamsT: TypeAlias = Union[Iterable[torch.Tensor], Iterable[Dict[str, Any]]]
 
 
 class LAdamW(Optimizer):
