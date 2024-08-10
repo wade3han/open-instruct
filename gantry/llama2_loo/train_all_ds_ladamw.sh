@@ -1,6 +1,6 @@
 #!/bin/bash
 NUM_GPUS=4
-BATCH_SIZE_PER_GPU=4
+BATCH_SIZE_PER_GPU=1
 TOTAL_BATCH_SIZE=128
 GRADIENT_ACC_STEPS=$(($TOTAL_BATCH_SIZE / $NUM_GPUS / $BATCH_SIZE_PER_GPU))
 echo "Training llama model using $NUM_GPUS GPUs, $BATCH_SIZE_PER_GPU batch size per GPU, $GRADIENT_ACC_STEPS gradient accumulation steps"
@@ -19,7 +19,7 @@ gantry run --beaker-image seungjuh/open-instruct-public-240806-preview --venv ba
   --use_flash_attn \
   --tokenizer_name meta-llama/Llama-2-7b-hf \
   --train_file /net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/megamixv2_dedup_loo-v2_all_train.jsonl \
-  --max_seq_length 8192 \
+  --max_seq_length 2048 \
   --preprocessing_num_workers 128 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
