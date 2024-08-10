@@ -146,7 +146,7 @@ class LAdamW(Optimizer):
                     raise ValueError("Parameters that exceed 2 Dim are not supported currently.")
 
                 step_size = lr
-                denom = exp_avg_sq.sqrt().add_(eps)
+                denom = exp_avg_sq.abs().sqrt().add_(eps)
                 if correct_bias:
                     bias_correction1 = ((1.0 - beta1) * (1.0 - (beta0 * beta1) ** state["step"])) / (
                             1.0 - (beta0 * beta1))
