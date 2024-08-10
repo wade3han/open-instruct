@@ -1017,9 +1017,6 @@ def main():
                     total_norm = accelerator.clip_grad_norm_(model.parameters(), args.clip_grad_norm)
                     if hasattr(total_norm, "item"):
                         total_norm = total_norm.item()
-                # total_norm = model.get_global_grad_norm()
-                if hasattr(total_norm, "item"):
-                    total_norm = total_norm.item()
                 optimizer.step()
                 optimizer.zero_grad()
                 lr_scheduler.step()
