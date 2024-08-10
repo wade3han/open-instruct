@@ -1,6 +1,6 @@
 #!/bin/bash
 NUM_GPUS=4
-BATCH_SIZE_PER_GPU=1
+BATCH_SIZE_PER_GPU=4
 TOTAL_BATCH_SIZE=128
 GRADIENT_ACC_STEPS=$(($TOTAL_BATCH_SIZE / $NUM_GPUS / $BATCH_SIZE_PER_GPU))
 echo "Training llama model using $NUM_GPUS GPUs, $BATCH_SIZE_PER_GPU batch size per GPU, $GRADIENT_ACC_STEPS gradient accumulation steps"
@@ -12,7 +12,6 @@ NAME=ds_gemma2b_loo-v2_batch4_seq8192_sum_lr5e-5_wsd20_user_mask_lr5e-5_round0
 gantry run --beaker-image seungjuh/open-instruct-public-240806-preview --venv base --name $NAME --cluster ai2/pluto-cirrascale --workspace ai2/safety --pip requirements-gemma.txt --gpus 4 --priority high --preemptible --env-secret WANDB_API_KEY=WANDB_API_KEY --env-secret HF_TOKEN=HUGGING_FACE_HUB_TOKEN --env WANDB_PROJECT=llama2-finetuning --env WANDB_ENTITY=seungjuhan3 --env WANDB_NAME=$NAME --env-secret OPENAI_API_KEY=openai_api_key --budget ai2/oe-adapt -- \
   deepspeed open_instruct/finetune_ds.py \
   --use_multipack \
-  --use_compile \
   --mask_users \
   --eval_per_steps 20 \
   --model_name_or_path google/gemma-2-2b \
@@ -31,6 +30,7 @@ gantry run --beaker-image seungjuh/open-instruct-public-240806-preview --venv ba
   --with_tracking \
   --report_to wandb \
   --reduce_loss "sum" \
+  --gradient_checkpointing \
   --lr_scheduler_type "wsd" \
   --cooldown_ratio 0.2 \
   --logging_steps 1

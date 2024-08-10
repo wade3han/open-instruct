@@ -435,7 +435,8 @@ def main():
             model.load_state_dict(model_weights, strict=False)
 
     # FIXME: compile is not working properly.
-    model: nn.Module = torch.compile(model)
+    if args.use_compile:
+        model: nn.Module = torch.compile(model)
 
     # no default pad token for llama!
     # here we add all special tokens again, because the default ones are not in the special_tokens_map
@@ -618,7 +619,6 @@ def main():
 
     # DataLoaders creation:
     assert args.use_multipack, "Only multipack is supported. TODO: fix this."
-    assert args.use_compile, "Multipack only works with compile. TODO: fix this."
     assert not args.mask_padding, "Mask padding is not supported with multipack."
     assert config.model_type in SUPPORTED_MULTIPACK_MODEL_TYPES, f"Model type {config.model_type} not supported."
 
