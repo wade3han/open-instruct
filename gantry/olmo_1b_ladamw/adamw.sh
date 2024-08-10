@@ -14,7 +14,7 @@ gantry run --beaker-image seungjuh/open-instruct-public-240806-preview --venv ba
   --num_machines 1 \
   --num_processes $NUM_GPUS \
   --main_process_port 2950 \
-  open_instruct/finetune_accelerate_adamw.py \
+  open_instruct/exploration/finetune_accelerate_adamw.py \
   --use_multipack \
   --use_compile \
   --mask_users \
