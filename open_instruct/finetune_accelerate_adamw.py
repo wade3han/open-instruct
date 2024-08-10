@@ -1015,9 +1015,8 @@ def main():
                 # clip gradient norm. don't do this with deepspeed
                 if accelerator.sync_gradients and args.clip_grad_norm > 0:
                     total_norm = accelerator.clip_grad_norm_(model.parameters(), args.clip_grad_norm)
-                # total_norm = model.get_global_grad_norm()
-                if hasattr(total_norm, "item"):
-                    total_norm = total_norm.item()
+                    if hasattr(total_norm, "item"):
+                        total_norm = total_norm.item()
                 optimizer.step()
                 optimizer.zero_grad()
                 lr_scheduler.step()
