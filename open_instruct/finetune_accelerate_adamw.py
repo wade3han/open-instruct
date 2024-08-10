@@ -61,7 +61,6 @@ torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
 
 EVAL_MAX_SEQ_LENGTH = 8192
-EVAL_BATCH_SIZE = 8
 
 
 def encode_with_prompt_completion_format(example, tokenizer, max_seq_length, add_bos=False):
@@ -209,7 +208,6 @@ def test_model(args,
                ):
     model.eval()
     total_eval_loss = 0
-    DIVIDE_CONSTANT = EVAL_MAX_SEQ_LENGTH * EVAL_BATCH_SIZE
     loss_fct = torch.nn.CrossEntropyLoss(reduction="sum")
     with torch.no_grad():
         for test_data_loader, dataset_name in zip(test_data_loaders, test_data_loaders_names):
@@ -555,6 +553,7 @@ def main():
             desc="Tokenizing and reformatting instruction data",
         )
         lm_datasets_test.set_format(type="pt")
+        lm_datasets_test = lm_datasets_test.filter(lambda example: (example["labels"] != -100).any())
         lm_datasets_tests.append(lm_datasets_test)
         # TEST_DATASET_DIR = "/net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/"
         # selected_validation_dataset_names = [

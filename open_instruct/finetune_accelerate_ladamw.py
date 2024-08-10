@@ -555,6 +555,7 @@ def main():
             desc="Tokenizing and reformatting instruction data",
         )
         lm_datasets_test.set_format(type="pt")
+        lm_datasets_test = lm_datasets_test.filter(lambda example: (example["labels"] != -100).any())
         lm_datasets_tests.append(lm_datasets_test)
         # TEST_DATASET_DIR = "/net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/"
         # selected_validation_dataset_names = [
