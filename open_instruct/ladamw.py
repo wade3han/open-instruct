@@ -5,6 +5,7 @@ from typing import Callable, Iterable, Tuple, TypeAlias, Union, Dict, Any
 import torch
 from torch import nn
 from torch.optim import Optimizer
+
 from transformers.utils.versions import require_version
 
 ParamsT: TypeAlias = Union[Iterable[torch.Tensor], Iterable[Dict[str, Any]]]
@@ -61,8 +62,8 @@ class LAdamW(Optimizer):
             raise ValueError(f"Invalid beta parameter: {betas[2]} - should be in [0.0, 1.0)")
         if not 0.0 <= eps:
             raise ValueError(f"Invalid epsilon value: {eps} - should be >= 0.0")
-        defaults = {"lr": lr, "betas": betas, "eps": eps, "weight_decay": weight_decay, "correct_bias": correct_bias}
-        super().__init__(params, defaults)
+        # defaults = {"lr": lr, "betas": betas, "eps": eps, "weight_decay": weight_decay, "correct_bias": correct_bias}
+        super().__init__(params, {})
 
         max_size = 0
         for group in self.param_groups:
@@ -108,12 +109,14 @@ class LAdamW(Optimizer):
 
                 # Compression
                 if p.dim() < 2:
-                    grad = torch.matmul(projection[:rank * p.shape[0]].view(rank, p.shape[0]), grad)
+                    grad = torch.matmul(projection[:rank * p.shape[0]].view(rank, p.shape[0]) / math.sqrt(rank), grad)
                 elif p.dim() == 2:
                     if p.shape[0] >= p.shape[1]:
-                        grad = torch.matmul(projection[:rank * p.shape[0]].view(rank, p.shape[0]), grad)
+                        grad = torch.matmul(projection[:rank * p.shape[0]].view(rank, p.shape[0]) / math.sqrt(rank),
+                                            grad)
                     else:
-                        grad = torch.matmul(grad, projection[:rank * p.shape[1]].view(p.shape[1], rank))
+                        grad = torch.matmul(grad,
+                                            projection[:rank * p.shape[1]].view(p.shape[1], rank) / math.sqrt(rank))
                 else:
                     raise ValueError("Parameters that exceed 2 Dim are not supported currently.")
 
@@ -134,15 +137,23 @@ class LAdamW(Optimizer):
 
                 # Decompression
                 if p.dim() < 2:
-                    exp_avg = torch.matmul(projection[:rank * p.shape[0]].view(rank, p.shape[0]).T, exp_avg)
-                    exp_avg_sq = torch.matmul(projection[:rank * p.shape[0]].view(rank, p.shape[0]).T, exp_avg_sq)
+                    exp_avg = torch.matmul(projection[:rank * p.shape[0]].view(rank, p.shape[0]).T / math.sqrt(rank),
+                                           exp_avg)
+                    exp_avg_sq = torch.matmul(projection[:rank * p.shape[0]].view(rank, p.shape[0]).T / math.sqrt(rank),
+                                              exp_avg_sq)
                 elif p.dim() == 2:
                     if p.shape[0] >= p.shape[1]:
-                        exp_avg = torch.matmul(projection[:rank * p.shape[0]].view(rank, p.shape[0]).T, exp_avg)
-                        exp_avg_sq = torch.matmul(projection[:rank * p.shape[0]].view(rank, p.shape[0]).T, exp_avg_sq)
+                        exp_avg = torch.matmul(
+                            projection[:rank * p.shape[0]].view(rank, p.shape[0]).T / math.sqrt(rank), exp_avg)
+                        exp_avg_sq = torch.matmul(
+                            projection[:rank * p.shape[0]].view(rank, p.shape[0]).T / math.sqrt(rank), exp_avg_sq)
                     else:
-                        exp_avg = torch.matmul(exp_avg, projection[:rank * p.shape[1]].view(p.shape[1], rank).T)
-                        exp_avg_sq = torch.matmul(exp_avg_sq, projection[:rank * p.shape[1]].view(p.shape[1], rank).T)
+                        exp_avg = torch.matmul(exp_avg,
+                                               projection[:rank * p.shape[1]].view(p.shape[1], rank).T / math.sqrt(
+                                                   rank))
+                        exp_avg_sq = torch.matmul(exp_avg_sq,
+                                                  projection[:rank * p.shape[1]].view(p.shape[1], rank).T / math.sqrt(
+                                                      rank))
                 else:
                     raise ValueError("Parameters that exceed 2 Dim are not supported currently.")
 
