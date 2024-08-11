@@ -114,17 +114,17 @@ class LAdamW(Optimizer):
 
                 # Compression
                 if p.dim() < 2:
-                    # grad = torch.matmul(projection[:rank * p.shape[0]].view(rank, p.shape[0]) / math.sqrt(rank), grad)
-                    grad = torch.matmul(projection[:rank * p.shape[0]].view(rank, p.shape[0]), grad)
+                    grad = torch.matmul(projection[:rank * p.shape[0]].view(rank, p.shape[0]) / math.sqrt(rank), grad)
+                    # grad = torch.matmul(projection[:rank * p.shape[0]].view(rank, p.shape[0]), grad)
                 elif p.dim() == 2:
                     if p.shape[0] >= p.shape[1]:
-                        # grad = torch.matmul(projection[:rank * p.shape[0]].view(rank, p.shape[0]) / math.sqrt(rank),
-                        #                     grad)
-                        grad = torch.matmul(projection[:rank * p.shape[0]].view(rank, p.shape[0]), grad)
+                        grad = torch.matmul(projection[:rank * p.shape[0]].view(rank, p.shape[0]) / math.sqrt(rank),
+                                            grad)
+                        # grad = torch.matmul(projection[:rank * p.shape[0]].view(rank, p.shape[0]), grad)
                     else:
-                        # grad = torch.matmul(grad,
-                        #                     projection[:rank * p.shape[1]].view(p.shape[1], rank) / math.sqrt(rank))
-                        grad = torch.matmul(grad, projection[:rank * p.shape[1]].view(p.shape[1], rank))
+                        grad = torch.matmul(grad,
+                                            projection[:rank * p.shape[1]].view(p.shape[1], rank) / math.sqrt(rank))
+                        # grad = torch.matmul(grad, projection[:rank * p.shape[1]].view(p.shape[1], rank))
                 else:
                     raise ValueError("Parameters that exceed 2 Dim are not supported currently.")
 
@@ -146,33 +146,33 @@ class LAdamW(Optimizer):
 
                 # Decompression
                 if p.dim() < 2:
-                    # exp_avg = torch.matmul(projection[:rank * p.shape[0]].view(rank, p.shape[0]).T / math.sqrt(rank),
-                    #                        exp_avg)
-                    exp_avg = torch.matmul(projection[:rank * p.shape[0]].view(rank, p.shape[0]).T, exp_avg)
-                    # exp_avg_sq = torch.matmul(projection[:rank * p.shape[0]].view(rank, p.shape[0]).T / math.sqrt(rank),
-                    #                           exp_avg_sq)
-                    exp_avg_sq = torch.matmul(projection[:rank * p.shape[0]].view(rank, p.shape[0]).T, exp_avg_sq)
+                    exp_avg = torch.matmul(projection[:rank * p.shape[0]].view(rank, p.shape[0]).T / math.sqrt(rank),
+                                           exp_avg)
+                    # exp_avg = torch.matmul(projection[:rank * p.shape[0]].view(rank, p.shape[0]).T, exp_avg)
+                    exp_avg_sq = torch.matmul(projection[:rank * p.shape[0]].view(rank, p.shape[0]).T / math.sqrt(rank),
+                                              exp_avg_sq)
+                    # exp_avg_sq = torch.matmul(projection[:rank * p.shape[0]].view(rank, p.shape[0]).T, exp_avg_sq)
                 elif p.dim() == 2:
                     if p.shape[0] >= p.shape[1]:
-                        # exp_avg = torch.matmul(
-                        #     projection[:rank * p.shape[0]].view(rank, p.shape[0]).T / math.sqrt(rank), exp_avg)
                         exp_avg = torch.matmul(
-                            projection[:rank * p.shape[0]].view(rank, p.shape[0]).T, exp_avg)
-                        # exp_avg_sq = torch.matmul(
-                        #     projection[:rank * p.shape[0]].view(rank, p.shape[0]).T / math.sqrt(rank), exp_avg_sq)
+                            projection[:rank * p.shape[0]].view(rank, p.shape[0]).T / math.sqrt(rank), exp_avg)
+                        # exp_avg = torch.matmul(
+                        #     projection[:rank * p.shape[0]].view(rank, p.shape[0]).T, exp_avg)
                         exp_avg_sq = torch.matmul(
-                            projection[:rank * p.shape[0]].view(rank, p.shape[0]).T, exp_avg_sq)
+                            projection[:rank * p.shape[0]].view(rank, p.shape[0]).T / math.sqrt(rank), exp_avg_sq)
+                        # exp_avg_sq = torch.matmul(
+                        #     projection[:rank * p.shape[0]].view(rank, p.shape[0]).T, exp_avg_sq)
                     else:
-                        # exp_avg = torch.matmul(exp_avg,
-                        #                        projection[:rank * p.shape[1]].view(p.shape[1], rank).T / math.sqrt(
-                        #                            rank))
                         exp_avg = torch.matmul(exp_avg,
-                                               projection[:rank * p.shape[1]].view(p.shape[1], rank).T)
-                        # exp_avg_sq = torch.matmul(exp_avg_sq,
-                        #                           projection[:rank * p.shape[1]].view(p.shape[1], rank).T / math.sqrt(
-                        #                               rank))
+                                               projection[:rank * p.shape[1]].view(p.shape[1], rank).T / math.sqrt(
+                                                   rank))
+                        # exp_avg = torch.matmul(exp_avg,
+                        #                        projection[:rank * p.shape[1]].view(p.shape[1], rank).T)
                         exp_avg_sq = torch.matmul(exp_avg_sq,
-                                                  projection[:rank * p.shape[1]].view(p.shape[1], rank).T)
+                                                  projection[:rank * p.shape[1]].view(p.shape[1], rank).T / math.sqrt(
+                                                      rank))
+                        # exp_avg_sq = torch.matmul(exp_avg_sq,
+                        #                           projection[:rank * p.shape[1]].view(p.shape[1], rank).T)
                 else:
                     raise ValueError("Parameters that exceed 2 Dim are not supported currently.")
 
