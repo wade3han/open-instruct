@@ -62,8 +62,9 @@ class LAdamW(Optimizer):
             raise ValueError(f"Invalid beta parameter: {betas[2]} - should be in [0.0, 1.0)")
         if not 0.0 <= eps:
             raise ValueError(f"Invalid epsilon value: {eps} - should be >= 0.0")
-        # defaults = {"lr": lr, "betas": betas, "eps": eps, "weight_decay": weight_decay, "correct_bias": correct_bias}
-        super().__init__(params, {})
+        defaults = {"lr": lr, "betas": betas, "eps": eps, "weight_decay": weight_decay, "correct_bias": correct_bias,
+                    "rank": rank}
+        super().__init__(params, defaults)
 
         max_size = 0
         for group in self.param_groups:
@@ -72,7 +73,8 @@ class LAdamW(Optimizer):
                     max_size = max(p.shape)
 
         self.state['projection'] = torch.randn(max_size * rank)
-        self.state['hyperparams'] = (lr, rank, betas[0], betas[1], betas[2], eps, weight_decay, correct_bias)
+        self.state['beta0'] = betas[0]
+        # self.state['hyperparams'] = (lr, rank, betas[0], betas[1], betas[2], eps, weight_decay, correct_bias)
 
     @torch.no_grad()
     def step(self, closure: Callable = None):
@@ -87,7 +89,8 @@ class LAdamW(Optimizer):
             loss = closure()
 
         projection = self.state['projection']
-        lr, rank, beta0, beta1, beta2, eps, weight_decay, correct_bias = self.state['hyperparams']
+        # lr, rank, beta0, beta1, beta2, eps, weight_decay, correct_bias = self.state['hyperparams']
+        beta0 = self.state['beta0']
 
         projection.mul_(beta0).add_(torch.randn_like(projection), alpha=math.sqrt(1.0 - beta0 ** 2))
 
@@ -106,6 +109,8 @@ class LAdamW(Optimizer):
                 if projection.device != p.device:
                     self.state['projection'] = projection.to(p.device)
                     projection = self.state['projection']
+
+                rank = group["rank"]
 
                 # Compression
                 if p.dim() < 2:
@@ -132,6 +137,7 @@ class LAdamW(Optimizer):
 
                 # Decay the first and second moment running average coefficient
                 # In-place operations to update the averages at the same time
+                beta1, beta2 = group["betas"][1:]
                 exp_avg.mul_(beta1).add_(grad, alpha=(1.0 - beta1))
                 exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1.0 - beta2)
 
@@ -157,6 +163,9 @@ class LAdamW(Optimizer):
                 else:
                     raise ValueError("Parameters that exceed 2 Dim are not supported currently.")
 
+                lr = group["lr"]
+                eps = group["eps"]
+                correct_bias = group["correct_bias"]
                 step_size = lr
                 denom = exp_avg_sq.abs().sqrt().add_(eps)
                 if correct_bias:
@@ -179,6 +188,7 @@ class LAdamW(Optimizer):
                 # with the m/v parameters. This is equivalent to adding the square
                 # of the weights to the loss with plain (non-momentum) SGD.
                 # Add weight decay at the end (fixed version)
+                weight_decay = group["weight_decay"]
                 if weight_decay > 0.0:
                     p.add_(p, alpha=(-lr * weight_decay))
 
