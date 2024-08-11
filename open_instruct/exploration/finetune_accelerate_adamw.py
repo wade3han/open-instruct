@@ -46,7 +46,6 @@ from transformers import (
     get_scheduler,
 )
 
-from open_instruct.ladamw import LAdamW
 from open_instruct.multipack import V2BatchSamplerDataCollatorForSeq2Seq, MultipackBatchSampler, get_dataset_lengths, \
     patch_for_multipack, SUPPORTED_MULTIPACK_MODEL_TYPES, V2BatchSamplerDataCollatorForSeq2SeqPadding
 from open_instruct.utils import ArgumentParserPlus, FlatArguments, MFUEstimator
@@ -741,9 +740,10 @@ def main():
     #     )
     # else:
     #     optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=args.learning_rate)
-    optimizer = LAdamW(optimizer_grouped_parameters, lr=args.learning_rate,
-                       betas=(args.beta0, args.beta1, args.beta2),
-                       rank=args.ladamw_rank, )
+    # optimizer = LAdamW(optimizer_grouped_parameters, lr=args.learning_rate,
+    #                    betas=(args.beta0, args.beta1, args.beta2),
+    #                    rank=args.ladamw_rank, )
+    optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=args.learning_rate)
 
     # Scheduler and math around the number of training steps.
     overrode_max_train_steps = False
