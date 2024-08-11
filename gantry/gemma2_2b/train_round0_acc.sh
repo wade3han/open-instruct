@@ -7,7 +7,7 @@ echo "Training llama model using $NUM_GPUS GPUs, $BATCH_SIZE_PER_GPU batch size 
 # You can also set --gradient_checkpointing or use `stage3_offloading_accelerate.conf` to save memory,
 # but it will trade off speed.
 # sweep learning rate from 2e-5 to 1e-6
-NAME=ds_gemma2_2b_batch1_seq2048_sum_wsd20_user_mask_lr5e-6_round0_no_multipack
+NAME=ds_gemma2_2b_batch1_seq2048_wsd20_user_mask_lr5e-6_round0_no_multipack
 
 gantry run --beaker-image seungjuh/open-instruct-public-240806-preview \
   --venv base \
@@ -49,7 +49,7 @@ gantry run --beaker-image seungjuh/open-instruct-public-240806-preview \
   --output_dir /results/$NAME \
   --with_tracking \
   --report_to wandb \
-  --reduce_loss "sum" \
+  --reduce_loss "mean" \
   --lr_scheduler_type "wsd" \
   --cooldown_ratio 0.2 \
   --gradient_checkpointing \
