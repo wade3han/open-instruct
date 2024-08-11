@@ -14,11 +14,11 @@ gantry run --beaker-image seungjuh/open-instruct-public-240806-preview --venv ba
   --use_multipack \
   --use_compile \
   --mask_users \
-  --eval_per_steps 20 \
+  --eval_per_steps 50 \
   --model_name_or_path allenai/OLMo-7B-hf \
   --use_flash_attn \
   --tokenizer_name allenai/OLMo-7B-hf \
-  --train_file /net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/tulu-v2-sft-mixture_train.jsonl \
+  --train_file /net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/megamixv2_dedup_loo-v2_10_all_train.jsonl \
   --max_seq_length 8192 \
   --preprocessing_num_workers 128 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
