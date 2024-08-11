@@ -32,7 +32,6 @@ gantry run --beaker-image seungjuh/open-instruct-public-240806-preview \
   --main_process_port 2950 \
   --deepspeed_config_file configs/ds_configs/stage2_accelerate.conf \
   open_instruct/finetune_accelerate.py \
-  --use_compile \
   --mask_users \
   --eval_per_steps 20 \
   --model_name_or_path google/gemma-2-2b \
