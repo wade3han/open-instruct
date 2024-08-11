@@ -7,7 +7,7 @@ echo "Training llama model using $NUM_GPUS GPUs, $BATCH_SIZE_PER_GPU batch size 
 # You can also set --gradient_checkpointing or use `stage3_offloading_accelerate.conf` to save memory,
 # but it will trade off speed.
 # sweep learning rate from 2e-5 to 1e-6
-RANK=256
+RANK=64
 BETA0=0.9
 NAME=olmo1b_ladamw_rank${RANK}_beta${BETA0}_lr5e-5_seq2048
 
