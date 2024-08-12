@@ -434,8 +434,9 @@ def main():
                 }
             )
             assert num_added_tokens == 1, "GPTNeoXTokenizer should only add one special token - the pad_token."
-    elif isinstance(tokenizer, GPT2Tokenizer) and isinstance(model, OPTForCausalLM):
-        num_added_tokens = tokenizer.add_special_tokens({"unk_token": "<unk>"})
+    elif isinstance(tokenizer, GPT2Tokenizer):  # smollm
+        num_added_tokens = tokenizer.add_special_tokens({"pad_token": "<pad>"})
+        assert num_added_tokens == 1, "We detected no padding token but add_special_tokens did not add one."
     elif isinstance(tokenizer, transformers.PreTrainedTokenizerFast) and tokenizer.pad_token is None:
         num_added_tokens = tokenizer.add_special_tokens({"pad_token": "<pad>"})
         assert num_added_tokens == 1, "We detected no padding token but add_special_tokens did not add one."
