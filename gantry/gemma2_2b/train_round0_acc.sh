@@ -14,7 +14,7 @@ gantry run --beaker-image seungjuh/open-instruct-public-240806-preview \
   --name $NAME \
   --cluster ai2/pluto-cirrascale \
   --workspace ai2/safety \
-  --pip requirements-gemma.txt \
+  --pip requirements.txt \
   --gpus $NUM_GPUS \
   --priority high \
   --preemptible \
