@@ -46,7 +46,7 @@ from transformers import (
 )
 
 from open_instruct.multipack import V2BatchSamplerDataCollatorForSeq2Seq, MultipackBatchSampler, get_dataset_lengths, \
-    patch_for_multipack, SUPPORTED_MULTIPACK_MODEL_TYPES, V2BatchSamplerDataCollatorForSeq2SeqPadding
+    patch_for_multipack, V2BatchSamplerDataCollatorForSeq2SeqPadding
 from open_instruct.utils import ArgumentParserPlus, FlatArguments, MFUEstimator
 from open_instruct.wsd_scheduler import get_constant_schedule_with_warmup_and_cooldown
 
@@ -615,7 +615,6 @@ def main():
     if args.use_multipack:
         assert args.use_compile, "Multipack only works with compile. TODO: fix this."
         assert not args.mask_padding, "Mask padding is not supported with multipack."
-        assert config.model_type in SUPPORTED_MULTIPACK_MODEL_TYPES, f"Model type {config.model_type} not supported."
 
         from torch.utils.data._utils.fetch import _BaseDatasetFetcher
         from torch.utils.data._utils.worker import _worker_loop

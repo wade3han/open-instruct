@@ -324,20 +324,20 @@ class V2BatchSamplerDataCollatorForSeq2SeqPadding(DataCollatorForSeq2Seq):
         return super().__call__(out_features, return_tensors=return_tensors)
 
 
-SUPPORTED_MULTIPACK_MODEL_TYPES = [
-    "llama",
-    "mixtral",
-    "qwen2",
-    "qwen2_moe",
-    "falcon",
-    "phi",
-    "gemma",
-    "gemma2",
-    "gemmoe",
-    "starcoder2",
-    "deepseek_v2",
-    "olmo",
-]
+# SUPPORTED_MULTIPACK_MODEL_TYPES = [
+#     "llama",
+#     "mixtral",
+#     "qwen2",
+#     "qwen2_moe",
+#     "falcon",
+#     "phi",
+#     "gemma",
+#     "gemma2",
+#     "gemmoe",
+#     "starcoder2",
+#     "deepseek_v2",
+#     "olmo",
+# ]
 
 
 @torch.jit.script
