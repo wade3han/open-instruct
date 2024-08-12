@@ -313,6 +313,28 @@ class FlatArguments:
         default=-1,
         metadata={"help": "Local rank for distributed training (-1: not distributed)."},
     )
+    per_device_eval_batch_size: int = field(
+        default=8,
+        metadata={"help": "Batch size per GPU/TPU core/CPU for evaluation."},
+    )
+
+    # LADAMW
+    beta0: float = field(
+        default=0.9,
+        metadata={"help": "Beta0 parameter for LADAMW optimizer."},
+    )
+    beta1: float = field(
+        default=0.9,
+        metadata={"help": "Beta1 parameter for LADAMW optimizer."},
+    )
+    beta2: float = field(
+        default=0.999,
+        metadata={"help": "Beta2 parameter for LADAMW optimizer."},
+    )
+    ladamw_rank: int = field(
+        default=128,
+        metadata={"help": "The rank of ladamw."},
+    )
 
     def __post_init__(self):
         if self.reduce_loss not in ["mean", "sum"]:

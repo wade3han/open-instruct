@@ -23,7 +23,6 @@ from datetime import timedelta
 from functools import partial
 
 import datasets
-import deepspeed
 import torch
 import transformers
 from accelerate import Accelerator
@@ -46,6 +45,7 @@ from transformers import (
     get_scheduler,
 )
 
+from open_instruct.ladamw import LAdamW
 from open_instruct.multipack import V2BatchSamplerDataCollatorForSeq2Seq, MultipackBatchSampler, get_dataset_lengths, \
     patch_for_multipack, V2BatchSamplerDataCollatorForSeq2SeqPadding
 from open_instruct.utils import ArgumentParserPlus, FlatArguments, MFUEstimator
@@ -315,7 +315,7 @@ def main():
             trust_remote_code=args.trust_remote_code,
             revision=args.model_revision,
             token=os.getenv("HF_TOKEN", None),
-            force_download=True,
+            force_download=False,
         )
     elif args.model_name_or_path:
         config = AutoConfig.from_pretrained(
@@ -323,7 +323,7 @@ def main():
             trust_remote_code=args.trust_remote_code,
             revision=args.model_revision,
             token=os.getenv("HF_TOKEN", None),
-            force_download=True,
+            force_download=False,
         )
     else:
         raise ValueError(
@@ -346,7 +346,7 @@ def main():
             use_fast=not args.use_slow_tokenizer,
             revision=tokenizer_revision,
             token=os.getenv("HF_TOKEN", None),
-            force_download=True,
+            force_download=False,
         )
     elif args.model_name_or_path:
         tokenizer = AutoTokenizer.from_pretrained(
@@ -355,7 +355,7 @@ def main():
             use_fast=not args.use_slow_tokenizer,
             revision=tokenizer_revision,
             token=os.getenv("HF_TOKEN", None),
-            force_download=True,
+            force_download=False,
         )
     else:
         raise ValueError(
@@ -385,7 +385,7 @@ def main():
                 use_flash_attention_2=True if args.use_flash_attn else False,
                 revision=args.model_revision,
                 token=os.getenv("HF_TOKEN", None),
-                force_download=True,
+                force_download=False,
             )
         else:
             model = AutoModelForCausalLM.from_pretrained(
@@ -397,14 +397,14 @@ def main():
                 use_flash_attention_2=True if args.use_flash_attn else False,
                 revision=args.model_revision,
                 token=os.getenv("HF_TOKEN", None),
-                force_download=True,
+                force_download=False,
             )
     else:
         logger.info("Training new model from scratch")
         model = AutoModelForCausalLM.from_config(config)
 
-    if args.use_compile:
-        model = torch.compile(model)
+    # if args.use_compile:
+    #     model = torch.compile(model)
 
     # no default pad token for llama!
     # here we add all special tokens again, because the default ones are not in the special_tokens_map
@@ -446,16 +446,13 @@ def main():
     # We resize the embeddings only when necessary to avoid index errors. If you are creating a model from scratch
     # gather deepspeed to get "real" embedding size
     embeddings = model.get_input_embeddings()
-    with deepspeed.zero.GatheredParameters(embeddings.weight, modifier_rank=None):
-        embedding_size = embeddings.weight.shape[0]
-    # resize does its own gather
+    embedding_size = embeddings.weight.shape[0]
     if len(tokenizer) > embedding_size:
         # pad to multiple for tensor cores.
         model.resize_token_embeddings(len(tokenizer), pad_to_multiple_of=8)
     # update embedding size after resizing for sum loss
     embeddings = model.get_input_embeddings()
-    with deepspeed.zero.GatheredParameters(embeddings.weight, modifier_rank=None):
-        embedding_size = embeddings.weight.shape[0]
+    embedding_size = embeddings.weight.shape[0]
 
     # set the tokenizer chat template to the tulu format
     # this makes evaluation/etc easier down the line.
@@ -532,50 +529,77 @@ def main():
         lm_datasets = lm_datasets.filter(lambda example: (example["labels"] != -100).any())
 
     with accelerator.main_process_first():
-        # TEST_DATASET_PATH = "/net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/tulu-v2-sft-mixture-held-out.jsonl"
-        TEST_DATASET_DIR = "/net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/"
-        selected_validation_dataset_names = [
-            "lmsyschat",
-            "tulu2mix-code_alpaca",
-            "tulu2mix-cot",
-            "tulu2mix-flan_v2",
-            "tulu2mix-gpt4_alpaca",
-            "tulu2mix-oasst1",
-            "tulu2mix-open_orca",
-            "tulu2mix-science",
-            "tulu2mix-sharegpt",
-            "tulu2mix-wizardlm",
-            "ultrachat",
-            "ultrainteract",
-            "wildchat-gpt-4-0125-preview",
-        ]
+        validation_datapath = "/net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/tulu-v2-sft-mixture-held-out.jsonl"
+        selected_validation_dataset_names = ["tulu2mix"]
         lm_datasets_tests = []
-        for dataset_name in selected_validation_dataset_names:
-            validation_datapath = f"{TEST_DATASET_DIR}/megamixv2_dedup_{dataset_name}_validation.jsonl"
-            data_files = {"test": validation_datapath}
-            raw_datasets_test = load_dataset(
-                "json",
-                data_files=data_files,
-            )
-            encode_function_mask_non_assistant = partial(
-                encode_with_messages_format,
-                tokenizer=tokenizer,
-                mask_padding=False,
-                mask_users=True,
-                max_seq_length=EVAL_MAX_SEQ_LENGTH,  # HARD-CODED
-                add_bos=args.add_bos,
-            )
-            lm_datasets_test = raw_datasets_test.map(
-                encode_function_mask_non_assistant,
-                batched=False,
-                num_proc=args.preprocessing_num_workers,
-                load_from_cache_file=not args.overwrite_cache,
-                remove_columns=[name for name in raw_datasets_test["test"].column_names if
-                                name not in ["input_ids", "labels", "attention_mask"]],
-                desc="Tokenizing and reformatting instruction data",
-            )
-            lm_datasets_test.set_format(type="pt")
-            lm_datasets_tests.append(lm_datasets_test)
+        data_files = {"test": validation_datapath}
+        raw_datasets_test = load_dataset(
+            "json",
+            data_files=data_files,
+        )
+        encode_function_mask_non_assistant = partial(
+            encode_with_messages_format,
+            tokenizer=tokenizer,
+            mask_padding=False,
+            mask_users=True,
+            max_seq_length=EVAL_MAX_SEQ_LENGTH,  # HARD-CODED
+            add_bos=args.add_bos,
+        )
+        lm_datasets_test = raw_datasets_test.map(
+            encode_function_mask_non_assistant,
+            batched=False,
+            num_proc=args.preprocessing_num_workers,
+            load_from_cache_file=not args.overwrite_cache,
+            remove_columns=[name for name in raw_datasets_test["test"].column_names if
+                            name not in ["input_ids", "labels", "attention_mask"]],
+            desc="Tokenizing and reformatting instruction data",
+        )
+        lm_datasets_test.set_format(type="pt")
+        lm_datasets_test = lm_datasets_test.filter(lambda example: (example["labels"] != -100).any())
+        lm_datasets_tests.append(lm_datasets_test)
+        # TEST_DATASET_DIR = "/net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/"
+        # selected_validation_dataset_names = [
+        #     "lmsyschat",
+        #     # "tulu2mix-code_alpaca",
+        #     # "tulu2mix-cot",
+        #     # "tulu2mix-flan_v2",
+        #     # "tulu2mix-gpt4_alpaca",
+        #     # "tulu2mix-oasst1",
+        #     # "tulu2mix-open_orca",
+        #     # "tulu2mix-science",
+        #     # "tulu2mix-sharegpt",
+        #     # "tulu2mix-wizardlm",
+        #     # "ultrachat",
+        #     # "ultrainteract",
+        #     # "wildchat-gpt-4-0125-preview",
+        # ]
+        # lm_datasets_tests = []
+        # for dataset_name in selected_validation_dataset_names:
+        #     validation_datapath = f"{TEST_DATASET_DIR}/megamixv2_dedup_{dataset_name}_validation.jsonl"
+        #     data_files = {"test": validation_datapath}
+        #     raw_datasets_test = load_dataset(
+        #         "json",
+        #         data_files=data_files,
+        #     )
+        #     encode_function_mask_non_assistant = partial(
+        #         encode_with_messages_format,
+        #         tokenizer=tokenizer,
+        #         mask_padding=False,
+        #         mask_users=True,
+        #         max_seq_length=EVAL_MAX_SEQ_LENGTH,  # HARD-CODED
+        #         add_bos=args.add_bos,
+        #     )
+        #     lm_datasets_test = raw_datasets_test.map(
+        #         encode_function_mask_non_assistant,
+        #         batched=False,
+        #         num_proc=args.preprocessing_num_workers,
+        #         load_from_cache_file=not args.overwrite_cache,
+        #         remove_columns=[name for name in raw_datasets_test["test"].column_names if
+        #                         name not in ["input_ids", "labels", "attention_mask"]],
+        #         desc="Tokenizing and reformatting instruction data",
+        #     )
+        #     lm_datasets_test.set_format(type="pt")
+        #     lm_datasets_tests.append(lm_datasets_test)
 
     train_dataset = lm_datasets["train"]
     test_datasets = [lm_datasets_test["test"] for lm_datasets_test in lm_datasets_tests]
@@ -672,10 +696,6 @@ def main():
         # from open_instruct.multipack import get_unpad_data
         # indices, cu_len, max_seq_len = get_unpad_data(attention_mask)
 
-        accelerator.state.deepspeed_plugin.deepspeed_config[
-            'train_micro_batch_size_per_gpu'] = batch_size
-        accelerator.even_batches = False
-
         # monkeypatch
         if args.use_flash_attn:
             patch_for_multipack(config.model_type, model_name=config._name_or_path)
@@ -711,17 +731,20 @@ def main():
             "weight_decay": 0.0,
         },
     ]
-    if args.use_qlora:
-        from bitsandbytes.optim import AdamW
-
-        optimizer = AdamW(
-            optimizer_grouped_parameters,
-            lr=args.learning_rate,
-            optim_bits=8 if args.use_8bit_optimizer else 32,
-            is_paged=True,
-        )
-    else:
-        optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=args.learning_rate)
+    # if args.use_qlora:
+    #     from bitsandbytes.optim import AdamW
+    #
+    #     optimizer = AdamW(
+    #         optimizer_grouped_parameters,
+    #         lr=args.learning_rate,
+    #         optim_bits=8 if args.use_8bit_optimizer else 32,
+    #         is_paged=True,
+    #     )
+    # else:
+    #     optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=args.learning_rate)
+    optimizer = LAdamW(optimizer_grouped_parameters, lr=args.learning_rate,
+                       betas=(args.beta0, args.beta1, args.beta2),
+                       rank=args.ladamw_rank, )
 
     # Scheduler and math around the number of training steps.
     overrode_max_train_steps = False
@@ -991,10 +1014,9 @@ def main():
                 accelerator.backward(loss)
                 # clip gradient norm. don't do this with deepspeed
                 if accelerator.sync_gradients and args.clip_grad_norm > 0:
-                    accelerator.clip_grad_norm_(model.parameters(), args.clip_grad_norm)
-                total_norm = model.get_global_grad_norm()
-                if hasattr(total_norm, "item"):
-                    total_norm = total_norm.item()
+                    total_norm = accelerator.clip_grad_norm_(model.parameters(), args.clip_grad_norm)
+                    if hasattr(total_norm, "item"):
+                        total_norm = total_norm.item()
                 optimizer.step()
                 optimizer.zero_grad()
                 lr_scheduler.step()

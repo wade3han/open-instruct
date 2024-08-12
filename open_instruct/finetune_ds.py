@@ -42,14 +42,12 @@ from transformers import (
     GPTNeoXTokenizerFast,
     LlamaTokenizer,
     LlamaTokenizerFast,
-    OPTForCausalLM,
     get_scheduler,
-    LlamaForCausalLM,
     DataCollatorForSeq2Seq,
 )
 
 from open_instruct.multipack import MultipackBatchSampler, get_dataset_lengths, \
-    patch_for_multipack, SUPPORTED_MULTIPACK_MODEL_TYPES, V2BatchSamplerDataCollatorForSeq2SeqPadding
+    patch_for_multipack, V2BatchSamplerDataCollatorForSeq2SeqPadding
 from open_instruct.utils import ArgumentParserPlus, FlatArguments, MFUEstimator, print_rank_zero
 from open_instruct.wsd_scheduler import get_constant_schedule_with_warmup_and_cooldown
 
@@ -100,7 +98,6 @@ torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
 
 EVAL_MAX_SEQ_LENGTH = 8192
-EVAL_BATCH_SIZE = 8
 
 
 def encode_with_prompt_completion_format(example, tokenizer, max_seq_length, add_bos=False):
@@ -215,7 +212,7 @@ def test_model(args,
                ):
     model_engine.eval()
     total_eval_loss = 0
-    DIVIDE_CONSTANT = EVAL_MAX_SEQ_LENGTH * EVAL_BATCH_SIZE
+    DIVIDE_CONSTANT = EVAL_MAX_SEQ_LENGTH * args.per_device_eval_batch_size
     loss_fct = torch.nn.CrossEntropyLoss(reduction="sum")
     with torch.no_grad():
         for test_data_loader, dataset_name in zip(test_data_loaders, test_data_loaders_names):
@@ -271,9 +268,17 @@ def set_seed(seed: int, deterministic: bool = False):
         torch.use_deterministic_algorithms(True)
 
 
-def save_model(model_engine: DeepSpeedEngine, output_dir):
+def save_model(model_engine: DeepSpeedEngine, output_dir, config, tokenizer):
     if int(os.environ["RANK"]) == 0:
-        torch.save(model_engine.state_dict(), os.path.join(output_dir, "model.pth"))
+        state_dict = {}
+        for k, v in model_engine.state_dict().items():
+            state_dict[k.replace("module._orig_mod.", "")] = v
+
+        model = AutoModelForCausalLM.from_config(config)
+        model.load_state_dict(state_dict)
+        model.save_pretrained(output_dir)
+        tokenizer.save_pretrained(output_dir)
+        config.save_pretrained(output_dir)
 
 
 def main():
@@ -418,7 +423,7 @@ def main():
     ).state_dict()
 
     with deepspeed.zero.Init(enabled=(ZERO_STAGE == 3)):
-        model = LlamaForCausalLM(config=config).cuda()
+        model = AutoModelForCausalLM.from_config(config=config).cuda()
         if int(os.environ["RANK"]) == 0:
             print(f"Model state dict keys: {list(model.state_dict().keys())}")
             print(f"Loaded model state dict keys: {list(model_weights.keys())}")
@@ -429,7 +434,8 @@ def main():
             model.load_state_dict(model_weights, strict=False)
 
     # FIXME: compile is not working properly.
-    model: nn.Module = torch.compile(model)
+    if args.use_compile:
+        model: nn.Module = torch.compile(model)
 
     # no default pad token for llama!
     # here we add all special tokens again, because the default ones are not in the special_tokens_map
@@ -461,8 +467,9 @@ def main():
                 }
             )
             assert num_added_tokens == 1, "GPTNeoXTokenizer should only add one special token - the pad_token."
-    elif isinstance(tokenizer, GPT2Tokenizer) and isinstance(model, OPTForCausalLM):
-        num_added_tokens = tokenizer.add_special_tokens({"unk_token": "<unk>"})
+    elif isinstance(tokenizer, GPT2Tokenizer):  # smollm
+        num_added_tokens = tokenizer.add_special_tokens({"pad_token": "<pad>"})
+        assert num_added_tokens == 1, "We detected no padding token but add_special_tokens did not add one."
     elif isinstance(tokenizer, transformers.PreTrainedTokenizerFast) and tokenizer.pad_token is None:
         num_added_tokens = tokenizer.add_special_tokens({"pad_token": "<pad>"})
         assert num_added_tokens == 1, "We detected no padding token but add_special_tokens did not add one."
@@ -612,9 +619,7 @@ def main():
 
     # DataLoaders creation:
     assert args.use_multipack, "Only multipack is supported. TODO: fix this."
-    assert args.use_compile, "Multipack only works with compile. TODO: fix this."
     assert not args.mask_padding, "Mask padding is not supported with multipack."
-    assert config.model_type in SUPPORTED_MULTIPACK_MODEL_TYPES, f"Model type {config.model_type} not supported."
 
     batch_max_len = args.per_device_train_batch_size * args.max_seq_length  # 4 * 8192 = 32768
     batch_size = 1
@@ -681,7 +686,7 @@ def main():
             sampler=DistributedSampler(test_dataset, num_replicas=int(os.environ["WORLD_SIZE"]),
                                        rank=int(os.environ["RANK"])),
             collate_fn=DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="longest"),
-            batch_size=EVAL_BATCH_SIZE,
+            batch_size=args.per_device_eval_batch_size,
         )
         for test_dataset in test_datasets
     ]
@@ -911,11 +916,7 @@ def main():
                         output_dir = f"step_{completed_steps}"
                         if args.output_dir is not None:
                             output_dir = os.path.join(args.output_dir, output_dir)
-                        if int(os.environ["RANK"]) == 0:
-                            tokenizer.save_pretrained(output_dir)
-                            # save config.
-                            model.config.save_pretrained(output_dir)
-                        save_model(model_engine, output_dir)
+                        save_model(model_engine, output_dir, model.config, tokenizer)
 
                 if completed_steps >= args.max_train_steps:
                     break
@@ -924,11 +925,7 @@ def main():
             output_dir = f"epoch_{epoch}"
             if args.output_dir is not None:
                 output_dir = os.path.join(args.output_dir, output_dir)
-            if int(os.environ["RANK"]) == 0:
-                tokenizer.save_pretrained(output_dir)
-                # save config.
-                model.config.save_pretrained(output_dir)
-            save_model(model_engine, output_dir)
+            save_model(model_engine, output_dir, model.config, tokenizer)
 
     torch.distributed.barrier()
     # last evaluation
@@ -936,12 +933,7 @@ def main():
                completed_steps, embedding_size, device)
 
     if args.output_dir is not None:
-        if int(os.environ["RANK"]) == 0:
-            tokenizer.save_pretrained(args.output_dir)
-            # save config.
-            model.config.save_pretrained(args.output_dir)
-
-        save_model(model_engine, args.output_dir)
+        save_model(model_engine, args.output_dir, model.config, tokenizer)
         if args.save_state:
             model_engine.save_checkpoint(args.output_dir)
 
