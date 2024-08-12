@@ -42,13 +42,12 @@ from transformers import (
     GPTNeoXTokenizerFast,
     LlamaTokenizer,
     LlamaTokenizerFast,
-    OPTForCausalLM,
     get_scheduler,
     DataCollatorForSeq2Seq,
 )
 
 from open_instruct.multipack import MultipackBatchSampler, get_dataset_lengths, \
-    patch_for_multipack, SUPPORTED_MULTIPACK_MODEL_TYPES, V2BatchSamplerDataCollatorForSeq2SeqPadding
+    patch_for_multipack, V2BatchSamplerDataCollatorForSeq2SeqPadding
 from open_instruct.utils import ArgumentParserPlus, FlatArguments, MFUEstimator, print_rank_zero
 from open_instruct.wsd_scheduler import get_constant_schedule_with_warmup_and_cooldown
 
@@ -621,7 +620,6 @@ def main():
     # DataLoaders creation:
     assert args.use_multipack, "Only multipack is supported. TODO: fix this."
     assert not args.mask_padding, "Mask padding is not supported with multipack."
-    assert config.model_type in SUPPORTED_MULTIPACK_MODEL_TYPES, f"Model type {config.model_type} not supported."
 
     batch_max_len = args.per_device_train_batch_size * args.max_seq_length  # 4 * 8192 = 32768
     batch_size = 1

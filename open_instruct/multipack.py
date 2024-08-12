@@ -324,22 +324,6 @@ class V2BatchSamplerDataCollatorForSeq2SeqPadding(DataCollatorForSeq2Seq):
         return super().__call__(out_features, return_tensors=return_tensors)
 
 
-# SUPPORTED_MULTIPACK_MODEL_TYPES = [
-#     "llama",
-#     "mixtral",
-#     "qwen2",
-#     "qwen2_moe",
-#     "falcon",
-#     "phi",
-#     "gemma",
-#     "gemma2",
-#     "gemmoe",
-#     "starcoder2",
-#     "deepseek_v2",
-#     "olmo",
-# ]
-
-
 @torch.jit.script
 def get_max_seqlen_in_batch(attention_mask: torch.Tensor) -> torch.Tensor:
     max_num = int(torch.max(attention_mask).item())

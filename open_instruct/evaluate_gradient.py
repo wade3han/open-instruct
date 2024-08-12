@@ -44,7 +44,7 @@ from transformers import (
     OPTForCausalLM, LlamaForCausalLM,
 )
 
-from open_instruct.multipack import SUPPORTED_MULTIPACK_MODEL_TYPES, MultipackBatchSampler, \
+from open_instruct.multipack import MultipackBatchSampler, \
     V2BatchSamplerDataCollatorForSeq2SeqPadding, get_dataset_lengths, \
     patch_for_multipack
 from open_instruct.utils import ArgumentParserPlus, FlatArguments
@@ -516,7 +516,6 @@ def main():
     assert args.use_multipack, "Only multipack is supported. TODO: fix this."
     assert args.use_compile, "Multipack only works with compile. TODO: fix this."
     assert not args.mask_padding, "Mask padding is not supported with multipack."
-    assert config.model_type in SUPPORTED_MULTIPACK_MODEL_TYPES, f"Model type {config.model_type} not supported."
 
     batch_max_len = EVAL_BATCH_SIZE * EVAL_MAX_SEQ_LENGTH
     batch_size = 1
