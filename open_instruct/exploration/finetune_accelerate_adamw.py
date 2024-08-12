@@ -42,7 +42,6 @@ from transformers import (
     GPTNeoXTokenizerFast,
     LlamaTokenizer,
     LlamaTokenizerFast,
-    OPTForCausalLM,
     get_scheduler,
 )
 

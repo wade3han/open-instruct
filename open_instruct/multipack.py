@@ -4,8 +4,6 @@ multipack patching for v2 of sample packing
 """
 import importlib
 import logging
-import math
-import os
 from dataclasses import dataclass
 from typing import Any, Optional, Union
 from typing import Iterable, List
@@ -20,10 +18,6 @@ from datasets import Dataset
 # from axolotl.monkeypatch.mixtral import patch_mixtral_moe_forward_zero3
 from torch.utils.data import BatchSampler, Sampler
 from transformers import AutoConfig, AutoModelForCausalLM, DataCollatorForSeq2Seq
-from transformers import PreTrainedTokenizerBase
-from transformers.utils import PaddingStrategy
-
-# from transformers import DataCollatorForSeq2Seq
 
 LOG = logging.getLogger(__name__)
 
@@ -382,54 +376,55 @@ def get_unpad_data(attention_mask: torch.Tensor):
 
 
 def patch_for_multipack(model_type, model_name=None):
-    # if model_type == "mixtral":
-    #     transformers.models.mixtral.modeling_mixtral._get_unpad_data = (  # pylint: disable=protected-access
+    transformers.modeling_flash_attention_utils._get_unpad_data = get_unpad_data  # pylint: disable=protected-access
+    # # if model_type == "mixtral":
+    # #     transformers.models.mixtral.modeling_mixtral._get_unpad_data = (  # pylint: disable=protected-access
+    # #         get_unpad_data
+    # #     )
+    # #     if is_deepspeed_zero3_enabled():
+    # #         patch_mixtral_moe_forward_zero3()
+    # if model_type == "llama":
+    #     transformers.models.llama.modeling_llama._get_unpad_data = (  # pylint: disable=protected-access
     #         get_unpad_data
     #     )
-    #     if is_deepspeed_zero3_enabled():
-    #         patch_mixtral_moe_forward_zero3()
-    if model_type == "llama":
-        transformers.models.llama.modeling_llama._get_unpad_data = (  # pylint: disable=protected-access
-            get_unpad_data
-        )
-    elif model_type == "qwen2":
-        transformers.models.qwen2.modeling_qwen2._get_unpad_data = (  # pylint: disable=protected-access
-            get_unpad_data
-        )
-    elif model_type == "qwen2_moe":
-        transformers.models.qwen2_moe.modeling_qwen2_moe._get_unpad_data = (  # pylint: disable=protected-access
-            get_unpad_data
-        )
-    elif model_type == "falcon":
-        transformers.models.falcon.modeling_falcon._get_unpad_data = (  # pylint: disable=protected-access
-            get_unpad_data
-        )
-    elif model_type == "phi":
-        transformers.models.phi.modeling_phi._get_unpad_data = (  # pylint: disable=protected-access
-            get_unpad_data
-        )
-    elif model_type == "gemma":
-        transformers.models.gemma.modeling_gemma._get_unpad_data = (  # pylint: disable=protected-access
-            get_unpad_data
-        )
-    elif model_type == "gemma2":
-        transformers.models.gemma2.modeling_gemma2._get_unpad_data = (  # pylint: disable=protected-access
-            get_unpad_data
-        )
-    elif model_type == "starcoder2":
-        transformers.models.starcoder2.modeling_starcoder2._get_unpad_data = (  # pylint: disable=protected-access
-            get_unpad_data
-        )
-    elif model_type == "gemmoe":
-        patch_remote(model_name, ".configuration_gemmoe", ".modeling_gemmoe")
-    elif model_type == "jamba":
-        patch_remote(model_name, ".configuration_jamba", ".modeling_jamba")
-    elif model_type == "deepseek_v2":
-        patch_remote(model_name, ".configuration_deepseek", ".modeling_deepseek")
-    elif model_type == "olmo":
-        transformers.models.olmo.modeling_olmo._get_unpad_data = (  # pylint: disable=protected-access
-            get_unpad_data
-        )
+    # elif model_type == "qwen2":
+    #     transformers.models.qwen2.modeling_qwen2._get_unpad_data = (  # pylint: disable=protected-access
+    #         get_unpad_data
+    #     )
+    # elif model_type == "qwen2_moe":
+    #     transformers.models.qwen2_moe.modeling_qwen2_moe._get_unpad_data = (  # pylint: disable=protected-access
+    #         get_unpad_data
+    #     )
+    # elif model_type == "falcon":
+    #     transformers.models.falcon.modeling_falcon._get_unpad_data = (  # pylint: disable=protected-access
+    #         get_unpad_data
+    #     )
+    # elif model_type == "phi":
+    #     transformers.models.phi.modeling_phi._get_unpad_data = (  # pylint: disable=protected-access
+    #         get_unpad_data
+    #     )
+    # elif model_type == "gemma":
+    #     transformers.models.gemma.modeling_gemma._get_unpad_data = (  # pylint: disable=protected-access
+    #         get_unpad_data
+    #     )
+    # elif model_type == "gemma2":
+    #     transformers.models.gemma2.modeling_gemma2._get_unpad_data = (  # pylint: disable=protected-access
+    #         get_unpad_data
+    #     )
+    # elif model_type == "starcoder2":
+    #     transformers.models.starcoder2.modeling_starcoder2._get_unpad_data = (  # pylint: disable=protected-access
+    #         get_unpad_data
+    #     )
+    # elif model_type == "gemmoe":
+    #     patch_remote(model_name, ".configuration_gemmoe", ".modeling_gemmoe")
+    # elif model_type == "jamba":
+    #     patch_remote(model_name, ".configuration_jamba", ".modeling_jamba")
+    # elif model_type == "deepseek_v2":
+    #     patch_remote(model_name, ".configuration_deepseek", ".modeling_deepseek")
+    # elif model_type == "olmo":
+    #     transformers.models.olmo.modeling_olmo._get_unpad_data = (  # pylint: disable=protected-access
+    #         get_unpad_data
+    #     )
 
 
 def patch_remote(model_name, config_name, modeling_name):
