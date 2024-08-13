@@ -90,7 +90,7 @@ class Flora(Optimizer):
                 if "exp_avg" not in state:
                     # Exponential moving average of gradient values
                     if p.dim() < 2:
-                        state["exp_avg"] = torch.zeros((rank, p.shape[0]), device=p.device)
+                        state["exp_avg"] = torch.zeros(rank, device=p.device)
                     elif p.dim() == 2:
                         if p.shape[0] >= p.shape[1]:
                             state["exp_avg"] = torch.zeros((rank, p.shape[1]), device=p.device)
