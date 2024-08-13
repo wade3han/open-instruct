@@ -364,7 +364,7 @@ def main():
             trust_remote_code=args.trust_remote_code,
             revision=args.model_revision,
             token=os.getenv("HF_TOKEN", None),
-            force_download=True,
+            force_download=False,
             attn_implementation="flash_attention_2" if args.use_flash_attn else None,
         )
     elif args.model_name_or_path:
@@ -373,7 +373,7 @@ def main():
             trust_remote_code=args.trust_remote_code,
             revision=args.model_revision,
             token=os.getenv("HF_TOKEN", None),
-            force_download=True,
+            force_download=False,
             attn_implementation="flash_attention_2" if args.use_flash_attn else None,
         )
     else:
@@ -397,7 +397,7 @@ def main():
             use_fast=not args.use_slow_tokenizer,
             revision=tokenizer_revision,
             token=os.getenv("HF_TOKEN", None),
-            force_download=True,
+            force_download=False,
         )
     elif args.model_name_or_path:
         tokenizer = AutoTokenizer.from_pretrained(
@@ -406,7 +406,7 @@ def main():
             use_fast=not args.use_slow_tokenizer,
             revision=tokenizer_revision,
             token=os.getenv("HF_TOKEN", None),
-            force_download=True,
+            force_download=False,
         )
     else:
         raise ValueError(
