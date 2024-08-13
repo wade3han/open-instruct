@@ -268,8 +268,9 @@ def test_model(args,
 
             full_vectorized_grads = torch.cat(
                 [p.grad.view(-1) for n, p in model.named_parameters() if p.grad is not None])
-            projected_vectorized_grads = projector.project(full_vectorized_grads.to(torch.bfloat16).unsqueeze(0),
-                                                           )
+            projected_vectorized_grads = projector.project(
+                full_vectorized_grads.to(torch.bfloat16).unsqueeze(0).detach(),
+            )
             projected_vectorized_grads = projected_vectorized_grads.squeeze(0)
             if count_per_dataset.get(dataset_id) is None:
                 count_per_dataset[dataset_id] = 1
@@ -517,6 +518,7 @@ def main():
     selected_train_dataset_names = [
         "lmsyschat",
         "tulu2mix-code_alpaca",
+        "tulu2mix-cot",
     ]
     lm_datasets_trains = []
     for dataset_name in selected_train_dataset_names:
@@ -549,6 +551,9 @@ def main():
     TEST_DATASET_DIR = "/net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/"
     selected_validation_dataset_names = [
         "lmsyschat",
+        "tulu2mix-code_alpaca",
+        "tulu2mix-cot",
+        "ultrainteract",
     ]
     lm_datasets_tests = []
     for dataset_name in selected_validation_dataset_names:
@@ -820,8 +825,9 @@ def main():
 
             full_vectorized_grads = torch.cat(
                 [p.grad.view(-1) for n, p in model.named_parameters() if p.grad is not None])
-            projected_vectorized_grads = projector.project(full_vectorized_grads.to(torch.bfloat16).unsqueeze(0),
-                                                           )
+            projected_vectorized_grads = projector.project(
+                full_vectorized_grads.to(torch.bfloat16).unsqueeze(0).detach(),
+            )
             projected_vectorized_grads = projected_vectorized_grads.squeeze(0)
             if count_per_dataset.get(dataset_id) is None:
                 count_per_dataset[dataset_id] = 1
@@ -949,7 +955,7 @@ def main():
 
     # last evaluation
     test_model(args, model, test_data_loaders, selected_validation_dataset_names,
-               completed_steps, embedding_size, device)
+               completed_steps, embedding_size, device, projector)
 
     if args.output_dir is not None:
         save_model(model, args.output_dir, model.config, tokenizer)
