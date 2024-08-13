@@ -46,3 +46,4 @@ black
 flake8
 isort
 numba
+tensorly==0.8.1
