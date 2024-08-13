@@ -47,6 +47,7 @@ class CudaProjector:
         self.max_batch_size = max_batch_size
         self.proj_matrix = torch.randn((self.block_size, self.proj_dim), device=self.device, dtype=self.dtype)
 
+    @torch.no_grad()
     def project(self, full_vectorized_grads: torch.Tensor) -> torch.Tensor:
         """
         Project the full vectorized gradients to the projected space.
