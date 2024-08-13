@@ -82,9 +82,14 @@ class Flora(Optimizer):
                     raise RuntimeError("Adam does not support sparse gradients, please consider SparseAdam instead")
 
                 state = self.state[p]
+                rank = group["rank"]
+
                 # State initialization
                 if "seed" not in state:
                     state["seed"] = int(np.random.randint(low=0, high=2 ** 16, size=1)[0])
+                if "exp_avg" not in state:
+                    # Exponential moving average of gradient values
+                    state["exp_avg"] = torch.zeros((rank, p.shape[0]), device=p.device)
 
                 # Compression
                 if (self.state['step'] - 1) % group['projection_steps'] == 0:
@@ -96,7 +101,6 @@ class Flora(Optimizer):
 
                     state["seed"] = new_seed
 
-                    rank = group["rank"]
 
                     if p.dim() < 2:
                         projection = torch.randn(rank, p.shape[0], generator=generator,
@@ -162,10 +166,6 @@ class Flora(Optimizer):
 
                     else:
                         raise ValueError("Parameters that exceed 2 Dim are not supported currently.")
-
-                if "exp_avg" not in state:
-                    # Exponential moving average of gradient values
-                    state["exp_avg"] = torch.zeros_like(grad)
 
                 # Decay the first and second moment running average coefficient
                 # In-place operations to update the averages at the same time
