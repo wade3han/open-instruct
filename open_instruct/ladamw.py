@@ -171,11 +171,12 @@ class LAdamW(Optimizer):
                 correct_bias = group["correct_bias"]
                 step_size = lr
                 denom = exp_avg_sq.abs().sqrt().add_(eps)
+                step = self.state["step"]
                 if correct_bias:
-                    bias_correction1 = ((1.0 - beta1) * (1.0 - (beta0 * beta1) ** state["step"])) / (
-                                1.0 - (beta0 * beta1))
-                    bias_correction2 = ((1.0 - beta2) * (1.0 - (beta0 * beta2) ** state["step"])) / (
-                                1.0 - (beta0 * beta2))
+                    bias_correction1 = ((1.0 - beta1) * (1.0 - (beta0 * beta1) ** step)) / (
+                            1.0 - (beta0 * beta1))
+                    bias_correction2 = ((1.0 - beta2) * (1.0 - (beta0 * beta2) ** step)) / (
+                            1.0 - (beta0 * beta2))
                     step_size = step_size * math.sqrt(bias_correction2) / bias_correction1
 
                 # compute norm gradient
