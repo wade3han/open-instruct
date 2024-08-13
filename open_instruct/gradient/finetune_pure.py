@@ -729,7 +729,7 @@ def main():
             if forward_steps % args.gradient_accumulation_steps == 0:
 
                 # get clip_grad_norm
-                total_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
+                total_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip_grad_norm)
                 if hasattr(total_norm, "item"):
                     total_norm = total_norm.item()
 
