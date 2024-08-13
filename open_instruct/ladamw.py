@@ -35,7 +35,7 @@ class LAdamW(Optimizer):
 
     def __init__(
             self,
-            params: Iterable[nn.parameter.Parameter],
+            params: ParamsT,
             lr: float = 1e-3,
             accumulation_steps: int = 1,
             rank: int = 8,

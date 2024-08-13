@@ -1,12 +1,14 @@
 import math
 import warnings
-from typing import Callable, Iterable
+from typing import Callable, Iterable, TypeAlias, Union, Dict, Any
 
 import numpy as np
 import torch
 from torch import nn
 from torch.optim import Optimizer
 from transformers.utils.versions import require_version
+
+ParamsT: TypeAlias = Union[Iterable[torch.Tensor], Iterable[Dict[str, Any]]]
 
 
 class Flora(Optimizer):
@@ -33,7 +35,7 @@ class Flora(Optimizer):
 
     def __init__(
             self,
-            params: Iterable[nn.parameter.Parameter],
+            params: ParamsT,
             lr: float = 1e-3,
             accumulation_steps: int = 1,
             projection_steps: int = 1000,
@@ -53,9 +55,10 @@ class Flora(Optimizer):
             raise ValueError(f"Invalid learning rate: {lr} - should be >= 0.0")
         if not 0.0 <= beta < 1.0:
             raise ValueError(f"Invalid beta parameter: {beta} - should be in [0.0, 1.0)")
-        super().__init__(params, {})
+        defaults = dict(lr=lr, rank=rank, projection_steps=projection_steps, beta=beta,
+                        accumulation_steps=accumulation_steps)
+        super().__init__(params, defaults)
 
-        self.state['hyperparams'] = (lr, accumulation_steps, rank, projection_steps, beta)
         self.state['step'] = 0
 
     @torch.no_grad()
@@ -69,11 +72,6 @@ class Flora(Optimizer):
         loss = None
         if closure is not None:
             loss = closure()
-
-        lr, accumulation_steps, rank, projection_steps, beta = self.state['hyperparams']
-
-        # if self.state['step'] % accumulation_steps == 0:
-        #     projection.mul_(beta0).add_(torch.randn_like(projection), alpha=math.sqrt(1.0 - beta0**2))
 
         self.state['step'] += 1
 
@@ -94,7 +92,7 @@ class Flora(Optimizer):
                     state["exp_avg"] = torch.zeros_like(grad)
 
                 # Compression
-                if (self.state['step'] - 1) % (projection_steps * accumulation_steps) == 0:
+                if (self.state['step'] - 1) % (group['projection_steps'] * group['acumulation_steps']) == 0:
                     print("seed_initialize")
                     seed = state["seed"]
                     new_seed = int(np.random.randint(low=0, high=2 ** 16, size=1)[0])
@@ -102,6 +100,8 @@ class Flora(Optimizer):
                     new_generator = torch.Generator(device=p.device).manual_seed(new_seed)
 
                     state["seed"] = new_seed
+
+                    rank = group["rank"]
 
                     if p.dim() < 2:
                         projection = torch.randn(rank, p.shape[0], generator=generator) / math.sqrt(rank)
@@ -161,6 +161,7 @@ class Flora(Optimizer):
 
                 # Decay the first and second moment running average coefficient
                 # In-place operations to update the averages at the same time
+                beta = group["beta"]
                 exp_avg.mul_(beta).add_(grad, alpha=(1.0 - beta))
 
                 # Decompression
@@ -174,6 +175,7 @@ class Flora(Optimizer):
                 else:
                     raise ValueError("Parameters that exceed 2 Dim are not supported currently.")
 
+                lr = group["lr"]
                 step_size = lr
                 norm_grad = exp_avg
 
