@@ -85,9 +85,6 @@ class Flora(Optimizer):
                 # State initialization
                 if "seed" not in state:
                     state["seed"] = int(np.random.randint(low=0, high=2 ** 16, size=1)[0])
-                if "exp_avg" not in state:
-                    # Exponential moving average of gradient values
-                    state["exp_avg"] = torch.zeros_like(grad)
 
                 # Compression
                 if (self.state['step'] - 1) % group['projection_steps'] == 0:
@@ -165,6 +162,10 @@ class Flora(Optimizer):
 
                     else:
                         raise ValueError("Parameters that exceed 2 Dim are not supported currently.")
+
+                if "exp_avg" not in state:
+                    # Exponential moving average of gradient values
+                    state["exp_avg"] = torch.zeros_like(grad)
 
                 # Decay the first and second moment running average coefficient
                 # In-place operations to update the averages at the same time
