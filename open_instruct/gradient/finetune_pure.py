@@ -220,11 +220,11 @@ def test_model(args,
             eval_loss = eval_loss / loss_count
             total_eval_loss += eval_loss
             print(f"Eval loss for {dataset_name}: {eval_loss}")
-            if args.with_tracking == 0:
+            if args.with_tracking:
                 wandb.log({f"eval_loss_{dataset_name}": eval_loss}, step=completed_steps)
     total_eval_loss /= len(test_data_loaders)
     print(f"Total eval loss: {total_eval_loss}")
-    if args.with_tracking == 0:
+    if args.with_tracking:
         wandb.log({"eval_loss": total_eval_loss}, step=completed_steps)
 
     model.train()
@@ -788,7 +788,7 @@ def main():
                           f" Effective Num Tokens (%): {effective_num_tokens_percentage:.2f},"
                           f" Effective Num Tokens Per Instance: {effective_num_tokens_per_fwdbwd / args.gradient_accumulation_steps:.2f},"
                           f" Seq Length: {seq_length_per_fwdbwd / args.gradient_accumulation_steps:.2f}")
-                    if args.with_tracking == 0:
+                    if args.with_tracking:
                         wandb.log(
                             {
                                 "learning_rate": lr_scheduler.get_last_lr()[0],
