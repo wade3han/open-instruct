@@ -743,7 +743,8 @@ def main():
 
             full_vectorized_grads = torch.cat(
                 [p.grad.view(-1) for n, p in model.named_parameters() if p.grad is not None])
-            projected_vectorized_grads = projector.project(full_vectorized_grads.unsqueeze(0), model_id=0)
+            projected_vectorized_grads = projector.project(full_vectorized_grads.to(torch.float16).unsqueeze(0),
+                                                           model_id=0)
 
             if previous_projected_vectorized_grads is not None:
                 residual_projected_vectorized_grads = projected_vectorized_grads - previous_projected_vectorized_grads  # on cuda.
