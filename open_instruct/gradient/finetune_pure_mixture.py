@@ -16,7 +16,8 @@ from torch.utils.data import DataLoader, RandomSampler
 from torch.utils.data._utils.fetch import _BaseDatasetFetcher
 from torch.utils.data._utils.worker import _worker_loop
 from tqdm.auto import tqdm
-from trak.projectors import CudaProjector, ProjectionType
+# from trak.projectors import CudaProjector, ProjectionType
+from trak.projectors import BasicProjector, ProjectionType
 from transformers import (
     AutoConfig,
     AutoModelForCausalLM,
@@ -694,14 +695,23 @@ def main():
     dtype = next(model.parameters()).dtype
     block_size = 128
     projector_batch_size = 16
-    projector = CudaProjector(grad_dim=number_of_params,
-                              proj_dim=8192,
-                              seed=args.seed,
-                              proj_type=ProjectionType.rademacher,
-                              device=device,
-                              dtype=dtype,
-                              block_size=block_size,
-                              max_batch_size=projector_batch_size)
+
+    projector = BasicProjector(grad_dim=number_of_params,
+                               proj_dim=8192,
+                               seed=args.seed,
+                               proj_type=ProjectionType.rademacher,
+                               device='cpu',
+                               dtype=torch.float32,
+                               block_size=block_size,
+                               max_batch_size=projector_batch_size)
+    # projector = CudaProjector(grad_dim=number_of_params,
+    #                           proj_dim=8192,
+    #                           seed=args.seed,
+    #                           proj_type=ProjectionType.rademacher,
+    #                           device=device,
+    #                           dtype=dtype,
+    #                           block_size=block_size,
+    #                           max_batch_size=projector_batch_size)
     previous_projected_vectorized_grads = None
 
     assert args.per_device_train_batch_size == 1, "Only per_device_train_batch_size == 1 is supported."
@@ -744,7 +754,7 @@ def main():
 
             full_vectorized_grads = torch.cat(
                 [p.grad.view(-1) for n, p in model.named_parameters() if p.grad is not None])
-            projected_vectorized_grads = projector.project(full_vectorized_grads.to(torch.float16).unsqueeze(0),
+            projected_vectorized_grads = projector.project(full_vectorized_grads.to(torch.float32).cpu().unsqueeze(0),
                                                            model_id=0)
             projected_vectorized_grads = projected_vectorized_grads.squeeze(0)
             if count_per_dataset.get(dataset_id) is None:
