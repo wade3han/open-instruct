@@ -700,10 +700,10 @@ def main():
                                proj_dim=8192,
                                seed=args.seed,
                                proj_type=ProjectionType.rademacher,
-                               device='cpu',
+                               device=torch.device('cpu'),
                                dtype=torch.float32,
                                block_size=block_size,
-                               max_batch_size=projector_batch_size)
+                               )
     # projector = CudaProjector(grad_dim=number_of_params,
     #                           proj_dim=8192,
     #                           seed=args.seed,
