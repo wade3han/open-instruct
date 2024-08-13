@@ -102,8 +102,10 @@ class Flora(Optimizer):
                     rank = group["rank"]
 
                     if p.dim() < 2:
-                        projection = torch.randn(rank, p.shape[0], generator=generator) / math.sqrt(rank)
-                        new_projection = torch.randn(rank, p.shape[0], generator=new_generator) / math.sqrt(rank)
+                        projection = torch.randn(rank, p.shape[0], generator=generator,
+                                                 device=p.device) / math.sqrt(rank)
+                        new_projection = torch.randn(rank, p.shape[0], generator=new_generator,
+                                                     device=p.device) / math.sqrt(rank)
 
                         state["exp_avg"] = torch.matmul(torch.matmul(new_projection, projection.T), state["exp_avg"])
                         exp_avg = state["exp_avg"]
@@ -112,8 +114,10 @@ class Flora(Optimizer):
 
                     elif p.dim() == 2:
                         if p.shape[0] >= p.shape[1]:
-                            projection = torch.randn(rank, p.shape[0], generator=generator) / math.sqrt(rank)
-                            new_projection = torch.randn(rank, p.shape[0], generator=new_generator) / math.sqrt(rank)
+                            projection = torch.randn(rank, p.shape[0], generator=generator,
+                                                     device=p.device) / math.sqrt(rank)
+                            new_projection = torch.randn(rank, p.shape[0], generator=new_generator,
+                                                         device=p.device) / math.sqrt(rank)
 
                             state["exp_avg"] = torch.matmul(torch.matmul(new_projection, projection.T),
                                                             state["exp_avg"])
@@ -122,8 +126,10 @@ class Flora(Optimizer):
                             grad = torch.matmul(projection, grad)
 
                         else:
-                            projection = torch.randn(p.shape[1], rank, generator=generator) / math.sqrt(rank)
-                            new_projection = torch.randn(p.shape[1], rank, generator=new_generator) / math.sqrt(rank)
+                            projection = torch.randn(p.shape[1], rank, generator=generator,
+                                                     device=p.device) / math.sqrt(rank)
+                            new_projection = torch.randn(p.shape[1], rank, generator=new_generator,
+                                                         device=p.device) / math.sqrt(rank)
 
                             state["exp_avg"] = torch.matmul(state["exp_avg"],
                                                             torch.matmul(projection.T, new_projection))
@@ -139,18 +145,21 @@ class Flora(Optimizer):
                     generator = torch.Generator(device=p.device).manual_seed(seed)
 
                     if p.dim() < 2:
-                        projection = torch.randn(rank, p.shape[0], generator=generator) / math.sqrt(rank)
+                        projection = torch.randn(rank, p.shape[0], generator=generator,
+                                                 device=p.device) / math.sqrt(rank)
                         exp_avg = state["exp_avg"]
                         grad = torch.matmul(projection, grad)
 
                     elif p.dim() == 2:
                         if p.shape[0] >= p.shape[1]:
-                            projection = torch.randn(rank, p.shape[0], generator=generator) / math.sqrt(rank)
+                            projection = torch.randn(rank, p.shape[0], generator=generator,
+                                                     device=p.device) / math.sqrt(rank)
                             exp_avg = state["exp_avg"]
                             grad = torch.matmul(projection, grad)
 
                         else:
-                            projection = torch.randn(p.shape[1], rank, generator=generator) / math.sqrt(rank)
+                            projection = torch.randn(p.shape[1], rank, generator=generator,
+                                                     device=p.device) / math.sqrt(rank)
                             exp_avg = state["exp_avg"]
                             grad = torch.matmul(grad, projection)
 
