@@ -95,7 +95,7 @@ class Flora(Optimizer):
                         if p.shape[0] >= p.shape[1]:
                             state["exp_avg"] = torch.zeros((rank, p.shape[0]), device=p.device)
                         else:
-                            state["exp_avg"] = torch.zeros((p.shape[0], rank), device=p.device)
+                            state["exp_avg"] = torch.zeros((p.shape[1], rank), device=p.device)
                     else:
                         raise ValueError("Parameters that exceed 2 Dim are not supported currently.")
 
