@@ -688,6 +688,7 @@ def main():
     _loss_quantiles = None  # only available when using below_median loss masking
 
     gradient_store_exp_avg, gradient_store_exp_avg_sq = {}, {}
+    count_per_dataset = {}
     number_of_params = get_number_of_params(model)
     device = next(model.parameters()).device
     dtype = next(model.parameters()).dtype
@@ -745,6 +746,11 @@ def main():
                 [p.grad.view(-1) for n, p in model.named_parameters() if p.grad is not None])
             projected_vectorized_grads = projector.project(full_vectorized_grads.to(torch.float16).unsqueeze(0),
                                                            model_id=0)
+            projected_vectorized_grads = projected_vectorized_grads.squeeze(0)
+            if count_per_dataset.get(dataset_id) is None:
+                count_per_dataset[dataset_id] = 1
+            else:
+                count_per_dataset[dataset_id] += 1
 
             if previous_projected_vectorized_grads is not None:
                 residual_projected_vectorized_grads = projected_vectorized_grads - previous_projected_vectorized_grads  # on cuda.
@@ -783,6 +789,8 @@ def main():
 
             if forward_steps % args.gradient_accumulation_steps == 0:  # accumulation
                 if completed_steps % args.eval_per_steps == 0 and completed_steps > 0:
+                    import ipdb;
+                    ipdb.set_trace();
                     test_model(args, model, test_data_loaders, selected_validation_dataset_names,
                                completed_steps, embedding_size, device)
 
