@@ -37,7 +37,6 @@ class Flora(Optimizer):
             self,
             params: ParamsT,
             lr: float = 1e-3,
-            accumulation_steps: int = 1,
             projection_steps: int = 1000,
             rank: int = 8,
             beta: float = 0.9,
@@ -92,7 +91,7 @@ class Flora(Optimizer):
                     state["exp_avg"] = torch.zeros_like(grad)
 
                 # Compression
-                if (self.state['step'] - 1) % (group['projection_steps'] * group['acumulation_steps']) == 0:
+                if (self.state['step'] - 1) % group['projection_steps'] == 0:
                     print("seed_initialize")
                     seed = state["seed"]
                     new_seed = int(np.random.randint(low=0, high=2 ** 16, size=1)[0])

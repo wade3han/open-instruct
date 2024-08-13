@@ -744,7 +744,6 @@ def main():
     #     optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=args.learning_rate)
     optimizer = Flora(optimizer_grouped_parameters, lr=args.learning_rate,
                       beta=args.beta1,
-                      accumulation_steps=args.gradient_accumulation_steps,
                       rank=args.ladamw_rank, )
 
     # Scheduler and math around the number of training steps.

@@ -37,7 +37,6 @@ class LAdamW(Optimizer):
             self,
             params: ParamsT,
             lr: float = 1e-3,
-            accumulation_steps: int = 1,
             rank: int = 8,
             betas: Tuple[float, float, float] = (0.9, 0.9, 0.999),
             eps: float = 1e-6,
@@ -76,7 +75,6 @@ class LAdamW(Optimizer):
         self.state['projection'] = torch.randn(max_size * rank)
         self.state['beta0'] = betas[0]
         self.state['step'] = 0
-        self.state['accumulation_steps'] = accumulation_steps
         # self.state['hyperparams'] = (lr, rank, betas[0], betas[1], betas[2], eps, weight_decay, correct_bias)
 
     @torch.no_grad()
@@ -95,8 +93,7 @@ class LAdamW(Optimizer):
         # lr, rank, beta0, beta1, beta2, eps, weight_decay, correct_bias = self.state['hyperparams']
         beta0 = self.state['beta0']
 
-        if self.state['step'] % self.state['accumulation_steps'] == 0:
-            projection.mul_(beta0).add_(torch.randn_like(projection), alpha=math.sqrt(1.0 - beta0 ** 2))
+        projection.mul_(beta0).add_(torch.randn_like(projection), alpha=math.sqrt(1.0 - beta0 ** 2))
 
         self.state['step'] += 1
 
