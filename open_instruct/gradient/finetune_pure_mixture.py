@@ -524,28 +524,30 @@ def main():
     batch_size = 1
 
     class CombinedDataLoader:
-        def __init__(self, dataloaders):
+        def __init__(self, dataloaders: list[DataLoader], mixture_weights: list[float]):
             """
             Args:
                 dataloaders (list): A list of DataLoader objects.
             """
+            assert len(dataloaders) == len(mixture_weights)
             self.dataloaders = dataloaders
+            self.mixture_weights = mixture_weights
             self.iterators = [iter(dl) for dl in dataloaders]
 
         def __iter__(self):
             return self
 
-        def __next__(self):
-            # Randomly select one of the dataloaders
-            chosen_index = random.randint(0, len(self.dataloaders) - 1)
+        def __next__(self) -> tuple[dict, int]:
+            # Randomly select one of the dataloaders based on the mixture weights
+            chosen_index = random.choices(range(len(self.dataloaders)), weights=self.mixture_weights)[0]
             chosen_iterator = self.iterators[chosen_index]
 
             try:
-                return next(chosen_iterator)
+                return next(chosen_iterator), chosen_index
             except StopIteration:
                 # Reset the iterator if it is exhausted
                 self.iterators[chosen_index] = iter(self.dataloaders[chosen_index])
-                return next(self.iterators[chosen_index])
+                return next(self.iterators[chosen_index]), chosen_index
 
         def __len__(self):
             # Define the length of the combined loader as the sum of lengths of individual dataloaders
@@ -578,7 +580,17 @@ def main():
         )
 
         train_data_loaders.append(train_dataloader)
-    train_dataloader = CombinedDataLoader(train_data_loaders)
+
+    def get_mixture_weights(weights: list[float]):
+        """
+        Normalize the weights to sum to 1.
+        """
+        exp_weights = [math.exp(w) for w in weights]
+        total = sum(exp_weights)
+        return [w / total for w in exp_weights]
+
+    train_dataloader = CombinedDataLoader(train_data_loaders,
+                                          mixture_weights=get_mixture_weights([1.0] * len(train_data_loaders)))
 
     test_data_loaders = [
         DataLoader(
@@ -627,25 +639,6 @@ def main():
             num_training_steps=num_training_steps_for_scheduler,
             num_warmup_steps=int(num_training_steps_for_scheduler * args.warmup_ratio),
         )
-
-    # model_engine, optimizer, _, lr_scheduler = deepspeed.initialize(
-    #     model=model,
-    #     optimizer=optimizer,
-    #     lr_scheduler=lr_scheduler,
-    #     config=ds_config,
-    # )
-
-    # # Load weights and states from a trained model, but not resuming.
-    # if args.load_from_checkpoint:
-    #     print(f"Loading from checkpoint: {args.load_from_checkpoint}")
-    #     model.load_checkpoint(args.load_from_checkpoint)
-    #
-    # # We need to recalculate our total training steps as the size of the training dataloader may have changed.
-    # num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
-    # if overrode_max_train_steps:
-    #     args.max_train_steps = args.num_train_epochs * num_update_steps_per_epoch
-    # # Afterwards we recalculate our number of training epochs
-    # args.num_train_epochs = math.ceil(args.max_train_steps / num_update_steps_per_epoch)
 
     # Figure out how many steps we should save the Accelerator states
     checkpointing_steps = args.checkpointing_steps
@@ -698,7 +691,7 @@ def main():
         # # set epoch
         # train_dataloader.sampler.set_epoch(epoch)
 
-        for step, batch in enumerate(train_dataloader):
+        for step, (batch, dataset_id) in enumerate(train_dataloader):
             batch_device = {k: v.to(device) for k, v in batch.items()}
             outputs = model(**batch_device, use_cache=False)
             forward_steps += 1
