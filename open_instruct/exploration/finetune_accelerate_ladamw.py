@@ -744,6 +744,7 @@ def main():
     #     optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=args.learning_rate)
     optimizer = LAdamW(optimizer_grouped_parameters, lr=args.learning_rate,
                        betas=(args.beta0, args.beta1, args.beta2),
+                       accumulation_steps=args.gradient_accumulation_steps,
                        rank=args.ladamw_rank, )
 
     # Scheduler and math around the number of training steps.
