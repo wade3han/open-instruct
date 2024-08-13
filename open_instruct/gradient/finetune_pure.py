@@ -407,6 +407,10 @@ def main():
     embeddings = model.get_input_embeddings()
     embedding_size = embeddings.weight.shape[0]
 
+    # monkeypatch
+    if args.use_flash_attn:
+        patch_for_multipack_legacy(config.model_type, model_name=config._name_or_path)
+
     # set the tokenizer chat template to the tulu format
     # this makes evaluation/etc easier down the line.
     tokenizer.chat_template = "{% for message in messages %}\n{% if message['role'] == 'user' %}\n{{ '<|user|>\n' + message['content'] }}\n{% elif message['role'] == 'assistant' %}\n{{ '<|assistant|>\n'  + message['content'] + eos_token }}\n{% endif %}\n{% if loop.last and add_generation_prompt %}\n{{ '<|assistant|>' }}\n{% endif %}\n{% endfor %}"  # noqa: E501
@@ -424,85 +428,57 @@ def main():
                 module._gradient_checkpointing_func = torch.utils.checkpoint.checkpoint
 
     # prepare training datasets.
-    data_files = {}
-    dataset_args = {}
-    if args.train_file is not None:
-        data_files["train"] = args.train_file
-    raw_datasets = load_dataset(
-        "json",
-        data_files=data_files,
-        **dataset_args,
+    encode_function = partial(
+        encode_with_messages_format,
+        mask_users=args.mask_users,
+        mask_padding=args.mask_padding,
+        tokenizer=tokenizer,
+        max_seq_length=args.max_seq_length,
+        add_bos=args.add_bos,
     )
 
-    # Preprocessing the datasets.
-    if "prompt" in raw_datasets["train"].column_names and "completion" in raw_datasets["train"].column_names:
-        encode_function = partial(
-            encode_with_prompt_completion_format,
-            tokenizer=tokenizer,
-            max_seq_length=args.max_seq_length,
-            add_bos=args.add_bos,
+    def add_position_ids(sample):
+        sample_len = len(sample["input_ids"])
+        sample["position_ids"] = torch.arange(len(sample["input_ids"]))
+        sample["length"] = sample_len
+        return sample
+
+    TRAIN_DATASET_DIR = "/net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/"
+    selected_train_dataset_names = [
+        "lmsyschat",
+        "tulu2mix-code_alpaca",
+    ]
+    lm_datasets_trains = []
+    for dataset_name in selected_train_dataset_names:
+        train_datapath = f"{TRAIN_DATASET_DIR}/megamixv2_dedup_{dataset_name}_validation.jsonl"
+        data_files = {"train": train_datapath}
+        raw_datasets_train = load_dataset(
+            "json",
+            data_files=data_files,
         )
-    elif "messages" in raw_datasets["train"].column_names:
-        encode_function = partial(
-            encode_with_messages_format,
-            mask_users=args.mask_users,
-            mask_padding=args.mask_padding,
-            tokenizer=tokenizer,
-            max_seq_length=args.max_seq_length,
-            add_bos=args.add_bos,
+        lm_datasets_train = raw_datasets_train.map(
+            encode_function,
+            batched=False,
+            num_proc=args.preprocessing_num_workers,
+            load_from_cache_file=not args.overwrite_cache,
+            remove_columns=[
+                name
+                for name in raw_datasets_train["train"].column_names
+                if name not in ["input_ids", "labels", "attention_mask"]
+            ],
+            desc="Tokenizing and reformatting instruction data",
         )
-    else:
-        raise ValueError("You need to have either 'prompt'&'completion' or 'messages' in your column names.")
-
-    # debugging tool for fewer samples
-    if args.max_train_samples is not None:
-        max_train_samples = min(len(raw_datasets['train']), args.max_train_samples)
-        print(f"Limiting training samples to {max_train_samples} from {len(raw_datasets['train'])}.")
-        raw_datasets["train"] = raw_datasets["train"].select(range(max_train_samples))
-
-    lm_datasets = raw_datasets.map(
-        encode_function,
-        batched=False,
-        num_proc=args.preprocessing_num_workers,
-        load_from_cache_file=not args.overwrite_cache,
-        remove_columns=[
-            name
-            for name in raw_datasets["train"].column_names
-            if name not in ["input_ids", "labels", "attention_mask"]
-        ],
-        desc="Tokenizing and reformatting instruction data",
-    )
-
-    if args.use_multipack:
-        def add_position_ids(sample):
-            sample_len = len(sample["input_ids"])
-            sample["position_ids"] = torch.arange(len(sample["input_ids"]))
-            sample["length"] = sample_len
-            return sample
-
-        lm_datasets = lm_datasets.map(
+        lm_datasets_train = lm_datasets_train.map(
             add_position_ids,
             desc="Add position_id column (Pretraining Sample Packing)",
         )
-
-    lm_datasets.set_format(type="pt")
-    lm_datasets = lm_datasets.filter(lambda example: (example["labels"] != -100).any())
+        lm_datasets_train.set_format(type="pt")
+        lm_datasets_train = lm_datasets_train.filter(lambda example: (example["labels"] != -100).any())
+        lm_datasets_trains.append(lm_datasets_train)
 
     TEST_DATASET_DIR = "/net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/"
     selected_validation_dataset_names = [
         "lmsyschat",
-        # "tulu2mix-code_alpaca",
-        # "tulu2mix-cot",
-        # "tulu2mix-flan_v2",
-        # "tulu2mix-gpt4_alpaca",
-        # "tulu2mix-oasst1",
-        # "tulu2mix-open_orca",
-        # "tulu2mix-science",
-        # "tulu2mix-sharegpt",
-        # "tulu2mix-wizardlm",
-        # "ultrachat",
-        # "ultrainteract",
-        # "wildchat-gpt-4-0125-preview",
     ]
     lm_datasets_tests = []
     for dataset_name in selected_validation_dataset_names:
@@ -532,12 +508,13 @@ def main():
         lm_datasets_test.set_format(type="pt")
         lm_datasets_tests.append(lm_datasets_test)
 
-    train_dataset = lm_datasets["train"]
+    train_datasets = [lm_datasets_train["train"] for lm_datasets_train in lm_datasets_trains]
     test_datasets = [lm_datasets_test["test"] for lm_datasets_test in lm_datasets_tests]
 
     # Log a few random samples from the training set:
-    for index in random.sample(range(len(train_dataset)), 3):
-        print(f"Sample {index} of the training set: {train_dataset[index]}.")
+    for train_dataset in train_datasets:
+        for index in random.sample(range(len(train_dataset)), 3):
+            print(f"Sample {index} of the training set: {train_dataset[index]}.")
 
     # DataLoaders creation:
     assert args.use_multipack, "Only multipack is supported. TODO: fix this."
@@ -546,33 +523,62 @@ def main():
     batch_max_len = args.per_device_train_batch_size * args.max_seq_length  # 4 * 8192 = 32768
     batch_size = 1
 
-    sampler = MultipackBatchSampler(
-        RandomSampler(train_dataset),
-        lengths=get_dataset_lengths(train_dataset),
-        packing_efficiency_estimate=1.0,
-        batch_max_len=batch_max_len,
-        batch_size=batch_size,
-        drop_last=True,
-        num_replicas=1,
-        rank=0,
-    )
+    class CombinedDataLoader:
+        def __init__(self, dataloaders):
+            """
+            Args:
+                dataloaders (list): A list of DataLoader objects.
+            """
+            self.dataloaders = dataloaders
+            self.iterators = [iter(dl) for dl in dataloaders]
 
-    collate_fn = V2BatchSamplerDataCollatorForSeq2SeqPadding(
-        tokenizer=tokenizer,
-        model=model,
-        padding="longest",
-        max_length=batch_max_len,
-    )
+        def __iter__(self):
+            return self
 
-    train_dataloader = DataLoader(
-        train_dataset,
-        batch_sampler=sampler,
-        collate_fn=collate_fn,
-    )
+        def __next__(self):
+            # Randomly select one of the dataloaders
+            chosen_index = random.randint(0, len(self.dataloaders) - 1)
+            chosen_iterator = self.iterators[chosen_index]
 
-    # monkeypatch
-    if args.use_flash_attn:
-        patch_for_multipack_legacy(config.model_type, model_name=config._name_or_path)
+            try:
+                return next(chosen_iterator)
+            except StopIteration:
+                # Reset the iterator if it is exhausted
+                self.iterators[chosen_index] = iter(self.dataloaders[chosen_index])
+                return next(self.iterators[chosen_index])
+
+        def __len__(self):
+            # Define the length of the combined loader as the sum of lengths of individual dataloaders
+            return sum(len(dl) for dl in self.dataloaders)
+
+    train_data_loaders = []
+    for train_dataset in train_datasets:
+        sampler = MultipackBatchSampler(
+            RandomSampler(train_dataset),
+            lengths=get_dataset_lengths(train_dataset),
+            packing_efficiency_estimate=1.0,
+            batch_max_len=batch_max_len,
+            batch_size=batch_size,
+            drop_last=True,
+            num_replicas=1,
+            rank=0,
+        )
+
+        collate_fn = V2BatchSamplerDataCollatorForSeq2SeqPadding(
+            tokenizer=tokenizer,
+            model=model,
+            padding="longest",
+            max_length=batch_max_len,
+        )
+
+        train_dataloader = DataLoader(
+            train_dataset,
+            batch_sampler=sampler,
+            collate_fn=collate_fn,
+        )
+
+        train_data_loaders.append(train_dataloader)
+    train_dataloader = CombinedDataLoader(train_data_loaders)
 
     test_data_loaders = [
         DataLoader(
@@ -689,11 +695,10 @@ def main():
     for epoch in range(starting_epoch, args.num_train_epochs):
         model.train()
         total_loss = 0
-        active_dataloader = train_dataloader
         # # set epoch
         # train_dataloader.sampler.set_epoch(epoch)
 
-        for step, batch in enumerate(active_dataloader):
+        for step, batch in enumerate(train_dataloader):
             batch_device = {k: v.to(device) for k, v in batch.items()}
             outputs = model(**batch_device, use_cache=False)
             forward_steps += 1

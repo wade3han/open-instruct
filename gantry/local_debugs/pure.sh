@@ -18,7 +18,7 @@ python open_instruct/gradient/finetune_pure.py \
   --use_flash_attn \
   --tokenizer_name allenai/OLMo-1B-hf \
   --train_file /net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/round0_data.jsonl \
-  --max_seq_length 8192 \
+  --max_seq_length 2048 \
   --preprocessing_num_workers 128 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
@@ -35,4 +35,5 @@ python open_instruct/gradient/finetune_pure.py \
   --logging_steps 1 \
   --clip_grad_norm 1.0 \
   --max_train_samples 10000 \
+  --per_device_eval_batch_size 1 \
   --gradient_checkpointing
