@@ -16,6 +16,7 @@ from torch.utils.data import DataLoader, RandomSampler
 from torch.utils.data._utils.fetch import _BaseDatasetFetcher
 from torch.utils.data._utils.worker import _worker_loop
 from tqdm.auto import tqdm
+from trak.projectors import CudaProjector, ProjectionType
 from transformers import (
     AutoConfig,
     AutoModelForCausalLM,
@@ -28,6 +29,7 @@ from transformers import (
     DataCollatorForSeq2Seq,
 )
 
+from open_instruct.gradient.collect_grad_reps import get_number_of_params
 from open_instruct.multipack import MultipackBatchSampler, get_dataset_lengths, \
     V2BatchSamplerDataCollatorForSeq2SeqPadding, patch_for_multipack_legacy
 from open_instruct.utils import ArgumentParserPlus, FlatArguments, MFUEstimator
@@ -685,11 +687,27 @@ def main():
     seq_length_per_fwdbwd = 0
     _loss_quantiles = None  # only available when using below_median loss masking
 
+    gradient_store_exp_avg, gradient_store_exp_avg_sq = {}, {}
+    number_of_params = get_number_of_params(model)
+    device = next(model.parameters()).device
+    dtype = next(model.parameters()).dtype
+    block_size = 128
+    projector_batch_size = 16
+    projector = CudaProjector(grad_dim=number_of_params,
+                              proj_dim=8192,
+                              seed=args.seed,
+                              proj_type=ProjectionType.rademacher,
+                              device=device,
+                              dtype=dtype,
+                              block_size=block_size,
+                              max_batch_size=projector_batch_size)
+    previous_projected_vectorized_grads = None
+
+    assert args.per_device_train_batch_size == 1, "Only per_device_train_batch_size == 1 is supported."
+
     for epoch in range(starting_epoch, args.num_train_epochs):
         model.train()
         total_loss = 0
-        # # set epoch
-        # train_dataloader.sampler.set_epoch(epoch)
 
         for step, (batch, dataset_id) in enumerate(train_dataloader):
             batch_device = {k: v.to(device) for k, v in batch.items()}
@@ -721,10 +739,32 @@ def main():
                 # We scale the loss based on the batch size and sequence length
                 loss = loss / (args.per_device_train_batch_size * args.max_seq_length)
 
-            # model.backward(loss)
             loss.backward()
-            if forward_steps % args.gradient_accumulation_steps == 0:
 
+            full_vectorized_grads = torch.cat(
+                [p.grad.view(-1) for n, p in model.named_parameters() if p.grad is not None])
+            projected_vectorized_grads = projector.project(full_vectorized_grads, model_id=0)
+
+            if previous_projected_vectorized_grads is not None:
+                residual_projected_vectorized_grads = projected_vectorized_grads - previous_projected_vectorized_grads  # on cuda.
+            else:
+                residual_projected_vectorized_grads = projected_vectorized_grads
+
+            if gradient_store_exp_avg.get(dataset_id) is None:
+                gradient_store_exp_avg[dataset_id] = residual_projected_vectorized_grads
+            else:
+                gradient_store_exp_avg[dataset_id] = args.beta1 * gradient_store_exp_avg[dataset_id] + (
+                        1 - args.beta1) * residual_projected_vectorized_grads
+
+            if gradient_store_exp_avg_sq.get(dataset_id) is None:
+                gradient_store_exp_avg_sq[dataset_id] = residual_projected_vectorized_grads ** 2
+            else:
+                gradient_store_exp_avg_sq[dataset_id] = args.beta2 * gradient_store_exp_avg_sq[dataset_id] + (
+                        1 - args.beta2) * residual_projected_vectorized_grads ** 2
+
+            previous_projected_vectorized_grads = projected_vectorized_grads
+
+            if forward_steps % args.gradient_accumulation_steps == 0:
                 # get clip_grad_norm
                 total_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip_grad_norm)
                 if hasattr(total_norm, "item"):
