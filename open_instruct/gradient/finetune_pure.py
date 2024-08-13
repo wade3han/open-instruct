@@ -346,6 +346,7 @@ def main():
     model = AutoModelForCausalLM.from_pretrained(
         args.model_name_or_path,
         from_tf=bool(".ckpt" in args.model_name_or_path),
+        torch_dtype=torch.bfloat16,
         config=config,
         trust_remote_code=args.trust_remote_code,
         low_cpu_mem_usage=args.low_cpu_mem_usage,
