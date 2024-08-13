@@ -242,10 +242,6 @@ class Galore(Optimizer):
             params: ParamsT,
             lr: float = 1e-3,
             betas: Tuple[float, float] = (0.9, 0.999),
-            rank: int = 8,
-            update_proj_gap: int = 50,
-            scale: float = 1.0,
-            proj_type: str = 'std',
             eps: float = 1e-6,
             weight_decay: float = 0.0,
             correct_bias: bool = True,
@@ -267,8 +263,7 @@ class Galore(Optimizer):
             raise ValueError(f"Invalid beta parameter: {betas[1]} - should be in [0.0, 1.0)")
         if not 0.0 <= eps:
             raise ValueError(f"Invalid epsilon value: {eps} - should be >= 0.0")
-        defaults = {"lr": lr, "betas": betas, "eps": eps, "weight_decay": weight_decay, "correct_bias": correct_bias,
-                    "rank": rank, "update_proj_gap": update_proj_gap, "scale": scale, "proj_type": proj_type}
+        defaults = {"lr": lr, "betas": betas, "eps": eps, "weight_decay": weight_decay, "correct_bias": correct_bias}
         super().__init__(params, defaults)
 
     @torch.no_grad()
@@ -300,17 +295,18 @@ class Galore(Optimizer):
                     group['dim'] = 2
 
                 # GaLore Projection
-                if "projector" not in state:
-                    if group['dim'] <= 2:
-                        state["projector"] = GaLoreProjector(group["rank"],
-                                                             update_proj_gap=group["update_proj_gap"],
-                                                             scale=group["scale"], proj_type=group["proj_type"])
-                    else:
-                        state["projector"] = GaLoreProjectorTensor(group["rank"],
-                                                                   update_proj_gap=group["update_proj_gap"],
-                                                                   scale=group["scale"],
-                                                                   proj_type=group["proj_type"])
-                grad = state["projector"].project(grad, state["step"])
+                if "rank" in group:
+                    if "projector" not in state:
+                        if group['dim'] <= 2:
+                            state["projector"] = GaLoreProjector(group["rank"],
+                                                                 update_proj_gap=group["update_proj_gap"],
+                                                                 scale=group["scale"], proj_type=group["proj_type"])
+                        else:
+                            state["projector"] = GaLoreProjectorTensor(group["rank"],
+                                                                       update_proj_gap=group["update_proj_gap"],
+                                                                       scale=group["scale"],
+                                                                       proj_type=group["proj_type"])
+                    grad = state["projector"].project(grad, state["step"])
 
                 # State initialization
                 if "exp_avg" not in state:
@@ -340,7 +336,8 @@ class Galore(Optimizer):
                 norm_grad = exp_avg / denom
 
                 # GaLore Projection Back
-                norm_grad = state["projector"].project_back(norm_grad)
+                if "rank" in group:
+                    norm_grad = state["projector"].project_back(norm_grad)
 
                 p.add_(norm_grad, alpha=-step_size)
 

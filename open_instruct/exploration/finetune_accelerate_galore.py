@@ -30,6 +30,7 @@ from accelerate.logging import get_logger
 from accelerate.utils import InitProcessGroupKwargs, set_seed
 from datasets import load_dataset
 from peft import LoraConfig, TaskType, get_peft_model, prepare_model_for_kbit_training
+from torch import nn
 from torch.utils.data import DataLoader, RandomSampler
 from tqdm.auto import tqdm
 from transformers import (
@@ -721,31 +722,37 @@ def main():
 
     # Optimizer
     # Split weights in two groups, one with weight decay and the other not.
-    no_decay = ["bias", "layer_norm.weight"]
-    optimizer_grouped_parameters = [
-        {
-            "params": [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)],
-            "weight_decay": args.weight_decay,
-        },
-        {
-            "params": [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)],
-            "weight_decay": 0.0,
-        },
-    ]
-    # if args.use_qlora:
-    #     from bitsandbytes.optim import AdamW
-    #
-    #     optimizer = AdamW(
-    #         optimizer_grouped_parameters,
-    #         lr=args.learning_rate,
-    #         optim_bits=8 if args.use_8bit_optimizer else 32,
-    #         is_paged=True,
-    #     )
-    # else:
-    #     optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=args.learning_rate)
-    optimizer = Galore(optimizer_grouped_parameters, lr=args.learning_rate,
-                       betas=(args.beta1, args.beta2),
-                       rank=args.ladamw_rank, )
+    # no_decay = ["bias", "layer_norm.weight"]
+    # optimizer_grouped_parameters = [
+    #     {
+    #         "params": [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)],
+    #         "weight_decay": args.weight_decay,
+    #     },
+    #     {
+    #         "params": [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)],
+    #         "weight_decay": 0.0,
+    #     },
+    # ]
+    galore_params = []
+
+    for module_name, module in model.named_modules():
+        if not isinstance(module, nn.Linear):
+            continue
+
+        # if not any(target_key in module_name for target_key in target_modules_list):
+        #     continue
+
+        print('enable GaLore for weights in module: ', module_name)
+        galore_params.append(module.weight)
+
+    id_galore_params = [id(p) for p in galore_params]
+    # make parameters without "rank" to another group
+    regular_params = [p for p in model.parameters() if id(p) not in id_galore_params]
+    param_groups = [{'params': regular_params},
+                    {'params': galore_params, 'rank': args.ladamw_rank, 'update_proj_gap': 50,
+                     'scale': 1.0, 'proj_type': 'std'}]
+    optimizer = Galore(param_groups, lr=args.learning_rate,
+                       betas=(args.beta1, args.beta2), )
 
     # Scheduler and math around the number of training steps.
     overrode_max_train_steps = False
