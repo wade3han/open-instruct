@@ -252,7 +252,7 @@ def test_model(args,
         for eval_batch in test_data_loader:
             eval_batch_device = {k: v.to(device) for k, v in eval_batch.items()}
             outputs = model(**eval_batch_device, use_cache=False)
-            loss = outputs.loss.detach().float()
+            loss = outputs.loss
             # logits = outputs.logits
             # labels = eval_batch["labels"]
             # # Shift so that tokens < n predict n
@@ -283,7 +283,7 @@ def test_model(args,
 
             model.zero_grad()
 
-            eval_loss += loss
+            eval_loss += loss.detach().float()
             loss_count += 1
         eval_loss = eval_loss / loss_count
         total_eval_loss += eval_loss
