@@ -518,8 +518,8 @@ def main():
     TRAIN_DATASET_DIR = "/net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/"
     selected_train_dataset_names = [
         "lmsyschat",
-        # "tulu2mix-code_alpaca",
-        # "tulu2mix-cot",
+        "tulu2mix-code_alpaca",
+        "tulu2mix-cot",
     ]
     lm_datasets_trains = []
     for dataset_name in selected_train_dataset_names:
@@ -552,9 +552,9 @@ def main():
     TEST_DATASET_DIR = "/net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/"
     selected_validation_dataset_names = [
         "lmsyschat",
-        # "tulu2mix-code_alpaca",
-        # "tulu2mix-cot",
-        # "ultrainteract",
+        "tulu2mix-code_alpaca",
+        "tulu2mix-cot",
+        "ultrainteract",
     ]
     lm_datasets_tests = []
     for dataset_name in selected_validation_dataset_names:
