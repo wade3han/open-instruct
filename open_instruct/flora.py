@@ -93,9 +93,9 @@ class Flora(Optimizer):
                         state["exp_avg"] = torch.zeros((rank, p.shape[0]), device=p.device)
                     elif p.dim() == 2:
                         if p.shape[0] >= p.shape[1]:
-                            state["exp_avg"] = torch.zeros((rank, p.shape[0]), device=p.device)
+                            state["exp_avg"] = torch.zeros((rank, p.shape[1]), device=p.device)
                         else:
-                            state["exp_avg"] = torch.zeros((p.shape[1], rank), device=p.device)
+                            state["exp_avg"] = torch.zeros((p.shape[0], rank), device=p.device)
                     else:
                         raise ValueError("Parameters that exceed 2 Dim are not supported currently.")
 
@@ -114,10 +114,10 @@ class Flora(Optimizer):
                         new_projection = torch.randn(rank, p.shape[0], generator=new_generator,
                                                      device=p.device) / math.sqrt(rank)
 
-                        state["exp_avg"] = torch.matmul(torch.matmul(new_projection, projection.T), state["exp_avg"])
+                        state["exp_avg"] = torch.matmul(torch.matmul(new_projection, projection.T), state["exp_avg"])  # shape: [rank, p.shape[0]]
                         exp_avg = state["exp_avg"]
                         projection = new_projection
-                        grad = torch.matmul(projection, grad)
+                        grad = torch.matmul(projection, grad)  # shape: [rank]
 
                     elif p.dim() == 2:
                         if p.shape[0] >= p.shape[1]:

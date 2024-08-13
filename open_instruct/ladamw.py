@@ -115,7 +115,7 @@ class LAdamW(Optimizer):
 
                 # Compression
                 if p.dim() < 2:
-                    grad = torch.matmul(projection[:rank * p.shape[0]].view(rank, p.shape[0]) / math.sqrt(rank), grad)
+                    grad = torch.matmul(projection[:rank * p.shape[0]].view(rank, p.shape[0]) / math.sqrt(rank), grad)  # shape: [rank]
                 elif p.dim() == 2:
                     if p.shape[0] >= p.shape[1]:
                         grad = torch.matmul(projection[:rank * p.shape[0]].view(rank, p.shape[0]) / math.sqrt(rank),
