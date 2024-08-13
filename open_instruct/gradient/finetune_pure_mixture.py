@@ -1,3 +1,4 @@
+import itertools
 import logging
 import math
 import os
@@ -517,8 +518,8 @@ def main():
     TRAIN_DATASET_DIR = "/net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/"
     selected_train_dataset_names = [
         "lmsyschat",
-        "tulu2mix-code_alpaca",
-        "tulu2mix-cot",
+        # "tulu2mix-code_alpaca",
+        # "tulu2mix-cot",
     ]
     lm_datasets_trains = []
     for dataset_name in selected_train_dataset_names:
@@ -551,9 +552,9 @@ def main():
     TEST_DATASET_DIR = "/net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/"
     selected_validation_dataset_names = [
         "lmsyschat",
-        "tulu2mix-code_alpaca",
-        "tulu2mix-cot",
-        "ultrainteract",
+        # "tulu2mix-code_alpaca",
+        # "tulu2mix-cot",
+        # "ultrainteract",
     ]
     lm_datasets_tests = []
     for dataset_name in selected_validation_dataset_names:
@@ -787,6 +788,19 @@ def main():
 
     assert args.per_device_train_batch_size == 1, "Only per_device_train_batch_size == 1 is supported."
 
+    def calc_sim(gradient_store_avg, gradient_store_exp_avg, gradient_store_exp_avg_sq):
+        num_train_set = len(gradient_store_exp_avg)
+        num_valid_set = len(gradient_store_avg)
+
+        sim_matrix = torch.zeros((num_train_set, num_valid_set))
+        for train_id, val_id in itertools.product(range(num_train_set), range(num_valid_set)):
+            train_grad = gradient_store_exp_avg[train_id] / torch.sqrt(gradient_store_exp_avg_sq[train_id] + 1e-8)
+            val_grad = gradient_store_avg[val_id]
+            sim = torch.nn.functional.cosine_similarity(train_grad, val_grad, dim=0)
+            sim_matrix[train_id, val_id] = sim
+
+        return sim_matrix
+
     for epoch in range(starting_epoch, args.num_train_epochs):
         model.train()
         total_loss = 0
@@ -873,8 +887,11 @@ def main():
                 if completed_steps % args.eval_per_steps == 0 and completed_steps > 0:
                     gradient_store_avg = test_model(args, model, test_data_loaders, selected_validation_dataset_names,
                                                     completed_steps, embedding_size, device, projector)
-                    import ipdb;
-                    ipdb.set_trace();
+
+                    # calculate the similarity.
+                    sim_matrix = calc_sim(gradient_store_avg, gradient_store_exp_avg, gradient_store_exp_avg_sq)
+                    print("Similarity Matrix in the training step: ", completed_steps)
+                    print(sim_matrix)
 
                 progress_bar.update(1)
                 completed_steps += 1
