@@ -54,8 +54,7 @@ class Flora(Optimizer):
             raise ValueError(f"Invalid learning rate: {lr} - should be >= 0.0")
         if not 0.0 <= beta < 1.0:
             raise ValueError(f"Invalid beta parameter: {beta} - should be in [0.0, 1.0)")
-        defaults = dict(lr=lr, rank=rank, projection_steps=projection_steps, beta=beta,
-                        accumulation_steps=accumulation_steps)
+        defaults = dict(lr=lr, rank=rank, projection_steps=projection_steps, beta=beta)
         super().__init__(params, defaults)
 
         self.state['step'] = 0
