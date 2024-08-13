@@ -89,18 +89,24 @@ class Flora(Optimizer):
                     state["seed"] = int(np.random.randint(low=0, high=2 ** 16, size=1)[0])
                 if "exp_avg" not in state:
                     # Exponential moving average of gradient values
-                    state["exp_avg"] = torch.zeros((rank, p.shape[0]), device=p.device)
+                    if p.dim() < 2:
+                        state["exp_avg"] = torch.zeros((rank, p.shape[0]), device=p.device)
+                    elif p.dim() == 2:
+                        if p.shape[0] >= p.shape[1]:
+                            state["exp_avg"] = torch.zeros((rank, p.shape[0]), device=p.device)
+                        else:
+                            state["exp_avg"] = torch.zeros((p.shape[0], rank), device=p.device)
+                    else:
+                        raise ValueError("Parameters that exceed 2 Dim are not supported currently.")
 
                 # Compression
                 if (self.state['step'] - 1) % group['projection_steps'] == 0:
-                    print("seed_initialize")
                     seed = state["seed"]
                     new_seed = int(np.random.randint(low=0, high=2 ** 16, size=1)[0])
                     generator = torch.Generator(device=p.device).manual_seed(seed)
                     new_generator = torch.Generator(device=p.device).manual_seed(new_seed)
 
                     state["seed"] = new_seed
-
 
                     if p.dim() < 2:
                         projection = torch.randn(rank, p.shape[0], generator=generator,
