@@ -243,6 +243,9 @@ class Galore(Optimizer):
             lr: float = 1e-3,
             betas: Tuple[float, float] = (0.9, 0.999),
             rank: int = 8,
+            update_proj_gap: int = 50,
+            scale: float = 1.0,
+            proj_type: str = 'std',
             eps: float = 1e-6,
             weight_decay: float = 0.0,
             correct_bias: bool = True,
@@ -265,7 +268,7 @@ class Galore(Optimizer):
         if not 0.0 <= eps:
             raise ValueError(f"Invalid epsilon value: {eps} - should be >= 0.0")
         defaults = {"lr": lr, "betas": betas, "eps": eps, "weight_decay": weight_decay, "correct_bias": correct_bias,
-                    "rank": rank}
+                    "rank": rank, "update_proj_gap": update_proj_gap, "scale": scale, "proj_type": proj_type}
         super().__init__(params, defaults)
 
     @torch.no_grad()
