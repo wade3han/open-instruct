@@ -234,43 +234,70 @@ def test_model(args,
                completed_steps: int,
                embedding_size: int,
                device: torch.device,
+               projector: CudaProjector,
                ):
-    model.eval()
+    # model.eval()
     total_eval_loss = 0
     DIVIDE_CONSTANT = EVAL_MAX_SEQ_LENGTH * args.per_device_eval_batch_size
     loss_fct = torch.nn.CrossEntropyLoss(reduction="sum")
-    with torch.no_grad():
-        for test_data_loader, dataset_name in zip(test_data_loaders, test_data_loaders_names):
-            eval_loss = 0
-            loss_count = 0
-            for eval_batch in test_data_loader:
-                eval_batch_device = {k: v.to(device) for k, v in eval_batch.items()}
-                outputs = model(**eval_batch_device, use_cache=False)
-                loss = outputs.loss.detach().float()
-                # logits = outputs.logits
-                # labels = eval_batch["labels"]
-                # # Shift so that tokens < n predict n
-                # shift_logits = logits[..., :-1, :].contiguous()
-                # shift_labels = labels[..., 1:].contiguous()
-                # shift_logits = shift_logits.view(-1, embedding_size)
-                # shift_labels = shift_labels.view(-1)
-                # # Enable model parallelism
-                # shift_labels = shift_labels.to(shift_logits.device)
-                # loss = loss_fct(shift_logits, shift_labels)
-                # loss = loss / DIVIDE_CONSTANT
-                eval_loss += loss
-                loss_count += 1
-            eval_loss = eval_loss / loss_count
-            total_eval_loss += eval_loss
-            print(f"Eval loss for {dataset_name}: {eval_loss}")
-            if args.with_tracking:
-                wandb.log({f"eval_loss_{dataset_name}": eval_loss}, step=completed_steps)
+
+    gradient_store_avg = {}
+    count_per_dataset = {}
+
+    for dataset_id, (test_data_loader, dataset_name) in enumerate(zip(test_data_loaders, test_data_loaders_names)):
+        eval_loss = 0
+        loss_count = 0
+        num_batches = len(test_data_loader)
+
+        for eval_batch in test_data_loader:
+            eval_batch_device = {k: v.to(device) for k, v in eval_batch.items()}
+            outputs = model(**eval_batch_device, use_cache=False)
+            loss = outputs.loss.detach().float()
+            # logits = outputs.logits
+            # labels = eval_batch["labels"]
+            # # Shift so that tokens < n predict n
+            # shift_logits = logits[..., :-1, :].contiguous()
+            # shift_labels = labels[..., 1:].contiguous()
+            # shift_logits = shift_logits.view(-1, embedding_size)
+            # shift_labels = shift_labels.view(-1)
+            # # Enable model parallelism
+            # shift_labels = shift_labels.to(shift_logits.device)
+            # loss = loss_fct(shift_logits, shift_labels)
+            # loss = loss / DIVIDE_CONSTANT
+            loss.backward()
+
+            full_vectorized_grads = torch.cat(
+                [p.grad.view(-1) for n, p in model.named_parameters() if p.grad is not None])
+            projected_vectorized_grads = projector.project(full_vectorized_grads.to(torch.bfloat16).unsqueeze(0),
+                                                           )
+            projected_vectorized_grads = projected_vectorized_grads.squeeze(0)
+            if count_per_dataset.get(dataset_id) is None:
+                count_per_dataset[dataset_id] = 1
+            else:
+                count_per_dataset[dataset_id] += 1
+
+            if gradient_store_avg.get(dataset_id) is None:
+                gradient_store_avg[dataset_id] = projected_vectorized_grads
+            else:
+                gradient_store_avg[dataset_id] += projected_vectorized_grads / num_batches
+
+            model.zero_grad()
+
+            eval_loss += loss
+            loss_count += 1
+        eval_loss = eval_loss / loss_count
+        total_eval_loss += eval_loss
+        print(f"Eval loss for {dataset_name}: {eval_loss}")
+        if args.with_tracking:
+            wandb.log({f"eval_loss_{dataset_name}": eval_loss}, step=completed_steps)
     total_eval_loss /= len(test_data_loaders)
     print(f"Total eval loss: {total_eval_loss}")
     if args.with_tracking:
         wandb.log({"eval_loss": total_eval_loss}, step=completed_steps)
 
-    model.train()
+    return gradient_store_avg
+
+    # model.train()
 
 
 def set_seed(seed: int, deterministic: bool = False):
@@ -838,10 +865,10 @@ def main():
 
             if forward_steps % args.gradient_accumulation_steps == 0:  # accumulation
                 if completed_steps % args.eval_per_steps == 0 and completed_steps > 0:
+                    gradient_store_avg = test_model(args, model, test_data_loaders, selected_validation_dataset_names,
+                                                    completed_steps, embedding_size, device, projector)
                     import ipdb;
                     ipdb.set_trace();
-                    test_model(args, model, test_data_loaders, selected_validation_dataset_names,
-                               completed_steps, embedding_size, device)
 
                 progress_bar.update(1)
                 completed_steps += 1
