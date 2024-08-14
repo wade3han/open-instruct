@@ -44,7 +44,7 @@ def get_number_of_params(model):
         ) if p.requires_grad and "lora" not in n]
         assert len(names) == 0
     num_params = sum([p.numel()
-                     for p in model.parameters() if p.requires_grad])
+                      for p in model.parameters() if p.requires_grad])
     print(f"Total number of parameters that require gradients: {num_params}")
     return num_params
 
@@ -438,7 +438,7 @@ def main():
         revision=args.model_revision,
         token=os.getenv("HF_TOKEN", None),
         force_download=False,
-    ).cuda()
+    )
 
     peft_config = LoraConfig(
         task_type=TaskType.CAUSAL_LM,
@@ -449,6 +449,7 @@ def main():
         target_modules=["q_proj", "o_proj", "v_proj", "k_proj", "gate_proj", "up_proj", "down_proj"],
     )
     model = get_peft_model(model, peft_config)
+    model = model.cuda()
 
     # FIXME: compile is not working properly.
     # if args.use_compile:
@@ -861,6 +862,7 @@ def main():
                 # We scale the loss based on the batch size and sequence length
                 loss = loss / (args.per_device_train_batch_size * args.max_seq_length)
 
+            loss = loss / args.gradient_accumulation_steps
             loss.backward()
 
             full_vectorized_grads = torch.cat(
