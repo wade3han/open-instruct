@@ -278,7 +278,7 @@ def test_model(args,
             full_vectorized_grads = torch.cat(
                 [p.grad.view(-1) for n, p in model.named_parameters() if p.grad is not None])
             projected_vectorized_grads = projector.project(
-                full_vectorized_grads.to(torch.bfloat16).unsqueeze(0).detach(),
+                full_vectorized_grads.to(torch.float16).unsqueeze(0).detach(),
                 model_id=0,
             )
             projected_vectorized_grads = projected_vectorized_grads.squeeze(0)
@@ -790,7 +790,7 @@ def main():
                               proj_dim=8192,
                               seed=args.seed,
                               device=device,
-                              dtype=dtype,
+                              dtype=torch.float16,
                               block_size=block_size,
                               proj_type=ProjectionType.rademacher,
                               max_batch_size=projector_batch_size)
@@ -850,7 +850,7 @@ def main():
             full_vectorized_grads = torch.cat(
                 [p.grad.view(-1) for n, p in model.named_parameters() if p.grad is not None])
             projected_vectorized_grads = projector.project(
-                full_vectorized_grads.to(torch.bfloat16).unsqueeze(0).detach(),
+                full_vectorized_grads.to(torch.float16).unsqueeze(0).detach(),
                 model_id=0,
             )
             projected_vectorized_grads = projected_vectorized_grads.squeeze(0)
