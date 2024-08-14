@@ -13,7 +13,6 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import transformers
-from accelerate import init_empty_weights
 from datasets import Dataset
 # from axolotl.monkeypatch.mixtral import patch_mixtral_moe_forward_zero3
 from torch.utils.data import BatchSampler, Sampler
@@ -466,6 +465,7 @@ def patch_for_multipack_legacy(model_type, model_name=None):
 def patch_remote(model_name, config_name, modeling_name):
     model_config = AutoConfig.from_pretrained(model_name, trust_remote_code=True)
     # we need to load the model here in order for modeling_* to be available
+    from accelerate import init_empty_weights
     with init_empty_weights():
         AutoModelForCausalLM.from_pretrained(model_name, trust_remote_code=True)
     module_name = model_config.__class__.__module__.replace(config_name, modeling_name)
