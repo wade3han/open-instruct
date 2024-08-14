@@ -341,6 +341,10 @@ class FlatArguments:
         default=False,
         metadata={"help": "Whether to use reweighting."},
     )
+    reweight_warmup_steps: int = field(
+        default=0,
+        metadata={"help": "The number of steps before reweighting starts."},
+    )
 
     def __post_init__(self):
         if self.reduce_loss not in ["mean", "sum"]:

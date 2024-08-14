@@ -905,7 +905,7 @@ def main():
                     gradient_tracker.refresh()
 
                     # use sim matrix to update the data weights.
-                    if args.reweighting:
+                    if args.reweighting and forward_steps > args.reweight_warmup_steps:
                         # calculate the similarity.
                         sim_matrix_2by2 = gradient_tracker.calc_sim(gradient_store_avg)
                         print("Similarity Matrix in the training step: ", completed_steps)
