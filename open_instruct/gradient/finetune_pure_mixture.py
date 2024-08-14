@@ -279,6 +279,7 @@ def test_model(args,
                 [p.grad.view(-1) for n, p in model.named_parameters() if p.grad is not None])
             projected_vectorized_grads = projector.project(
                 full_vectorized_grads.to(torch.bfloat16).unsqueeze(0).detach(),
+                model_id=0,
             )
             projected_vectorized_grads = projected_vectorized_grads.squeeze(0)
             if count_per_dataset.get(dataset_id) is None:
@@ -850,6 +851,7 @@ def main():
                 [p.grad.view(-1) for n, p in model.named_parameters() if p.grad is not None])
             projected_vectorized_grads = projector.project(
                 full_vectorized_grads.to(torch.bfloat16).unsqueeze(0).detach(),
+                model_id=0,
             )
             projected_vectorized_grads = projected_vectorized_grads.squeeze(0)
             if count_per_dataset.get(dataset_id) is None:
