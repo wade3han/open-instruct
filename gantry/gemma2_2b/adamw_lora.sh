@@ -7,7 +7,7 @@ echo "Training llama model using $NUM_GPUS GPUs, $BATCH_SIZE_PER_GPU batch size 
 # You can also set --gradient_checkpointing or use `stage3_offloading_accelerate.conf` to save memory,
 # but it will trade off speed.
 # sweep learning rate from 2e-5 to 1e-6
-NAME=lora_gemma2_2b_adamw_lr2e-5_seq2048
+NAME=lora_rank256_gemma2_2b_adamw_lr2e-5_seq2048
 
 gantry run --beaker-image seungjuh/open-instruct-public-240806-preview --venv base --name $NAME --cluster ai2/pluto-cirrascale --workspace ai2/safety --pip requirements.txt --gpus 4 --priority high --preemptible --env-secret WANDB_API_KEY=WANDB_API_KEY --env-secret HF_TOKEN=HUGGING_FACE_HUB_TOKEN --env WANDB_PROJECT=llama2-finetuning --env WANDB_ENTITY=seungjuhan3 --env WANDB_NAME=$NAME --env-secret OPENAI_API_KEY=openai_api_key --budget ai2/oe-adapt -- \
   accelerate launch --mixed_precision bf16 \
@@ -19,6 +19,7 @@ gantry run --beaker-image seungjuh/open-instruct-public-240806-preview --venv ba
   --use_compile \
   --use_lora \
   --mask_users \
+  --lora_rank 256 \
   --eval_per_steps 20 \
   --model_name_or_path google/gemma-2-2b \
   --use_flash_attn \
