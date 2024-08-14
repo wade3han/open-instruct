@@ -775,7 +775,7 @@ def main():
     number_of_params = get_number_of_params(model)
     device = next(model.parameters()).device
     dtype = next(model.parameters()).dtype
-    block_size = 2048
+    block_size = 128
     projector_batch_size = 16
 
     # projector = BasicProjector(grad_dim=number_of_params,
