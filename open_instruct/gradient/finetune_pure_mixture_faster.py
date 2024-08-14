@@ -49,48 +49,6 @@ def get_number_of_params(model):
     return num_params
 
 
-# class CudaProjector:
-#     def __init__(self, grad_dim: int, proj_dim: int, seed: int, device: torch.device,
-#                  dtype: torch.dtype, block_size: int, max_batch_size: int):
-#         self.grad_dim = grad_dim
-#         self.proj_dim = proj_dim
-#         self.seed = seed
-#         self.device = device
-#         self.dtype = dtype
-#         self.block_size = block_size
-#         self.max_batch_size = max_batch_size
-#         self.proj_matrix = torch.randn((self.block_size, self.proj_dim), device=self.device, dtype=self.dtype)
-#
-#     @torch.no_grad()
-#     def project(self, full_vectorized_grads: torch.Tensor) -> torch.Tensor:
-#         """
-#         Project the full vectorized gradients to the projected space.
-#         """
-#         # full_vectorized_grads: [batch_size, grad_dim]
-#         # first, we need to pad the full_vectorized_grads to the block size.
-#         # note that the grad_dim should be the multiple of the block size.
-#         batch_size = full_vectorized_grads.shape[0]
-#         pad_size = self.grad_dim + (self.block_size - self.grad_dim % self.block_size) % self.block_size
-#         padded_full_vectorized_grads = torch.cat([
-#             full_vectorized_grads,
-#             torch.zeros(batch_size, pad_size - self.grad_dim, device=self.device, dtype=self.dtype)
-#         ], dim=1)
-#         # padded_full_vectorized_grads: [batch_size, pad_size]
-#         # next, we need to reshape the padded_full_vectorized_grads to the block size.
-#         reshaped_full_vectorized_grads = padded_full_vectorized_grads.view(-1, self.block_size)
-#
-#         # reshaped_full_vectorized_grads: [batch_size * (pad_size // block_size), block_size]
-#         # finally, we need to project the reshaped_full_vectorized_grads to the projected space.
-#         projected_full_vectorized_grads = torch.matmul(reshaped_full_vectorized_grads, self.proj_matrix) / math.sqrt(
-#             self.proj_dim)
-#         projected_full_vectorized_grads = projected_full_vectorized_grads.view(batch_size,
-#                                                                                (pad_size // self.block_size),
-#                                                                                self.proj_dim)
-#         projected_full_vectorized_grads = projected_full_vectorized_grads.sum(dim=1)
-#         # projected_full_vectorized_grads: [batch_size, proj_dim]
-#         return projected_full_vectorized_grads
-
-
 class _MapDatasetFetcher(_BaseDatasetFetcher):
     def fetch(self, possibly_batched_index):
         if isinstance(possibly_batched_index[0], list):
@@ -842,6 +800,10 @@ def main():
 
         return sim_matrix
 
+    projector_batch_size = args.gradient_accumulation_steps
+    temporary_gradient_storage = []
+    temporary_dataset_ids = []
+
     for epoch in range(starting_epoch, args.num_train_epochs):
         model.train()
         total_loss = 0
@@ -880,34 +842,41 @@ def main():
 
             full_vectorized_grads = torch.cat(
                 [p.grad.view(-1) for n, p in model.named_parameters() if p.grad is not None])
-            projected_vectorized_grads = projector.project(
-                full_vectorized_grads.to(torch.float16).unsqueeze(0).detach(),
-                model_id=0,
-            )
-            projected_vectorized_grads = projected_vectorized_grads.squeeze(0)
-            if count_per_dataset.get(dataset_id) is None:
-                count_per_dataset[dataset_id] = 1
-            else:
-                count_per_dataset[dataset_id] += 1
-
             if previous_projected_vectorized_grads is not None:
-                residual_projected_vectorized_grads = projected_vectorized_grads - previous_projected_vectorized_grads  # on cuda.
+                residual_projected_vectorized_grads = full_vectorized_grads - previous_projected_vectorized_grads
             else:
-                residual_projected_vectorized_grads = projected_vectorized_grads
+                residual_projected_vectorized_grads = full_vectorized_grads
+            previous_projected_vectorized_grads = full_vectorized_grads
+            temporary_gradient_storage.append(residual_projected_vectorized_grads.detach())
+            temporary_dataset_ids.append(dataset_id)
 
-            if gradient_store_exp_avg.get(dataset_id) is None:
-                gradient_store_exp_avg[dataset_id] = residual_projected_vectorized_grads
-            else:
-                gradient_store_exp_avg[dataset_id] = args.beta1 * gradient_store_exp_avg[dataset_id] + (
-                        1 - args.beta1) * residual_projected_vectorized_grads
+            if len(temporary_gradient_storage) == projector_batch_size:
+                temporary_gradient_storage = torch.stack(temporary_gradient_storage, dim=0)
+                projected_vectorized_grads = projector.project(
+                    temporary_gradient_storage.to(torch.float16),
+                    model_id=0,
+                )
 
-            if gradient_store_exp_avg_sq.get(dataset_id) is None:
-                gradient_store_exp_avg_sq[dataset_id] = residual_projected_vectorized_grads ** 2
-            else:
-                gradient_store_exp_avg_sq[dataset_id] = args.beta2 * gradient_store_exp_avg_sq[dataset_id] + (
-                        1 - args.beta2) * residual_projected_vectorized_grads ** 2
+                for i, did in enumerate(temporary_dataset_ids):
+                    if count_per_dataset.get(did) is None:
+                        count_per_dataset[did] = 1
+                    else:
+                        count_per_dataset[did] += 1
 
-            previous_projected_vectorized_grads = projected_vectorized_grads
+                    if gradient_store_exp_avg.get(did) is None:
+                        gradient_store_exp_avg[did] = projected_vectorized_grads[i]
+                    else:
+                        gradient_store_exp_avg[did] = args.beta1 * gradient_store_exp_avg[did] + (
+                                1 - args.beta1) * projected_vectorized_grads[i]
+
+                    if gradient_store_exp_avg_sq.get(did) is None:
+                        gradient_store_exp_avg_sq[did] = projected_vectorized_grads[i] ** 2
+                    else:
+                        gradient_store_exp_avg_sq[did] = args.beta2 * gradient_store_exp_avg_sq[did] + (
+                                1 - args.beta2) * projected_vectorized_grads[i] ** 2
+
+                temporary_gradient_storage = []
+                temporary_dataset_ids = []
 
             if forward_steps % args.gradient_accumulation_steps == 0:
                 # get clip_grad_norm
