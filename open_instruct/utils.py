@@ -345,6 +345,10 @@ class FlatArguments:
         default=0,
         metadata={"help": "The number of steps before reweighting starts."},
     )
+    smoothing_factor: float = field(
+        default=0.0,
+        metadata={"help": "The smoothing factor for reweighting."},
+    )
 
     def __post_init__(self):
         if self.reduce_loss not in ["mean", "sum"]:

@@ -38,7 +38,7 @@ from open_instruct.wsd_scheduler import get_constant_schedule_with_warmup_and_co
 
 
 class CombinedDataLoader:
-    def __init__(self, dataloaders: list[DataLoader], mixture_weights: list[float]):
+    def __init__(self, dataloaders: list[DataLoader], mixture_weights: list[float], smoothing_factor: float = 0.0):
         """
         Args:
             dataloaders (list): A list of DataLoader objects.
@@ -47,6 +47,7 @@ class CombinedDataLoader:
         self.dataloaders = dataloaders
         self.mixture_weights = mixture_weights
         self.iterators = [iter(dl) for dl in dataloaders]
+        self.smoothing_factor = smoothing_factor
 
     def __iter__(self):
         return self
@@ -56,7 +57,9 @@ class CombinedDataLoader:
         print(f"Old mixture weights: {current_mixture_weights}")
         new_mixture_weights_coeff = sim_matrix.mean(dim=1).cpu().numpy()  # [num_datasets]
         current_mixture_weights = np.array(current_mixture_weights) * np.exp(new_mixture_weights_coeff)
-        current_mixture_weights /= current_mixture_weights.sum()
+        current_mixture_weights = \
+            (1 - self.smoothing_factor) * current_mixture_weights * current_mixture_weights.sum() + \
+            self.smoothing_factor * np.ones_like(current_mixture_weights)  # smoothing
         current_mixture_weights = current_mixture_weights.tolist()
         print(f"New mixture weights: {current_mixture_weights}")
         self.mixture_weights = current_mixture_weights
@@ -728,7 +731,8 @@ def main():
 
     mixture_weights = [1.0 / len(train_data_loaders) for _ in train_data_loaders]
     train_dataloader = CombinedDataLoader(train_data_loaders,
-                                          mixture_weights=mixture_weights)
+                                          mixture_weights=mixture_weights,
+                                          smoothing_factor=args.smoothing_factor)
 
     test_data_loaders = [
         DataLoader(
