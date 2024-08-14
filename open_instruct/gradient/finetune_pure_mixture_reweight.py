@@ -642,7 +642,7 @@ def main():
         def update_mixture_weights(self, sim_matrix: torch.tensor):
             current_mixture_weights = self.mixture_weights
             print("Old mixture weights: {current_mixture_weights}")
-            new_mixture_weights_coeff = sim_matrix.mean(dim=1)  # [num_datasets]
+            new_mixture_weights_coeff = sim_matrix.mean(dim=1).cpu().numpy()
             current_mixture_weights = np.array(current_mixture_weights) * np.exp(new_mixture_weights_coeff)
             current_mixture_weights /= current_mixture_weights.sum()
             current_mixture_weights = current_mixture_weights.tolist()
