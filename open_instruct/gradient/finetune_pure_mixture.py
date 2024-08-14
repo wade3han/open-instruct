@@ -278,26 +278,27 @@ def test_model(args,
             # shift_labels = shift_labels.to(shift_logits.device)
             # loss = loss_fct(shift_logits, shift_labels)
             # loss = loss / DIVIDE_CONSTANT
-            loss.backward()
+            if args.reweighting:
+                loss.backward()
 
-            full_vectorized_grads = torch.cat(
-                [p.grad.view(-1) for n, p in model.named_parameters() if p.grad is not None])
-            projected_vectorized_grads = projector.project(
-                full_vectorized_grads.to(torch.float16).unsqueeze(0).detach(),
-                model_id=0,
-            )
-            projected_vectorized_grads = projected_vectorized_grads.squeeze(0)
-            if count_per_dataset.get(dataset_id) is None:
-                count_per_dataset[dataset_id] = 1
-            else:
-                count_per_dataset[dataset_id] += 1
+                full_vectorized_grads = torch.cat(
+                    [p.grad.view(-1) for n, p in model.named_parameters() if p.grad is not None])
+                projected_vectorized_grads = projector.project(
+                    full_vectorized_grads.to(torch.float16).unsqueeze(0).detach(),
+                    model_id=0,
+                )
+                projected_vectorized_grads = projected_vectorized_grads.squeeze(0)
+                if count_per_dataset.get(dataset_id) is None:
+                    count_per_dataset[dataset_id] = 1
+                else:
+                    count_per_dataset[dataset_id] += 1
 
-            if gradient_store_avg.get(dataset_id) is None:
-                gradient_store_avg[dataset_id] = projected_vectorized_grads
-            else:
-                gradient_store_avg[dataset_id] += projected_vectorized_grads / num_batches
+                if gradient_store_avg.get(dataset_id) is None:
+                    gradient_store_avg[dataset_id] = projected_vectorized_grads
+                else:
+                    gradient_store_avg[dataset_id] += projected_vectorized_grads / num_batches
 
-            model.zero_grad()
+                model.zero_grad()
 
             eval_loss += loss.detach().float()
             loss_count += 1
@@ -930,12 +931,12 @@ def main():
                     gradient_store_avg = test_model(args, model, test_data_loaders, selected_validation_dataset_names,
                                                     completed_steps, embedding_size, device, projector)
 
-                    # calculate the similarity.
-                    sim_matrix_2by2 = calc_sim(gradient_store_avg, gradient_store_exp_avg, gradient_store_exp_avg_sq)
-                    print("Similarity Matrix in the training step: ", completed_steps)
-
                     # use sim matrix to update the data weights.
                     if args.reweighting:
+                        # calculate the similarity.
+                        sim_matrix_2by2 = calc_sim(gradient_store_avg, gradient_store_exp_avg,
+                                                   gradient_store_exp_avg_sq)
+                        print("Similarity Matrix in the training step: ", completed_steps)
                         train_dataloader.update_mixture_weights(sim_matrix_2by2)
                         mixture_weights = train_dataloader.mixture_weights
                         print(f"Updated mixture weights: {mixture_weights}")
