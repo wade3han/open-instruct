@@ -828,7 +828,7 @@ def main():
     device = next(model.parameters()).device
     block_size = 128
     proj_dim = 512
-    projector_batch_size = 32
+    projector_batch_size = 8
 
     projector = CudaProjector(grad_dim=number_of_params,
                               proj_dim=proj_dim,
