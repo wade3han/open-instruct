@@ -931,9 +931,9 @@ def main():
                     gradient_store_avg = test_model(args, model, test_data_loaders, selected_validation_dataset_names,
                                                     completed_steps, embedding_size, device, projector)
 
-                    # calculate the similarity.
-                    sim_matrix_2by2 = calc_sim(gradient_store_avg, gradient_store_exp_avg, gradient_store_exp_avg_sq)
-                    print("Similarity Matrix in the training step: ", completed_steps)
+                    # # calculate the similarity.
+                    # sim_matrix_2by2 = calc_sim(gradient_store_avg, gradient_store_exp_avg, gradient_store_exp_avg_sq)
+                    # print("Similarity Matrix in the training step: ", completed_steps)
 
                     # use sim matrix to update the data weights.
                     # if args.reweighting:
