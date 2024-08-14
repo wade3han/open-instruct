@@ -25,8 +25,6 @@ python open_instruct/gradient/finetune_pure_mixture_faster_exp2.py \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
   --learning_rate 5e-5 \
-  --add_bos \
-  --use_slow_tokenizer False \
   --warmup_ratio 0.03 \
   --weight_decay 0. \
   --eval_per_steps 10 \
