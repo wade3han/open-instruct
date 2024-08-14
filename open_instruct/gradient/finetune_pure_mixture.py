@@ -515,14 +515,14 @@ def main():
         # also add bos in the chat template
         tokenizer.chat_template = "{{ bos_token }}" + tokenizer.chat_template
 
-    if args.gradient_checkpointing:
-        # deepspeed.checkpointing.configure(mpu_=None)
-        model.gradient_checkpointing = True
-        model._gradient_checkpointing_func = torch.utils.checkpoint.checkpoint
-        for module in model.modules():
-            if hasattr(module, "gradient_checkpointing"):
-                module.gradient_checkpointing = True
-                module._gradient_checkpointing_func = torch.utils.checkpoint.checkpoint
+    # if args.gradient_checkpointing:
+    #     # deepspeed.checkpointing.configure(mpu_=None)
+    #     model.gradient_checkpointing = True
+    #     model._gradient_checkpointing_func = torch.utils.checkpoint.checkpoint
+    #     for module in model.modules():
+    #         if hasattr(module, "gradient_checkpointing"):
+    #             module.gradient_checkpointing = True
+    #             module._gradient_checkpointing_func = torch.utils.checkpoint.checkpoint
 
     # prepare training datasets.
     encode_function = partial(
