@@ -933,7 +933,7 @@ def main():
                     print("Similarity Matrix in the training step: ", completed_steps)
 
                     # use sim matrix to update the data weights.
-                    # train_dataloader.update_mixture_weights(sim_matrix_2by2)
+                    train_dataloader.update_mixture_weights(sim_matrix_2by2)
 
                 progress_bar.update(1)
                 completed_steps += 1
