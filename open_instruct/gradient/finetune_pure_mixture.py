@@ -30,11 +30,18 @@ from transformers import (
     DataCollatorForSeq2Seq,
 )
 
-from open_instruct.gradient.collect_grad_reps import get_number_of_params
 from open_instruct.multipack import MultipackBatchSampler, get_dataset_lengths, \
     V2BatchSamplerDataCollatorForSeq2SeqPadding, patch_for_multipack_legacy
 from open_instruct.utils import ArgumentParserPlus, FlatArguments, MFUEstimator
 from open_instruct.wsd_scheduler import get_constant_schedule_with_warmup_and_cooldown
+
+
+def get_number_of_params(model):
+    """ Make sure that only lora parameters require gradients in peft models. """
+    num_params = sum([p.numel()
+                      for p in model.parameters() if p.requires_grad])
+    print(f"Total number of parameters that require gradients: {num_params}")
+    return num_params
 
 
 # class CudaProjector:
