@@ -801,7 +801,7 @@ def main():
     total_batch_size = args.per_device_train_batch_size * args.gradient_accumulation_steps
 
     print("***** Running training *****")
-    print(f"  Num examples = {len(train_datasets)}")
+    print(f"  Num examples = {len(train_dataloader)}")
     print(f"  Num Epochs = {args.num_train_epochs}")
     print(f"  Instantaneous batch size per device = {args.per_device_train_batch_size}")
     print(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")
