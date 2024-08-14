@@ -37,6 +37,47 @@ from open_instruct.utils import ArgumentParserPlus, FlatArguments, MFUEstimator
 from open_instruct.wsd_scheduler import get_constant_schedule_with_warmup_and_cooldown
 
 
+class CombinedDataLoader:
+    def __init__(self, dataloaders: list[DataLoader], mixture_weights: list[float]):
+        """
+        Args:
+            dataloaders (list): A list of DataLoader objects.
+        """
+        assert len(dataloaders) == len(mixture_weights)
+        self.dataloaders = dataloaders
+        self.mixture_weights = mixture_weights
+        self.iterators = [iter(dl) for dl in dataloaders]
+
+    def __iter__(self):
+        return self
+
+    def update_mixture_weights(self, sim_matrix: torch.tensor):
+        current_mixture_weights = self.mixture_weights
+        print(f"Old mixture weights: {current_mixture_weights}")
+        new_mixture_weights_coeff = sim_matrix.mean(dim=1).cpu().numpy()  # [num_datasets]
+        current_mixture_weights = np.array(current_mixture_weights) * np.exp(new_mixture_weights_coeff)
+        current_mixture_weights /= current_mixture_weights.sum()
+        current_mixture_weights = current_mixture_weights.tolist()
+        print(f"New mixture weights: {current_mixture_weights}")
+        self.mixture_weights = current_mixture_weights
+
+    def __next__(self) -> tuple[dict, int]:
+        # Randomly select one of the dataloaders based on the mixture weights
+        chosen_index = random.choices(range(len(self.dataloaders)), weights=self.mixture_weights)[0]
+        chosen_iterator = self.iterators[chosen_index]
+
+        try:
+            return next(chosen_iterator), chosen_index
+        except StopIteration:
+            # Reset the iterator if it is exhausted
+            self.iterators[chosen_index] = iter(self.dataloaders[chosen_index])
+            return next(self.iterators[chosen_index]), chosen_index
+
+    def __len__(self):
+        # Define the length of the combined loader as the sum of lengths of individual dataloaders
+        return sum(len(dl) for dl in self.dataloaders)
+
+
 class GradientTracker:
     def __init__(self, beta1: float, beta2: float, projector: CudaProjector, projector_batch_size: int):
         self.beta1 = beta1
@@ -295,6 +336,7 @@ def test_model(args,
                gradient_tracker: GradientTracker,
                ):
     # model.eval()
+    assert len(gradient_tracker.gradient_store_avg) == 0, "gradient_store_avg should be empty when testing."
     total_eval_loss = 0
     DIVIDE_CONSTANT = EVAL_MAX_SEQ_LENGTH * args.per_device_eval_batch_size
     loss_fct = torch.nn.CrossEntropyLoss(reduction="sum")
@@ -656,46 +698,6 @@ def main():
     batch_max_len = args.per_device_train_batch_size * args.max_seq_length  # 4 * 8192 = 32768
     batch_size = 1
 
-    class CombinedDataLoader:
-        def __init__(self, dataloaders: list[DataLoader], mixture_weights: list[float]):
-            """
-            Args:
-                dataloaders (list): A list of DataLoader objects.
-            """
-            assert len(dataloaders) == len(mixture_weights)
-            self.dataloaders = dataloaders
-            self.mixture_weights = mixture_weights
-            self.iterators = [iter(dl) for dl in dataloaders]
-
-        def __iter__(self):
-            return self
-
-        def update_mixture_weights(self, sim_matrix: torch.tensor):
-            current_mixture_weights = self.mixture_weights
-            print("Old mixture weights: {current_mixture_weights}")
-            new_mixture_weights_coeff = sim_matrix.mean(dim=1).cpu().numpy()  # [num_datasets]
-            current_mixture_weights = np.array(current_mixture_weights) * np.exp(new_mixture_weights_coeff)
-            current_mixture_weights /= current_mixture_weights.sum()
-            current_mixture_weights = current_mixture_weights.tolist()
-            print(f"New mixture weights: {current_mixture_weights}")
-            self.mixture_weights = current_mixture_weights
-
-        def __next__(self) -> tuple[dict, int]:
-            # Randomly select one of the dataloaders based on the mixture weights
-            chosen_index = random.choices(range(len(self.dataloaders)), weights=self.mixture_weights)[0]
-            chosen_iterator = self.iterators[chosen_index]
-
-            try:
-                return next(chosen_iterator), chosen_index
-            except StopIteration:
-                # Reset the iterator if it is exhausted
-                self.iterators[chosen_index] = iter(self.dataloaders[chosen_index])
-                return next(self.iterators[chosen_index]), chosen_index
-
-        def __len__(self):
-            # Define the length of the combined loader as the sum of lengths of individual dataloaders
-            return sum(len(dl) for dl in self.dataloaders)
-
     train_data_loaders = []
     for train_dataset in train_datasets:
         sampler = MultipackBatchSampler(
@@ -723,14 +725,6 @@ def main():
         )
 
         train_data_loaders.append(train_dataloader)
-
-    # def get_mixture_weights(weights: list[float]):
-    #     """
-    #     Normalize the weights to sum to 1.
-    #     """
-    #     exp_weights = [math.exp(w) for w in weights]
-    #     total = sum(exp_weights)
-    #     return [w / total for w in exp_weights]
 
     mixture_weights = [1.0 / len(train_data_loaders) for _ in train_data_loaders]
     train_dataloader = CombinedDataLoader(train_data_loaders,
@@ -829,23 +823,12 @@ def main():
     seq_length_per_fwdbwd = 0
     _loss_quantiles = None  # only available when using below_median loss masking
 
-    gradient_store_exp_avg, gradient_store_exp_avg_sq = {}, {}
-    count_per_dataset = {}
     number_of_params = get_number_of_params(model)
     device = next(model.parameters()).device
-    dtype = next(model.parameters()).dtype
     block_size = 128
     proj_dim = 512
     projector_batch_size = 32
 
-    # projector = BasicProjector(grad_dim=number_of_params,
-    #                            proj_dim=8192,
-    #                            seed=args.seed,
-    #                            proj_type=ProjectionType.rademacher,
-    #                            device=torch.device('cpu'),
-    #                            dtype=torch.float32,
-    #                            block_size=block_size,
-    #                            )
     projector = CudaProjector(grad_dim=number_of_params,
                               proj_dim=proj_dim,
                               seed=args.seed,
@@ -854,14 +837,11 @@ def main():
                               block_size=block_size,
                               proj_type=ProjectionType.rademacher,
                               max_batch_size=projector_batch_size)
-    previous_projected_vectorized_grads = None
 
     assert args.per_device_train_batch_size == 1, "Only per_device_train_batch_size == 1 is supported."
 
     projector_batch_size = args.gradient_accumulation_steps * 4
     gradient_tracker = GradientTracker(args.beta1, args.beta2, projector, projector_batch_size)
-    temporary_gradient_storage = []
-    temporary_dataset_ids = []
 
     for epoch in range(starting_epoch, args.num_train_epochs):
         model.train()
