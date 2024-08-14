@@ -515,14 +515,14 @@ def main():
         # also add bos in the chat template
         tokenizer.chat_template = "{{ bos_token }}" + tokenizer.chat_template
 
-    # if args.gradient_checkpointing:
-    #     # deepspeed.checkpointing.configure(mpu_=None)
-    #     model.gradient_checkpointing = True
-    #     model._gradient_checkpointing_func = torch.utils.checkpoint.checkpoint
-    #     for module in model.modules():
-    #         if hasattr(module, "gradient_checkpointing"):
-    #             module.gradient_checkpointing = True
-    #             module._gradient_checkpointing_func = torch.utils.checkpoint.checkpoint
+    if args.gradient_checkpointing:
+        # deepspeed.checkpointing.configure(mpu_=None)
+        model.gradient_checkpointing = True
+        model._gradient_checkpointing_func = torch.utils.checkpoint.checkpoint
+        for module in model.modules():
+            if hasattr(module, "gradient_checkpointing"):
+                module.gradient_checkpointing = True
+                module._gradient_checkpointing_func = torch.utils.checkpoint.checkpoint
 
     # prepare training datasets.
     encode_function = partial(
@@ -862,8 +862,7 @@ def main():
                 # We scale the loss based on the batch size and sequence length
                 loss = loss / (args.per_device_train_batch_size * args.max_seq_length)
 
-            loss = loss / args.gradient_accumulation_steps
-            loss.backward()
+            (loss / args.gradient_accumulation_steps).backward()
 
             full_vectorized_grads = torch.cat(
                 [p.grad.view(-1) for n, p in model.named_parameters() if p.grad is not None])
