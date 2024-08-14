@@ -59,7 +59,7 @@ class CombinedDataLoader:
         current_mixture_weights = np.array(current_mixture_weights) * np.exp(new_mixture_weights_coeff)
         current_mixture_weights = \
             (1 - self.smoothing_factor) * current_mixture_weights * current_mixture_weights.sum() + \
-            self.smoothing_factor * np.ones_like(current_mixture_weights)  # smoothing
+            self.smoothing_factor * np.ones_like(current_mixture_weights) / len(current_mixture_weights)
         current_mixture_weights = current_mixture_weights.tolist()
         print(f"New mixture weights: {current_mixture_weights}")
         self.mixture_weights = current_mixture_weights
