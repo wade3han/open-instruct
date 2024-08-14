@@ -1,5 +1,5 @@
 import torch
-from trak.projectors import CudaProjector, ProjectionType
+from test_trak.projectors import CudaProjector, ProjectionType
 
 block_size = 128
 
