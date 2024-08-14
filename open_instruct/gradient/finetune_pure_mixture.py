@@ -17,6 +17,7 @@ from torch.utils.data import DataLoader, RandomSampler
 from torch.utils.data._utils.fetch import _BaseDatasetFetcher
 from torch.utils.data._utils.worker import _worker_loop
 from tqdm.auto import tqdm
+from trak.projectors import CudaProjector, ProjectionType
 from transformers import (
     AutoConfig,
     AutoModelForCausalLM,
@@ -36,46 +37,46 @@ from open_instruct.utils import ArgumentParserPlus, FlatArguments, MFUEstimator
 from open_instruct.wsd_scheduler import get_constant_schedule_with_warmup_and_cooldown
 
 
-class CudaProjector:
-    def __init__(self, grad_dim: int, proj_dim: int, seed: int, device: torch.device,
-                 dtype: torch.dtype, block_size: int, max_batch_size: int):
-        self.grad_dim = grad_dim
-        self.proj_dim = proj_dim
-        self.seed = seed
-        self.device = device
-        self.dtype = dtype
-        self.block_size = block_size
-        self.max_batch_size = max_batch_size
-        self.proj_matrix = torch.randn((self.block_size, self.proj_dim), device=self.device, dtype=self.dtype)
-
-    @torch.no_grad()
-    def project(self, full_vectorized_grads: torch.Tensor) -> torch.Tensor:
-        """
-        Project the full vectorized gradients to the projected space.
-        """
-        # full_vectorized_grads: [batch_size, grad_dim]
-        # first, we need to pad the full_vectorized_grads to the block size.
-        # note that the grad_dim should be the multiple of the block size.
-        batch_size = full_vectorized_grads.shape[0]
-        pad_size = self.grad_dim + (self.block_size - self.grad_dim % self.block_size) % self.block_size
-        padded_full_vectorized_grads = torch.cat([
-            full_vectorized_grads,
-            torch.zeros(batch_size, pad_size - self.grad_dim, device=self.device, dtype=self.dtype)
-        ], dim=1)
-        # padded_full_vectorized_grads: [batch_size, pad_size]
-        # next, we need to reshape the padded_full_vectorized_grads to the block size.
-        reshaped_full_vectorized_grads = padded_full_vectorized_grads.view(-1, self.block_size)
-
-        # reshaped_full_vectorized_grads: [batch_size * (pad_size // block_size), block_size]
-        # finally, we need to project the reshaped_full_vectorized_grads to the projected space.
-        projected_full_vectorized_grads = torch.matmul(reshaped_full_vectorized_grads, self.proj_matrix) / math.sqrt(
-            self.proj_dim)
-        projected_full_vectorized_grads = projected_full_vectorized_grads.view(batch_size,
-                                                                               (pad_size // self.block_size),
-                                                                               self.proj_dim)
-        projected_full_vectorized_grads = projected_full_vectorized_grads.sum(dim=1)
-        # projected_full_vectorized_grads: [batch_size, proj_dim]
-        return projected_full_vectorized_grads
+# class CudaProjector:
+#     def __init__(self, grad_dim: int, proj_dim: int, seed: int, device: torch.device,
+#                  dtype: torch.dtype, block_size: int, max_batch_size: int):
+#         self.grad_dim = grad_dim
+#         self.proj_dim = proj_dim
+#         self.seed = seed
+#         self.device = device
+#         self.dtype = dtype
+#         self.block_size = block_size
+#         self.max_batch_size = max_batch_size
+#         self.proj_matrix = torch.randn((self.block_size, self.proj_dim), device=self.device, dtype=self.dtype)
+#
+#     @torch.no_grad()
+#     def project(self, full_vectorized_grads: torch.Tensor) -> torch.Tensor:
+#         """
+#         Project the full vectorized gradients to the projected space.
+#         """
+#         # full_vectorized_grads: [batch_size, grad_dim]
+#         # first, we need to pad the full_vectorized_grads to the block size.
+#         # note that the grad_dim should be the multiple of the block size.
+#         batch_size = full_vectorized_grads.shape[0]
+#         pad_size = self.grad_dim + (self.block_size - self.grad_dim % self.block_size) % self.block_size
+#         padded_full_vectorized_grads = torch.cat([
+#             full_vectorized_grads,
+#             torch.zeros(batch_size, pad_size - self.grad_dim, device=self.device, dtype=self.dtype)
+#         ], dim=1)
+#         # padded_full_vectorized_grads: [batch_size, pad_size]
+#         # next, we need to reshape the padded_full_vectorized_grads to the block size.
+#         reshaped_full_vectorized_grads = padded_full_vectorized_grads.view(-1, self.block_size)
+#
+#         # reshaped_full_vectorized_grads: [batch_size * (pad_size // block_size), block_size]
+#         # finally, we need to project the reshaped_full_vectorized_grads to the projected space.
+#         projected_full_vectorized_grads = torch.matmul(reshaped_full_vectorized_grads, self.proj_matrix) / math.sqrt(
+#             self.proj_dim)
+#         projected_full_vectorized_grads = projected_full_vectorized_grads.view(batch_size,
+#                                                                                (pad_size // self.block_size),
+#                                                                                self.proj_dim)
+#         projected_full_vectorized_grads = projected_full_vectorized_grads.sum(dim=1)
+#         # projected_full_vectorized_grads: [batch_size, proj_dim]
+#         return projected_full_vectorized_grads
 
 
 class _MapDatasetFetcher(_BaseDatasetFetcher):
@@ -783,6 +784,7 @@ def main():
                               device=device,
                               dtype=dtype,
                               block_size=block_size,
+                              proj_type=ProjectionType.rademacher,
                               max_batch_size=projector_batch_size)
     previous_projected_vectorized_grads = None
 
