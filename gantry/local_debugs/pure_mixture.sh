@@ -35,4 +35,6 @@ python open_instruct/gradient/finetune_pure_mixture.py \
   --logging_steps 1 \
   --clip_grad_norm 1.0 \
   --max_train_samples 10000 \
+  --with_tracking \
+  --report_to wandb \
   --per_device_eval_batch_size 1

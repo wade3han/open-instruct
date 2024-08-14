@@ -934,6 +934,12 @@ def main():
 
                     # use sim matrix to update the data weights.
                     train_dataloader.update_mixture_weights(sim_matrix_2by2)
+                    if args.with_tracking:
+                        wandb.log(
+                            {f"mixture_weights_{i}": train_dataloader.mixture_weights[i] for i in
+                             range(len(train_dataloader.mixture_weights))},
+                            step=completed_steps,
+                        )
 
                 progress_bar.update(1)
                 completed_steps += 1
