@@ -12,7 +12,7 @@ NAME=debugs
 export WANDB_ENTITY='seungjuhan3';
 export WANDB_PROJECT='lora_olmo1b_selections';
 export WANDB_NAME='no-reweighting-exp2';
-python open_instruct/gradient/finetune_pure_mixture_exp2.py \
+python open_instruct/gradient/finetune_pure_mixture_faster_exp2.py \
   --use_multipack \
   --use_compile \
   --mask_users \
