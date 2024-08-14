@@ -776,6 +776,7 @@ def main():
     device = next(model.parameters()).device
     dtype = next(model.parameters()).dtype
     block_size = 128
+    proj_dim = 512
     projector_batch_size = 16
 
     # projector = BasicProjector(grad_dim=number_of_params,
@@ -787,7 +788,7 @@ def main():
     #                            block_size=block_size,
     #                            )
     projector = CudaProjector(grad_dim=number_of_params,
-                              proj_dim=8192,
+                              proj_dim=512,
                               seed=args.seed,
                               device=device,
                               dtype=torch.float16,
