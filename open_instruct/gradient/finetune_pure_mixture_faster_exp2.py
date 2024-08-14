@@ -32,7 +32,7 @@ from transformers import (
 )
 
 from open_instruct.multipack import MultipackBatchSampler, get_dataset_lengths, \
-    V2BatchSamplerDataCollatorForSeq2SeqPadding, patch_for_multipack_legacy
+    V2BatchSamplerDataCollatorForSeq2SeqPadding, patch_for_multipack_legacy, patch_for_multipack
 from open_instruct.utils import ArgumentParserPlus, FlatArguments, MFUEstimator
 from open_instruct.wsd_scheduler import get_constant_schedule_with_warmup_and_cooldown
 
@@ -577,6 +577,7 @@ def main():
 
     # monkeypatch
     if args.use_flash_attn:
+        patch_for_multipack(config.model_type, model_name=config._name_or_path)
         patch_for_multipack_legacy(config.model_type, model_name=config._name_or_path)
 
     # set the tokenizer chat template to the tulu format
