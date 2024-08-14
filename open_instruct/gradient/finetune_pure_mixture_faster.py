@@ -800,7 +800,7 @@ def main():
 
         return sim_matrix
 
-    projector_batch_size = args.gradient_accumulation_steps
+    projector_batch_size = args.gradient_accumulation_steps * 4
     temporary_gradient_storage = []
     temporary_dataset_ids = []
 
