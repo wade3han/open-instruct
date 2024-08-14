@@ -11,7 +11,7 @@ NAME=debugs
 
 export WANDB_ENTITY='seungjuhan3';
 export WANDB_PROJECT='lora_olmo1b_selections';
-export WANDB_NAME='reweighting';
+export WANDB_NAME='reweighting-faster';
 python open_instruct/gradient/finetune_pure_mixture_faster.py \
   --use_multipack \
   --use_compile \
