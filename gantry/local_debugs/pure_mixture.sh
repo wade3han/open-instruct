@@ -9,6 +9,9 @@ echo "Training llama model using $NUM_GPUS GPUs, $BATCH_SIZE_PER_GPU batch size 
 # sweep learning rate from 2e-5 to 1e-6
 NAME=debugs
 
+export WANDB_ENTITY='seungjuhan3';
+export WANDB_PROJECT='lora_olmo1b_selections';
+export WANDB_NAME='no-reweighting';
 python open_instruct/gradient/finetune_pure_mixture.py \
   --use_multipack \
   --use_compile \

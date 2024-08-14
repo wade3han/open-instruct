@@ -550,7 +550,7 @@ def main():
     ]
     lm_datasets_trains = []
     for dataset_name in selected_train_dataset_names:
-        train_datapath = f"{TRAIN_DATASET_DIR}/megamixv2_dedup_{dataset_name}_validation.jsonl"
+        train_datapath = f"{TRAIN_DATASET_DIR}/megamixv2_dedup_{dataset_name}_train.jsonl"
         data_files = {"train": train_datapath}
         raw_datasets_train = load_dataset(
             "json",
@@ -574,6 +574,8 @@ def main():
         )
         lm_datasets_train.set_format(type="pt")
         lm_datasets_train = lm_datasets_train.filter(lambda example: (example["labels"] != -100).any())
+        if args.max_train_samples is not None:
+            lm_datasets_train["train"] = lm_datasets_train["train"].select(range(args.max_train_samples))
         lm_datasets_trains.append(lm_datasets_train)
 
     TEST_DATASET_DIR = "/net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/"
@@ -933,7 +935,14 @@ def main():
                     print("Similarity Matrix in the training step: ", completed_steps)
 
                     # use sim matrix to update the data weights.
-                    # train_dataloader.update_mixture_weights(sim_matrix_2by2)
+                    if args.reweighting:
+                        train_dataloader.update_mixture_weights(sim_matrix_2by2)
+                        mixture_weights = train_dataloader.mixture_weights
+                        print(f"Updated mixture weights: {mixture_weights}")
+
+                    if args.with_tracking:
+                        wandb.log({f"mixture_weights_{i}": w for i, w in enumerate(mixture_weights)},
+                                  step=completed_steps)
 
                 progress_bar.update(1)
                 completed_steps += 1

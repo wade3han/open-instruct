@@ -336,6 +336,12 @@ class FlatArguments:
         metadata={"help": "The rank of ladamw."},
     )
 
+    # REWEIGHT
+    reweighting: bool = field(
+        default=False,
+        metadata={"help": "Whether to use reweighting."},
+    )
+
     def __post_init__(self):
         if self.reduce_loss not in ["mean", "sum"]:
             raise ValueError("reduce_loss must be either 'mean' or 'sum'")
