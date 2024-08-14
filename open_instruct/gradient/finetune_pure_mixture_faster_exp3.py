@@ -616,8 +616,16 @@ def main():
         "lmsyschat",
         "tulu2mix-code_alpaca",
         "tulu2mix-cot",
+        "tulu2mix-flan_v2",
+        "tulu2mix-gpt4_alpaca",
         "tulu2mix-oasst1",
+        "tulu2mix-open_orca",
         "tulu2mix-science",
+        "tulu2mix-sharegpt",
+        "tulu2mix-wizardlm",
+        "ultrachat",
+        "ultrainteract",
+        "wildchat-gpt-4-0125-preview",
     ]
     lm_datasets_trains = []
     for dataset_name in selected_train_dataset_names:

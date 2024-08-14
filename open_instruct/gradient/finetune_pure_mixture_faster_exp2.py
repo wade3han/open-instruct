@@ -839,8 +839,6 @@ def main():
                               max_batch_size=projector_batch_size)
 
     assert args.per_device_train_batch_size == 1, "Only per_device_train_batch_size == 1 is supported."
-
-    projector_batch_size = args.gradient_accumulation_steps * 4
     gradient_tracker = GradientTracker(args.beta1, args.beta2, projector, projector_batch_size)
 
     for epoch in range(starting_epoch, args.num_train_epochs):
