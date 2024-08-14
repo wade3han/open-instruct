@@ -55,7 +55,7 @@ class LAdamW(Optimizer):
         if lr < 0.0:
             raise ValueError(f"Invalid learning rate: {lr} - should be >= 0.0")
         if not 0.0 <= betas[0] <= 1.0:
-            raise ValueError(f"Invalid beta parameter: {betas[0]} - should be in [0.0, 1.0]")
+            raise ValueError(f"Invalid beta parameter: {betas[0]} - should be in [0.0, 1.0)")
         if not 0.0 <= betas[1] < 1.0:
             raise ValueError(f"Invalid beta parameter: {betas[1]} - should be in [0.0, 1.0)")
         if not 0.0 <= betas[2] < 1.0:
@@ -74,6 +74,7 @@ class LAdamW(Optimizer):
 
         self.state['projection'] = torch.randn(max_size * rank)
         self.state['beta0'] = betas[0]
+        self.state['step'] = 0
         # self.state['hyperparams'] = (lr, rank, betas[0], betas[1], betas[2], eps, weight_decay, correct_bias)
 
     @torch.no_grad()
@@ -94,6 +95,8 @@ class LAdamW(Optimizer):
 
         projection.mul_(beta0).add_(torch.randn_like(projection), alpha=math.sqrt(1.0 - beta0 ** 2))
 
+        self.state['step'] += 1
+
         for group in self.param_groups:
             for p in group["params"]:
                 if p.grad is None:
@@ -103,8 +106,6 @@ class LAdamW(Optimizer):
                     raise RuntimeError("Adam does not support sparse gradients, please consider SparseAdam instead")
 
                 state = self.state[p]
-                if "step" not in state:
-                    state["step"] = 0
 
                 if projection.device != p.device:
                     self.state['projection'] = projection.to(p.device)
@@ -114,17 +115,14 @@ class LAdamW(Optimizer):
 
                 # Compression
                 if p.dim() < 2:
-                    grad = torch.matmul(projection[:rank * p.shape[0]].view(rank, p.shape[0]) / math.sqrt(rank), grad)
-                    # grad = torch.matmul(projection[:rank * p.shape[0]].view(rank, p.shape[0]), grad)
+                    grad = torch.matmul(projection[:rank * p.shape[0]].view(rank, p.shape[0]) / math.sqrt(rank), grad)  # shape: [rank]
                 elif p.dim() == 2:
                     if p.shape[0] >= p.shape[1]:
                         grad = torch.matmul(projection[:rank * p.shape[0]].view(rank, p.shape[0]) / math.sqrt(rank),
                                             grad)
-                        # grad = torch.matmul(projection[:rank * p.shape[0]].view(rank, p.shape[0]), grad)
                     else:
                         grad = torch.matmul(grad,
                                             projection[:rank * p.shape[1]].view(p.shape[1], rank) / math.sqrt(rank))
-                        # grad = torch.matmul(grad, projection[:rank * p.shape[1]].view(p.shape[1], rank))
                 else:
                     raise ValueError("Parameters that exceed 2 Dim are not supported currently.")
 
@@ -136,7 +134,6 @@ class LAdamW(Optimizer):
                     state["exp_avg_sq"] = torch.zeros_like(grad)
 
                 exp_avg, exp_avg_sq = state["exp_avg"], state["exp_avg_sq"]
-                state["step"] += 1
 
                 # Decay the first and second moment running average coefficient
                 # In-place operations to update the averages at the same time
@@ -148,31 +145,21 @@ class LAdamW(Optimizer):
                 if p.dim() < 2:
                     exp_avg = torch.matmul(projection[:rank * p.shape[0]].view(rank, p.shape[0]).T / math.sqrt(rank),
                                            exp_avg)
-                    # exp_avg = torch.matmul(projection[:rank * p.shape[0]].view(rank, p.shape[0]).T, exp_avg)
                     exp_avg_sq = torch.matmul(projection[:rank * p.shape[0]].view(rank, p.shape[0]).T / math.sqrt(rank),
                                               exp_avg_sq)
-                    # exp_avg_sq = torch.matmul(projection[:rank * p.shape[0]].view(rank, p.shape[0]).T, exp_avg_sq)
                 elif p.dim() == 2:
                     if p.shape[0] >= p.shape[1]:
                         exp_avg = torch.matmul(
                             projection[:rank * p.shape[0]].view(rank, p.shape[0]).T / math.sqrt(rank), exp_avg)
-                        # exp_avg = torch.matmul(
-                        #     projection[:rank * p.shape[0]].view(rank, p.shape[0]).T, exp_avg)
                         exp_avg_sq = torch.matmul(
                             projection[:rank * p.shape[0]].view(rank, p.shape[0]).T / math.sqrt(rank), exp_avg_sq)
-                        # exp_avg_sq = torch.matmul(
-                        #     projection[:rank * p.shape[0]].view(rank, p.shape[0]).T, exp_avg_sq)
                     else:
                         exp_avg = torch.matmul(exp_avg,
                                                projection[:rank * p.shape[1]].view(p.shape[1], rank).T / math.sqrt(
                                                    rank))
-                        # exp_avg = torch.matmul(exp_avg,
-                        #                        projection[:rank * p.shape[1]].view(p.shape[1], rank).T)
                         exp_avg_sq = torch.matmul(exp_avg_sq,
                                                   projection[:rank * p.shape[1]].view(p.shape[1], rank).T / math.sqrt(
                                                       rank))
-                        # exp_avg_sq = torch.matmul(exp_avg_sq,
-                        #                           projection[:rank * p.shape[1]].view(p.shape[1], rank).T)
                 else:
                     raise ValueError("Parameters that exceed 2 Dim are not supported currently.")
 
@@ -181,10 +168,11 @@ class LAdamW(Optimizer):
                 correct_bias = group["correct_bias"]
                 step_size = lr
                 denom = exp_avg_sq.abs().sqrt().add_(eps)
+                step = self.state["step"]
                 if correct_bias:
-                    bias_correction1 = ((1.0 - beta1) * (1.0 - (beta0 * beta1) ** state["step"])) / (
+                    bias_correction1 = ((1.0 - beta1) * (1.0 - (beta0 * beta1) ** step)) / (
                             1.0 - (beta0 * beta1))
-                    bias_correction2 = ((1.0 - beta2) * (1.0 - (beta0 * beta2) ** state["step"])) / (
+                    bias_correction2 = ((1.0 - beta2) * (1.0 - (beta0 * beta2) ** step)) / (
                             1.0 - (beta0 * beta2))
                     step_size = step_size * math.sqrt(bias_correction2) / bias_correction1
 

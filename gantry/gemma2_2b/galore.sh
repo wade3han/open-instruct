@@ -8,15 +8,14 @@ echo "Training llama model using $NUM_GPUS GPUs, $BATCH_SIZE_PER_GPU batch size 
 # but it will trade off speed.
 # sweep learning rate from 2e-5 to 1e-6
 RANK=256
-BETA0=0.9
-NAME=gemma2_2b_ladamw_rank${RANK}_beta${BETA0}_lr5e-5_seq2048_accfix
+NAME=gemma2_2b_galore_rank${RANK}_lr5e-5_seq2048
 
 gantry run --beaker-image seungjuh/open-instruct-public-240806-preview --venv base --name $NAME --cluster ai2/pluto-cirrascale --workspace ai2/safety --pip requirements.txt --gpus 4 --priority high --preemptible --env-secret WANDB_API_KEY=WANDB_API_KEY --env-secret HF_TOKEN=HUGGING_FACE_HUB_TOKEN --env WANDB_PROJECT=llama2-finetuning --env WANDB_ENTITY=seungjuhan3 --env WANDB_NAME=$NAME --env-secret OPENAI_API_KEY=openai_api_key --budget ai2/oe-adapt -- \
   accelerate launch --mixed_precision bf16 \
   --num_machines 1 \
   --num_processes $NUM_GPUS \
   --main_process_port 2950 \
-  open_instruct/exploration/finetune_accelerate_ladamw.py \
+  open_instruct/exploration/finetune_accelerate_galore.py \
   --use_multipack \
   --use_compile \
   --mask_users \
@@ -40,7 +39,6 @@ gantry run --beaker-image seungjuh/open-instruct-public-240806-preview --venv ba
   --reduce_loss "sum" \
   --lr_scheduler_type "wsd" \
   --cooldown_ratio 0.2 \
-  --beta0 $BETA0 \
   --ladamw_rank $RANK \
   --clip_grad_norm 1.0 \
   --per_device_eval_batch_size 1 \
