@@ -12,6 +12,7 @@ import torch
 import transformers
 import wandb
 from datasets import load_dataset
+from peft import LoraConfig, TaskType, get_peft_model, PeftModel
 from torch import nn
 from torch.utils.data import DataLoader, RandomSampler
 from torch.utils.data._utils.fetch import _BaseDatasetFetcher
@@ -38,8 +39,12 @@ from open_instruct.wsd_scheduler import get_constant_schedule_with_warmup_and_co
 
 def get_number_of_params(model):
     """ Make sure that only lora parameters require gradients in peft models. """
+    if isinstance(model, PeftModel):
+        names = [n for n, p in model.named_parameters(
+        ) if p.requires_grad and "lora" not in n]
+        assert len(names) == 0
     num_params = sum([p.numel()
-                      for p in model.parameters() if p.requires_grad])
+                     for p in model.parameters() if p.requires_grad])
     print(f"Total number of parameters that require gradients: {num_params}")
     return num_params
 
@@ -435,6 +440,16 @@ def main():
         force_download=False,
     ).cuda()
 
+    peft_config = LoraConfig(
+        task_type=TaskType.CAUSAL_LM,
+        inference_mode=False,
+        r=args.lora_rank,
+        lora_alpha=args.lora_alpha,
+        lora_dropout=args.lora_dropout,
+        target_modules=["q_proj", "o_proj", "v_proj", "k_proj", "gate_proj", "up_proj", "down_proj"],
+    )
+    model = get_peft_model(model, peft_config)
+
     # FIXME: compile is not working properly.
     # if args.use_compile:
     #     model: nn.Module = torch.compile(model)
@@ -788,7 +803,7 @@ def main():
     #                            block_size=block_size,
     #                            )
     projector = CudaProjector(grad_dim=number_of_params,
-                              proj_dim=512,
+                              proj_dim=proj_dim,
                               seed=args.seed,
                               device=device,
                               dtype=torch.float16,
