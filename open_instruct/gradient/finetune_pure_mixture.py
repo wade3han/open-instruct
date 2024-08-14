@@ -574,7 +574,7 @@ def main():
         )
         lm_datasets_train.set_format(type="pt")
         lm_datasets_train = lm_datasets_train.filter(lambda example: (example["labels"] != -100).any())
-        if args.max_train_samples is not None:
+        if args.max_train_samples is not None and len(lm_datasets_train["train"]) > args.max_train_samples:
             lm_datasets_train["train"] = lm_datasets_train["train"].select(range(args.max_train_samples))
         lm_datasets_trains.append(lm_datasets_train)
 
