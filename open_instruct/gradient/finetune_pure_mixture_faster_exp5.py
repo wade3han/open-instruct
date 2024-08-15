@@ -221,7 +221,7 @@ torch.backends.cuda.matmul.allow_tf32 = True
 # The flag below controls whether to allow TF32 on cuDNN. This flag defaults to True.
 torch.backends.cudnn.allow_tf32 = True
 
-EVAL_MAX_SEQ_LENGTH = 2048
+EVAL_MAX_SEQ_LENGTH = 1024
 
 
 def encode_with_prompt_completion_format(example, tokenizer, max_seq_length, add_bos=False):
