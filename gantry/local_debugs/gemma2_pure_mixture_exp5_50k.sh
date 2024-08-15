@@ -11,7 +11,7 @@ NAME=debugs
 
 export WANDB_ENTITY='seungjuhan3'
 export WANDB_PROJECT='lora_olmo1b_selections'
-export WANDB_NAME='gemma2_2b_no-reweighting-exp5'
+export WANDB_NAME='gemma2_2b_no-reweighting-exp5-50k'
 python open_instruct/gradient/finetune_pure_mixture_faster_exp5.py \
   --use_multipack \
   --use_compile \
@@ -35,7 +35,7 @@ python open_instruct/gradient/finetune_pure_mixture_faster_exp5.py \
   --cooldown_ratio 0.2 \
   --logging_steps 1 \
   --clip_grad_norm 1.0 \
-  --max_train_samples 10000 \
+  --max_train_samples 50000 \
   --with_tracking \
   --report_to wandb \
   --per_device_eval_batch_size 1
