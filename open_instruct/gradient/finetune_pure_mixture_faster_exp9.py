@@ -614,19 +614,19 @@ def main():
 
     TRAIN_DATASET_DIR = "/net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/"
     selected_train_dataset_names = [
-        "lmsyschat",
-        "tulu2mix-code_alpaca",  # 0, low-med
-        "tulu2mix-cot",  # 1, low
-        "tulu2mix-flan_v2",  # 2, low
-        "tulu2mix-gpt4_alpaca",  # 3, high-med
-        "tulu2mix-oasst1",  # 4, high
-        "tulu2mix-open_orca",  # 5, high-med
-        "tulu2mix-science",  # 6, low
-        "tulu2mix-sharegpt",  # 7, low
-        "tulu2mix-wizardlm",  # 8, low
-        "ultrachat",  # 9, high
-        "ultrainteract",  # 10, medium
-        "wildchat-gpt-4-0125-preview",  # 11, high
+        "lmsyschat",  # low
+        "tulu2mix-code_alpaca",  # high
+        "tulu2mix-cot",  # high
+        "tulu2mix-flan_v2",  # high
+        "tulu2mix-gpt4_alpaca",  # mid
+        "tulu2mix-oasst1",  # low-mid
+        "tulu2mix-open_orca",  # high
+        "tulu2mix-science",  # low
+        "tulu2mix-sharegpt",  # low
+        "tulu2mix-wizardlm",  # low
+        "ultrachat",  # low
+        "ultrainteract",  # low
+        "wildchat-gpt-4-0125-preview",  # high-mid
     ]
     lm_datasets_trains = []
     for dataset_name in selected_train_dataset_names:

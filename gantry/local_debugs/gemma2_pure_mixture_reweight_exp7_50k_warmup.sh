@@ -39,5 +39,5 @@ python open_instruct/gradient/finetune_pure_mixture_faster_exp7.py \
   --with_tracking \
   --report_to wandb \
   --reweighting \
-  --reweight_warmup_steps 1000 \
+  --reweight_warmup_steps 10000 \
   --per_device_eval_batch_size 1
