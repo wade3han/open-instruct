@@ -1,3 +1,4 @@
+import json
 import os
 
 import pandas as pd
@@ -60,7 +61,7 @@ def get_mmlu_dataset(data_dir: str, ):
         return prompt
 
     k = 5
-    dataset = {"messages": []}
+    dataset = []
     for subject in subjects:
         dev_df = pd.read_csv(
             os.path.join(mmlu_data_dir, "dev", subject + "_dev.csv"), header=None
@@ -68,13 +69,14 @@ def get_mmlu_dataset(data_dir: str, ):
         for i in range(k):
             prompt = gen_prompt(dev_df, subject, i)
             answer = " " + dev_df.iloc[i, dev_df.shape[1] - 2 + 1]
-            dataset["messages"].append([{"role": "user", "content": prompt}, {"role": "assistant", "content": answer}])
+            dataset.append(
+                {"messages": [{"role": "user", "content": prompt}, {"role": "assistant", "content": answer}]}
+            )
     return dataset
 
 
 if __name__ == "__main__":
     data = get_mmlu_dataset("/net/nfs.cirrascale/mosaic/seungjuh/LESS/data")
-    import ipdb;
-    ipdb.set_trace();
-
-    print(data)
+    with open("/net/nfs.cirrascale/mosaic/seungjuh/open-instruct-general/open_instruct/gradient/mmlu.jsonl", "w") as f:
+        for example in data:
+            f.write(json.dumps(example) + "\n")
