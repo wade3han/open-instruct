@@ -11,7 +11,7 @@ NAME=debugs
 
 export WANDB_ENTITY='seungjuhan3'
 export WANDB_PROJECT='lora_olmo1b_selections'
-export WANDB_NAME='gemma2_2b_reweighting-exp7-50k-warmup'
+export WANDB_NAME='gemma2_2b_reweighting-exp7-50k-warmup-sm1e-3'
 python open_instruct/gradient/finetune_pure_mixture_faster_exp7.py \
   --use_multipack \
   --use_compile \
@@ -40,4 +40,5 @@ python open_instruct/gradient/finetune_pure_mixture_faster_exp7.py \
   --report_to wandb \
   --reweighting \
   --reweight_warmup_steps 10000 \
+  --smoothing_factor 1e-3 \
   --per_device_eval_batch_size 1
