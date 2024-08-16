@@ -688,6 +688,7 @@ def main():
             desc="Tokenizing and reformatting instruction data",
         )
         lm_datasets_test.set_format(type="pt")
+        lm_datasets_test = lm_datasets_test.filter(lambda example: (example["labels"] != -100).any())
         lm_datasets_tests.append(lm_datasets_test)
 
     train_datasets = [lm_datasets_train["train"] for lm_datasets_train in lm_datasets_trains]
