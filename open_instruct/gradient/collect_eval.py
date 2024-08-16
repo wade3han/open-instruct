@@ -1,5 +1,7 @@
 import os
 
+import pandas as pd
+
 
 def get_mmlu_dataset(data_dir: str, ):
     """
@@ -68,3 +70,11 @@ def get_mmlu_dataset(data_dir: str, ):
             answer = " " + dev_df.iloc[i, dev_df.shape[1] - 2 + 1]
             dataset["messages"].append([{"role": "user", "content": prompt}, {"role": "assistant", "content": answer}])
     return dataset
+
+
+if __name__ == "__main__":
+    data = get_mmlu_dataset("/net/nfs.cirrascale/mosaic/seungjuh/LESS/data")
+    import ipdb;
+    ipdb.set_trace();
+
+    print(data)
