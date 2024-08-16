@@ -155,10 +155,13 @@ class GradientTracker:
 
         sim_matrix = torch.zeros((num_train_set, num_valid_set))
         for train_id, val_id in itertools.product(range(num_train_set), range(num_valid_set)):
-            train_grad = self.gradient_store_exp_avg[train_id] / torch.sqrt(
-                self.gradient_store_exp_avg_sq[train_id] + 1e-8)
-            val_grad = gradient_store_avg[val_id]
-            sim = torch.nn.functional.cosine_similarity(train_grad, val_grad, dim=0)
+            try:
+                train_grad = self.gradient_store_exp_avg[train_id] / torch.sqrt(
+                    self.gradient_store_exp_avg_sq[train_id] + 1e-8)
+                val_grad = gradient_store_avg[val_id]
+                sim = torch.nn.functional.cosine_similarity(train_grad, val_grad, dim=0)
+            except KeyError:
+                sim = -1
             sim_matrix[train_id, val_id] = sim
 
         return sim_matrix
