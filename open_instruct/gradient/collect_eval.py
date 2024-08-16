@@ -134,7 +134,7 @@ def get_bbh_dataset(data_dir: str):
                 {
                     "messages": [
                         {"role": "user", "content": f"{task_prompt.strip()}\n\n{icl}\nA:"},
-                        {"role": "assistant", "content": f"A: {answer}"}
+                        {"role": "assistant", "content": f"{answer}"}
                     ]
                 }
             )
