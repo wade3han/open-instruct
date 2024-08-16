@@ -613,7 +613,9 @@ def main():
     # mixture_weights = [w / sum(mixture_weights) for w in mixture_weights]
 
     train_dataloader = CombinedDataLoader(train_data_loaders,
-                                          mixture_weights=mixture_weights)
+                                          mixture_weights=mixture_weights,
+                                          eval_per_steps=args.eval_per_steps,
+                                          smoothing_factor=args.smoothing_factor)
 
     test_data_loaders = [
         DataLoader(

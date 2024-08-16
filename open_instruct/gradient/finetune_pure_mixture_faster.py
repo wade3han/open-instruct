@@ -603,6 +603,7 @@ def main():
     mixture_weights = [1.0 / len(train_data_loaders) for _ in train_data_loaders]
     train_dataloader = CombinedDataLoader(train_data_loaders,
                                           mixture_weights=mixture_weights,
+                                          eval_per_steps=args.eval_per_steps,
                                           smoothing_factor=args.smoothing_factor)
 
     test_data_loaders = [
