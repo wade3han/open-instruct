@@ -213,6 +213,41 @@ def get_tydiqa_dataset(data_dir: str, zh: bool = False):
     return dataset
 
 
+def get_gsm8k_dataset(data_dir: str):
+    """
+    Get the bbh dataset in the instruction tuning format. Each example is formatted as follows:
+
+    Query:
+    <|user|>
+    <Task Prompt>
+    <Ex1>
+    <Ex2>
+    <Question of Ex3>
+    <|assistant|>
+    A:
+
+    Completion:
+    <Answer of Ex3>
+
+    Args:
+        data_dir (str): The main data directory.
+        tokenizer (Tokenizer): The tokenizer used to tokenize the input text.
+        max_length (int): The maximum length of the input sequence.
+        use_chat_format (bool, optional): Whether to use chat format for the input. Defaults to True.
+        chat_format (str, optional): The chat format to use. Defaults to "tulu".
+        n_shot (int, optional): The number of shots for few-shot learning. Defaults to 3 for bbh.
+
+    Returns:
+        Dataset: The BBH dataset containing input_ids, attention_mask, and labels.
+    """
+    file = f"{data_dir}/test.jsonl"
+    data = [json.loads(line) for line in open(file, "r")]
+    dataset = [{"messages": [{"role": "user", "content": example["context"]},
+                             {"role": "assistant", "content": example["response"]}]} for example in data]
+
+    return dataset
+
+
 if __name__ == "__main__":
     # data = get_mmlu_dataset("/net/nfs.cirrascale/mosaic/seungjuh/LESS/data")
     # with open("/net/nfs.cirrascale/mosaic/seungjuh/open-instruct-general/open_instruct/gradient/mmlu.jsonl", "w") as f:
@@ -224,8 +259,13 @@ if __name__ == "__main__":
     #     for example in data:
     #         f.write(json.dumps(example) + "\n")
 
-    data = get_tydiqa_dataset("/net/nfs.cirrascale/mosaic/seungjuh/LESS/data")
-    with open("/net/nfs.cirrascale/mosaic/seungjuh/open-instruct-general/open_instruct/gradient/tydiqa.jsonl",
-              "w") as f:
+    # data = get_tydiqa_dataset("/net/nfs.cirrascale/mosaic/seungjuh/LESS/data")
+    # with open("/net/nfs.cirrascale/mosaic/seungjuh/open-instruct-general/open_instruct/gradient/tydiqa.jsonl",
+    #           "w") as f:
+    #     for example in data:
+    #         f.write(json.dumps(example) + "\n")
+
+    data = get_gsm8k_dataset("/net/nfs.cirrascale/mosaic/seungjuh/OE-Safety/evaluation/tasks/generation/gsm8k")
+    with open("/net/nfs.cirrascale/mosaic/seungjuh/open-instruct-general/open_instruct/gradient/gsm8k.jsonl", "w") as f:
         for example in data:
             f.write(json.dumps(example) + "\n")
