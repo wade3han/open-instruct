@@ -75,8 +75,80 @@ def get_mmlu_dataset(data_dir: str, ):
     return dataset
 
 
+def get_bbh_dataset(data_dir: str):
+    """
+    Get the bbh dataset in the instruction tuning format. Each example is formatted as follows:
+
+    Query:
+    <|user|>
+    <Task Prompt>
+    <Ex1>
+    <Ex2>
+    <Question of Ex3>
+    <|assistant|>
+    A:
+
+    Completion:
+    <Answer of Ex3>
+
+    Args:
+        data_dir (str): The main data directory.
+        tokenizer (Tokenizer): The tokenizer used to tokenize the input text.
+        max_length (int): The maximum length of the input sequence.
+        use_chat_format (bool, optional): Whether to use chat format for the input. Defaults to True.
+        chat_format (str, optional): The chat format to use. Defaults to "tulu".
+        n_shot (int, optional): The number of shots for few-shot learning. Defaults to 3 for bbh.
+
+    Returns:
+        Dataset: The BBH dataset containing input_ids, attention_mask, and labels.
+    """
+    file = f"{data_dir}/eval/bbh/bbh-three-shot.json"
+
+    bbh_few_shot_examples = json.load(open(file, "r"))
+    dataset = []
+
+    # there are multiple tasks in the bbh dataset
+    # each task has 3 examples
+    for task in bbh_few_shot_examples:
+        few_shot_exs = bbh_few_shot_examples[task]
+
+        stuff = few_shot_exs.split("\n\n")
+        exes = stuff[-3:]
+        task_prompt = "\n\n".join(stuff[:-3])
+
+        def form_icl(exs):
+            string = ""
+            for ex in exs:
+                question, answer = ex.split("\nA:")
+                string += question + "\nA:" + answer
+                string += "\n\n"
+            return string
+
+        for i in range(len(exes)):
+            target_ex = exes[i]
+            other_exes = exes[:i] + exes[i + 1:]
+            icl = form_icl(other_exes)
+            question, answer = target_ex.split("\nA:")
+
+            dataset.append(
+                {
+                    "messages": [
+                        {"role": "user", "content": f"{task_prompt.strip()}\n\n{icl}\nA:"},
+                        {"role": "assistant", "content": f"A: {answer}"}
+                    ]
+                }
+            )
+
+    return dataset
+
+
 if __name__ == "__main__":
-    data = get_mmlu_dataset("/net/nfs.cirrascale/mosaic/seungjuh/LESS/data")
-    with open("/net/nfs.cirrascale/mosaic/seungjuh/open-instruct-general/open_instruct/gradient/mmlu.jsonl", "w") as f:
+    # data = get_mmlu_dataset("/net/nfs.cirrascale/mosaic/seungjuh/LESS/data")
+    # with open("/net/nfs.cirrascale/mosaic/seungjuh/open-instruct-general/open_instruct/gradient/mmlu.jsonl", "w") as f:
+    #     for example in data:
+    #         f.write(json.dumps(example) + "\n")
+
+    data = get_bbh_dataset("/net/nfs.cirrascale/mosaic/seungjuh/LESS/data")
+    with open("/net/nfs.cirrascale/mosaic/seungjuh/open-instruct-general/open_instruct/gradient/bbh.jsonl", "w") as f:
         for example in data:
             f.write(json.dumps(example) + "\n")
