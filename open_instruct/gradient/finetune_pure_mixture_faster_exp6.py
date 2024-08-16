@@ -79,9 +79,11 @@ class CombinedDataLoader:
 
 
 class GradientTracker:
-    def __init__(self, beta1: float, beta2: float, projector: CudaProjector, projector_batch_size: int):
+    def __init__(self, beta1: float, beta2: float, projector: CudaProjector, projector_batch_size: int, num_train: int):
         self.beta1 = beta1
         self.beta2 = beta2
+
+        self.num_train = num_train
 
         self.gradient_store_exp_avg = {}
         self.gradient_store_exp_avg_sq = {}
@@ -150,7 +152,7 @@ class GradientTracker:
             self.temporary_dataset_ids = []
 
     def calc_sim(self, gradient_store_avg: dict[int, torch.tensor]):
-        num_train_set = len(self.gradient_store_exp_avg)
+        num_train_set = self.num_train
         num_valid_set = len(gradient_store_avg)
 
         sim_matrix = torch.zeros((num_train_set, num_valid_set))
@@ -854,7 +856,7 @@ def main():
                               max_batch_size=projector_batch_size)
 
     assert args.per_device_train_batch_size == 1, "Only per_device_train_batch_size == 1 is supported."
-    gradient_tracker = GradientTracker(args.beta1, args.beta2, projector, projector_batch_size)
+    gradient_tracker = GradientTracker(args.beta1, args.beta2, projector, projector_batch_size, len(mixture_weights))
 
     for epoch in range(starting_epoch, args.num_train_epochs):
         model.train()
