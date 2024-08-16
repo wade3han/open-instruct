@@ -615,18 +615,18 @@ def main():
     TRAIN_DATASET_DIR = "/net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/"
     selected_train_dataset_names = [
         # "lmsyschat",
-        "tulu2mix-code_alpaca",     # 0, low-med
-        "tulu2mix-cot",     # 1, low
-        "tulu2mix-flan_v2",     # 2, low
-        "tulu2mix-gpt4_alpaca",     # 3, high-med
-        "tulu2mix-oasst1",      # 4, high
-        "tulu2mix-open_orca",       # 5, high-med
-        "tulu2mix-science",     # 6, low
-        "tulu2mix-sharegpt",        # 7, low
-        "tulu2mix-wizardlm",        # 8, low
-        "ultrachat",        # 9, high
-        "ultrainteract",        # 10, medium
-        "wildchat-gpt-4-0125-preview",    # 11, high
+        "tulu2mix-code_alpaca",  # 0, low-med
+        "tulu2mix-cot",  # 1, low
+        "tulu2mix-flan_v2",  # 2, low
+        "tulu2mix-gpt4_alpaca",  # 3, high-med
+        "tulu2mix-oasst1",  # 4, high
+        "tulu2mix-open_orca",  # 5, high-med
+        "tulu2mix-science",  # 6, low
+        "tulu2mix-sharegpt",  # 7, low
+        "tulu2mix-wizardlm",  # 8, low
+        "ultrachat",  # 9, high
+        "ultrainteract",  # 10, medium
+        "wildchat-gpt-4-0125-preview",  # 11, high
     ]
     lm_datasets_trains = []
     for dataset_name in selected_train_dataset_names:
@@ -735,7 +735,10 @@ def main():
 
         train_data_loaders.append(train_dataloader)
 
-    mixture_weights = [1.0 / len(train_data_loaders) for _ in train_data_loaders]
+    # mixture_weights = [1.0 / len(train_data_loaders) for _ in train_data_loaders]
+    mixture_weights = [0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0]
+    mixture_weights = [w / sum(mixture_weights) for w in mixture_weights]
+
     train_dataloader = CombinedDataLoader(train_data_loaders,
                                           mixture_weights=mixture_weights)
 
