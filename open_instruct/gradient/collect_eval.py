@@ -242,8 +242,8 @@ def get_gsm8k_dataset(data_dir: str):
     """
     file = f"{data_dir}/test.jsonl"
     data = [json.loads(line) for line in open(file, "r")]
-    dataset = [{"messages": [{"role": "user", "content": example["context"]},
-                             {"role": "assistant", "content": example["response"]}]} for example in data]
+    dataset = [{"messages": [{"role": "user", "content": example["question"]},
+                             {"role": "assistant", "content": example["answer"]}]} for example in data]
 
     return dataset
 
