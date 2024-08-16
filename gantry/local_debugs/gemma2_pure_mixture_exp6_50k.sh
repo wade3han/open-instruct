@@ -11,8 +11,8 @@ NAME=debugs
 
 export WANDB_ENTITY='seungjuhan3'
 export WANDB_PROJECT='lora_olmo1b_selections'
-export WANDB_NAME='gemma2_2b_no-reweighting-exp5-50k'
-python open_instruct/gradient/finetune_pure_mixture_faster_exp5.py \
+export WANDB_NAME='gemma2_2b_no-reweighting-exp6-50k'
+python open_instruct/gradient/finetune_pure_mixture_faster_exp6.py \
   --use_multipack \
   --use_compile \
   --mask_users \
