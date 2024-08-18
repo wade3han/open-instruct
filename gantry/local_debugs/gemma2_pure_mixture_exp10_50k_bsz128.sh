@@ -9,7 +9,7 @@ echo "Training llama model using $NUM_GPUS GPUs, $BATCH_SIZE_PER_GPU batch size 
 # sweep learning rate from 2e-5 to 1e-6
 NAME=debugs
 
-export WANDB_ENTITY='seungjuhan3'
+#export WANDB_ENTITY='seungjuhan3'
 export WANDB_PROJECT='lora_olmo1b_selections'
 export WANDB_NAME='gemma2_2b_no-reweighting-exp10-50k-bsz128'
 python open_instruct/gradient/finetune_pure_mixture_faster_exp10.py \
