@@ -533,7 +533,7 @@ def main():
 
     TEST_DATASET_DIR = "/net/nfs.cirrascale/mosaic/seungjuh/open-instruct-general/open_instruct/gradient"
     selected_validation_dataset_names = [
-        "tydiqa"
+        "gsm8k"
     ]
     lm_datasets_tests = []
     for dataset_name in selected_validation_dataset_names:
@@ -614,7 +614,6 @@ def main():
     train_dataloader = CombinedDataLoader(train_data_loaders,
                                           mixture_weights=mixture_weights,
                                           eval_per_steps=args.eval_per_steps,
-                                          min_weights=args.min_weights,
                                           smoothing_factor=args.smoothing_factor)
 
     test_data_loaders = [

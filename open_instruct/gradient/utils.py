@@ -10,7 +10,7 @@ from trak.projectors import CudaProjector
 
 class CombinedDataLoader:
     def __init__(self, dataloaders: list[DataLoader], mixture_weights: list[float], eval_per_steps: int,
-                 smoothing_factor: float = 0.0):
+                 smoothing_factor: float = 0.0, min_weights: float = -1.0):
         """
         Args:
             dataloaders (list): A list of DataLoader objects.
@@ -21,6 +21,7 @@ class CombinedDataLoader:
         self.iterators = [iter(dl) for dl in dataloaders]
         self.eval_per_steps = eval_per_steps
         self.smoothing_factor = smoothing_factor
+        self.min_weights = min_weights
 
     def __iter__(self):
         return self
@@ -35,6 +36,21 @@ class CombinedDataLoader:
             (1 - self.smoothing_factor) * current_mixture_weights / current_mixture_weights.sum() + \
             self.smoothing_factor * np.ones_like(current_mixture_weights) / len(self.mixture_weights)
         current_mixture_weights /= current_mixture_weights.sum()
+
+        if self.min_weights > -1.0:
+            adjusted_weights = 0
+            updated_indices = []
+            for i, w in enumerate(current_mixture_weights):
+                if w < self.min_weights:
+                    adjusted_weights += self.min_weights - w
+                    current_mixture_weights[i] = self.min_weights
+                    updated_indices.append(i)
+
+            for i in range(len(current_mixture_weights)):
+                if i not in updated_indices:
+                    current_mixture_weights[i] -= adjusted_weights / (
+                            len(current_mixture_weights) - len(updated_indices))
+
         current_mixture_weights = current_mixture_weights.tolist()
         print(f"New mixture weights: {current_mixture_weights}")
         self.mixture_weights = current_mixture_weights
