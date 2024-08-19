@@ -370,16 +370,12 @@ class GradientTrackerV2Ip:
 
 
 def initialize_optim_states(optimizer):
-    import ipdb;
-    ipdb.set_trace();
     for group in optimizer.param_groups:
         for p in group['params']:
-            if p.grad is None:
-                continue
             param_state = optimizer.state[p]
             # initialize exp_avg and exp_avg_sq to zero
             if 'exp_avg' in param_state:
-                param_state['exp_avg'] = torch.zeros_like(p)
+                param_state['exp_avg'] = torch.zeros_like(param_state['exp_avg'])
             if 'exp_avg_sq' in param_state:
-                param_state['exp_avg_sq'] = torch.zeros_like(p)
+                param_state['exp_avg_sq'] = torch.zeros_like(param_state['exp_avg_sq'])
             print(f"Initialized optimizer state for {p}")
