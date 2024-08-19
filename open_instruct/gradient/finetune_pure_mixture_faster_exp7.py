@@ -30,7 +30,7 @@ from transformers import (
     DataCollatorForSeq2Seq,
 )
 
-from open_instruct.gradient.utils import CombinedDataLoader, GradientTracker
+from open_instruct.gradient.utils import CombinedDataLoader, GradientTrackerV2, initialize_optim_states
 from open_instruct.multipack import MultipackBatchSampler, get_dataset_lengths, \
     V2BatchSamplerDataCollatorForSeq2SeqPadding, patch_for_multipack_legacy, patch_for_multipack
 from open_instruct.utils import ArgumentParserPlus, FlatArguments, MFUEstimator
@@ -206,7 +206,7 @@ def test_model(args,
                completed_steps: int,
                embedding_size: int,
                device: torch.device,
-               gradient_tracker: GradientTracker,
+               gradient_tracker: GradientTrackerV2,
                ):
     # model.eval()
     assert len(gradient_tracker.gradient_store_avg) == 0, "gradient_store_avg should be empty when testing."
@@ -253,8 +253,8 @@ def test_model(args,
     if args.with_tracking:
         wandb.log({"eval_loss": total_eval_loss}, step=completed_steps)
 
-    gradient_store_avg = gradient_tracker.gradient_store_avg
-    gradient_tracker.gradient_store_avg = {}  # reset
+    gradient_store_avg = gradient_tracker.eval_gradient_store_avg
+    gradient_tracker.eval_reset()
     return gradient_store_avg
 
     # model.train()
@@ -726,7 +726,7 @@ def main():
                               max_batch_size=projector_batch_size)
 
     assert args.per_device_train_batch_size == 1, "Only per_device_train_batch_size == 1 is supported."
-    gradient_tracker = GradientTracker(args.beta1, args.beta2, projector, projector_batch_size, len(mixture_weights))
+    gradient_tracker = GradientTrackerV2(args.beta1, args.beta2, projector, projector_batch_size, len(mixture_weights))
 
     for epoch in range(starting_epoch, args.num_train_epochs):
         model.train()
@@ -799,6 +799,12 @@ def main():
                         train_dataloader.update_mixture_weights(sim_matrix_2by2)
                         mixture_weights = train_dataloader.mixture_weights
                         print(f"Updated mixture weights: {mixture_weights}")
+
+                        # reset the gradient store
+                        gradient_tracker.train_reset()
+
+                        # reset the momentum of the gradients
+                        initialize_optim_states(optimizer)
 
                     if args.with_tracking:
                         wandb.log({f"mixture_weights_{i}": w for i, w in enumerate(mixture_weights)},
