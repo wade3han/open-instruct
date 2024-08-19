@@ -503,7 +503,7 @@ def main():
     ]
     lm_datasets_trains = []
     for dataset_name in selected_train_dataset_names:
-        train_datapath = f"{TRAIN_DATASET_DIR}/megamixv2_dedup_{dataset_name}_train.jsonl"
+        train_datapath = f"{TRAIN_DATASET_DIR}/megamixv2_dedup_{dataset_name}_train10k.jsonl"
         data_files = {"train": train_datapath}
         raw_datasets_train = load_dataset(
             "json",
