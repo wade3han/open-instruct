@@ -21,13 +21,16 @@ class CombinedDataLoader:
         self.eval_per_steps = eval_per_steps
         self.smoothing_factor = smoothing_factor
         self.min_weights = min_weights
-        self.mixture_weights_history = [np.array(mixture_weights)]
+        self.mixture_weights = mixture_weights
+
+        # self.mixture_weights_history = [np.array(mixture_weights)]
 
     def __iter__(self):
         return self
 
     def update_mixture_weights(self, sim_matrix: torch.tensor):
-        current_mixture_weights = self.mixture_weights_history[-1]
+        # current_mixture_weights = self.mixture_weights_history[-1]
+        current_mixture_weights = self.mixture_weights
         print(f"Old mixture weights: {current_mixture_weights}")
         new_mixture_weights_coeff = sim_matrix.mean(dim=1).cpu().numpy()  # [num_datasets]
         current_mixture_weights = np.array(current_mixture_weights) * np.exp(
@@ -51,12 +54,13 @@ class CombinedDataLoader:
         #             current_mixture_weights[i] -= adjusted_weights / (
         #                     len(current_mixture_weights) - len(updated_indices))
 
-        self.mixture_weights_history.append(current_mixture_weights)
+        # self.mixture_weights_history.append(current_mixture_weights)
+        self.mixture_weights = current_mixture_weights
 
-    @property
-    def mixture_weights(self) -> list[float]:
-        all_weights = np.stack(self.mixture_weights_history, axis=0)
-        return np.mean(all_weights, axis=0).tolist()
+    # @property
+    # def mixture_weights(self) -> list[float]:
+    #     all_weights = np.stack(self.mixture_weights_history, axis=0)
+    #     return np.mean(all_weights, axis=0).tolist()
 
     def __next__(self) -> tuple[dict, int]:
         # Randomly select one of the dataloaders based on the mixture weights
@@ -175,7 +179,7 @@ class GradientTrackerV2:
 
         self.train_gradient_store_exp_avg = {}
         self.train_gradient_store_exp_avg_sq = {}
-        self.eval_gradient_store_exp_avg = {}
+        self.eval_gradient_store_avg = {}
         self.count_per_dataset = {}
         self.batch_size = projector_batch_size
         self.projector = projector
@@ -189,6 +193,14 @@ class GradientTrackerV2:
         self.temporary_gradient_storage = []
         self.temporary_dataset_ids = []
         self.previous_full_vectorized_grads = None
+
+    def train_reset(self):
+        self.train_gradient_store_exp_avg = {}
+        self.train_gradient_store_exp_avg_sq = {}
+        self.count_per_dataset = {}
+
+    def eval_reset(self):
+        self.eval_gradient_store_avg = {}
 
     def track_gradients(self, model: nn.Module, dataset_id: int, valid_num_batches: int | None = None):
         full_vectorized_grads = torch.cat(
@@ -216,13 +228,10 @@ class GradientTrackerV2:
                     self.count_per_dataset[dataset_id] += 1
 
                 if valid_num_batches is not None:  # validation grads
-                    if self.eval_gradient_store_exp_avg.get(dataset_id) is None:
-                        self.eval_gradient_store_exp_avg[dataset_id] = projected_vectorized_grads[i]
+                    if self.eval_gradient_store_avg.get(dataset_id) is None:
+                        self.eval_gradient_store_avg[dataset_id] = projected_vectorized_grads[i]
                     else:
-                        # self.eval_gradient_store_exp_avg[dataset_id] += projected_vectorized_grads[i] / valid_num_batches
-                        self.eval_gradient_store_exp_avg[dataset_id] = \
-                            self.beta1 * self.eval_gradient_store_exp_avg[dataset_id] + \
-                            (1 - self.beta1) * projected_vectorized_grads[i]
+                        self.eval_gradient_store_avg[dataset_id] += projected_vectorized_grads[i] / valid_num_batches
 
                 else:
                     if self.train_gradient_store_exp_avg.get(dataset_id) is None:
@@ -258,3 +267,17 @@ class GradientTrackerV2:
             sim_matrix[train_id, val_id] = sim
 
         return sim_matrix
+
+
+def initialize_optim_states(optimizer):
+    for group in optimizer.param_groups:
+        for p in group['params']:
+            if p.grad is None:
+                continue
+            param_state = optimizer.state[p]
+            # initialize exp_avg and exp_avg_sq to zero
+            if 'exp_avg' in param_state:
+                param_state['exp_avg'] = torch.zeros_like(p)
+            if 'exp_avg_sq' in param_state:
+                param_state['exp_avg_sq'] = torch.zeros_like(p)
+            print(f"Initialized optimizer state for {p}")

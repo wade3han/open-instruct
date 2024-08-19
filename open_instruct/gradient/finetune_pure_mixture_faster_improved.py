@@ -30,7 +30,7 @@ from transformers import (
     DataCollatorForSeq2Seq,
 )
 
-from open_instruct.gradient.utils import CombinedDataLoader, GradientTracker
+from open_instruct.gradient.utils import CombinedDataLoader, GradientTrackerV2, initialize_optim_states
 from open_instruct.multipack import MultipackBatchSampler, get_dataset_lengths, \
     V2BatchSamplerDataCollatorForSeq2SeqPadding, patch_for_multipack_legacy, patch_for_multipack
 from open_instruct.utils import ArgumentParserPlus, FlatArguments, MFUEstimator
@@ -206,10 +206,10 @@ def test_model(args,
                completed_steps: int,
                embedding_size: int,
                device: torch.device,
-               gradient_tracker: GradientTracker,
+               gradient_tracker: GradientTrackerV2,
                ):
     # model.eval()
-    assert len(gradient_tracker.gradient_store_avg) == 0, "gradient_store_avg should be empty when testing."
+    assert len(gradient_tracker.eval_gradient_store_avg) == 0, "gradient_store_avg should be empty when testing."
     total_eval_loss = 0
     DIVIDE_CONSTANT = EVAL_MAX_SEQ_LENGTH * args.per_device_eval_batch_size
     loss_fct = torch.nn.CrossEntropyLoss(reduction="sum")
@@ -253,8 +253,8 @@ def test_model(args,
     if args.with_tracking:
         wandb.log({"eval_loss": total_eval_loss}, step=completed_steps)
 
-    gradient_store_avg = gradient_tracker.gradient_store_avg
-    gradient_tracker.gradient_store_avg = {}  # reset
+    gradient_store_avg = gradient_tracker.eval_gradient_store_avg
+    gradient_tracker.eval_reset()
     return gradient_store_avg
 
     # model.train()
@@ -533,7 +533,7 @@ def main():
 
     TEST_DATASET_DIR = "/net/nfs.cirrascale/mosaic/seungjuh/open-instruct-general/open_instruct/gradient"
     selected_validation_dataset_names = [
-        "gsm8k"
+        "tydiqa"
     ]
     lm_datasets_tests = []
     for dataset_name in selected_validation_dataset_names:
@@ -614,6 +614,7 @@ def main():
     train_dataloader = CombinedDataLoader(train_data_loaders,
                                           mixture_weights=mixture_weights,
                                           eval_per_steps=args.eval_per_steps,
+                                          min_weights=args.min_weights,
                                           smoothing_factor=args.smoothing_factor)
 
     test_data_loaders = [
@@ -725,7 +726,7 @@ def main():
                               max_batch_size=projector_batch_size)
 
     assert args.per_device_train_batch_size == 1, "Only per_device_train_batch_size == 1 is supported."
-    gradient_tracker = GradientTracker(args.beta1, args.beta2, projector, projector_batch_size, len(mixture_weights))
+    gradient_tracker = GradientTrackerV2(args.beta1, args.beta2, projector, projector_batch_size, len(mixture_weights))
 
     for epoch in range(starting_epoch, args.num_train_epochs):
         model.train()
@@ -785,10 +786,8 @@ def main():
 
             if forward_steps % args.gradient_accumulation_steps == 0:  # accumulation
                 if completed_steps % args.eval_per_steps == 0 and completed_steps > 0:
-                    gradient_tracker.refresh()
                     gradient_store_avg = test_model(args, model, test_data_loaders, selected_validation_dataset_names,
                                                     completed_steps, embedding_size, device, gradient_tracker)
-                    gradient_tracker.refresh()
 
                     # use sim matrix to update the data weights.
                     if args.reweighting:
@@ -798,6 +797,12 @@ def main():
                         train_dataloader.update_mixture_weights(sim_matrix_2by2)
                         mixture_weights = train_dataloader.mixture_weights
                         print(f"Updated mixture weights: {mixture_weights}")
+
+                        # reset the gradient store
+                        gradient_tracker.train_reset()
+
+                        # reset the momentum of the gradients
+                        initialize_optim_states(optimizer)
 
                     if args.with_tracking:
                         wandb.log({f"mixture_weights_{i}": w for i, w in enumerate(mixture_weights)},
