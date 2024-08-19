@@ -378,4 +378,4 @@ def initialize_optim_states(optimizer):
                 param_state['exp_avg'] = torch.zeros_like(param_state['exp_avg'])
             if 'exp_avg_sq' in param_state:
                 param_state['exp_avg_sq'] = torch.zeros_like(param_state['exp_avg_sq'])
-            print(f"Initialized optimizer state for {p}")
+            # print(f"Initialized optimizer state for {p}")
