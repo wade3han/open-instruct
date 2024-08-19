@@ -41,4 +41,5 @@ python open_instruct/gradient/finetune_pure_mixture_faster_exp10.py \
   --reweighting \
   --smoothing_factor 1e-3 \
   --min_weights 2e-2 \
-  --per_device_eval_batch_size 1
+  --per_device_eval_batch_size 1 \
+  --lora_alpha 128
