@@ -37,19 +37,19 @@ class CombinedDataLoader:
             self.smoothing_factor * np.ones_like(current_mixture_weights) / len(current_mixture_weights)
         current_mixture_weights /= current_mixture_weights.sum()
 
-        if self.min_weights > -1.0:
-            adjusted_weights = 0
-            updated_indices = []
-            for i, w in enumerate(current_mixture_weights):
-                if w < self.min_weights:
-                    adjusted_weights += self.min_weights - w
-                    current_mixture_weights[i] = self.min_weights
-                    updated_indices.append(i)
-
-            for i in range(len(current_mixture_weights)):
-                if i not in updated_indices:
-                    current_mixture_weights[i] -= adjusted_weights / (
-                            len(current_mixture_weights) - len(updated_indices))
+        # if self.min_weights > -1.0:
+        #     adjusted_weights = 0
+        #     updated_indices = []
+        #     for i, w in enumerate(current_mixture_weights):
+        #         if w < self.min_weights:
+        #             adjusted_weights += self.min_weights - w
+        #             current_mixture_weights[i] = self.min_weights
+        #             updated_indices.append(i)
+        #
+        #     for i in range(len(current_mixture_weights)):
+        #         if i not in updated_indices:
+        #             current_mixture_weights[i] -= adjusted_weights / (
+        #                     len(current_mixture_weights) - len(updated_indices))
 
         self.mixture_weights_history.append(current_mixture_weights)
 
