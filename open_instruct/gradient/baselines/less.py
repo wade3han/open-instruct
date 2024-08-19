@@ -675,7 +675,49 @@ def get_dataloader(dataset, tokenizer, batch_size=1):
     return dataloader
 
 
-def main(dataset_name: str,
+def train(dataset_name: str,
+          model_path: str,
+          ):
+    tokenizer = AutoTokenizer.from_pretrained(model_path)
+    if tokenizer.pad_token is None:
+        tokenizer.add_special_tokens({'pad_token': '<pad>'})
+
+    config = LoraConfig.from_pretrained(model_path)
+    base_model = AutoModelForCausalLM.from_pretrained(
+        config.base_model_name_or_path, torch_dtype=torch.bfloat16, device_map="auto")
+    model = PeftModel.from_pretrained(
+        base_model, model_path, device_map="auto")
+    optimizer_path = os.path.join(model_path, "optimizer.bin")
+    adam_optimizer_state = torch.load(
+        optimizer_path, map_location="cpu")["state"]
+
+    for name, param in model.named_parameters():
+        if 'lora' in name or 'Lora' in name:
+            param.requires_grad = True
+
+    # resize embeddings if needed (e.g. for LlamaTokenizer)
+    embedding_size = model.get_input_embeddings().weight.shape[0]
+    if len(tokenizer) > embedding_size:
+        model.resize_token_embeddings(len(tokenizer))
+    dataset = get_training_dataset(
+        dataset_name, tokenizer, 2048, sample_percentage=1.0)
+    columns = deepcopy(dataset.column_names)
+    columns.remove("input_ids")
+    columns.remove("labels")
+    columns.remove("attention_mask")
+    dataset = dataset.remove_columns(columns)
+    dataloader = get_dataloader(dataset, tokenizer=tokenizer)
+
+    collect_grads(dataloader,
+                  model,
+                  f"{model_path}/gradients/{dataset_name}",
+                  proj_dim=[8192],
+                  gradient_type="adam",
+                  adam_optimizer_state=adam_optimizer_state,
+                  max_samples=None)
+
+
+def eval(dataset_name: str,
          model_path: str,
          ):
     tokenizer = AutoTokenizer.from_pretrained(model_path)
@@ -699,7 +741,6 @@ def main(dataset_name: str,
     embedding_size = model.get_input_embeddings().weight.shape[0]
     if len(tokenizer) > embedding_size:
         model.resize_token_embeddings(len(tokenizer))
-
     dataset = get_training_dataset(
         dataset_name, tokenizer, 2048, sample_percentage=1.0)
     columns = deepcopy(dataset.column_names)
@@ -713,10 +754,15 @@ def main(dataset_name: str,
                   model,
                   f"{model_path}/gradients/{dataset_name}",
                   proj_dim=[8192],
-                  gradient_type="adam",
+                  gradient_type="sgd",
                   adam_optimizer_state=adam_optimizer_state,
                   max_samples=None)
 
 
+commands = {
+    "train": train,
+    "eval": eval,
+}
+
 if __name__ == "__main__":
-    fire.Fire(main)
+    fire.Fire(commands)
