@@ -11,7 +11,7 @@ NAME=debugs
 
 export WANDB_ENTITY='seungjuhan3'
 export WANDB_PROJECT='lora_olmo1b_selections'
-export WANDB_NAME='gemma2_2b_tydiqa_reweight'
+export WANDB_NAME='gemma2_2b_gsm8k_reweight'
 python open_instruct/gradient/finetune_reweight.py \
   --use_multipack \
   --use_compile \
@@ -39,7 +39,7 @@ python open_instruct/gradient/finetune_reweight.py \
   --with_tracking \
   --report_to wandb \
   --reweighting \
-  --validation_dataset_names tydiqa \
+  --validation_dataset_names gsm8k \
   --smoothing_factor 1e-3 \
   --lora_alpha 128 \
   --per_device_eval_batch_size 1
