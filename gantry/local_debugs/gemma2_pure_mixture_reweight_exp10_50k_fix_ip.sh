@@ -27,7 +27,7 @@ python open_instruct/gradient/finetune_pure_mixture_faster_improved_ip.py \
   --learning_rate 5e-5 \
   --warmup_ratio 0.03 \
   --weight_decay 0. \
-  --eval_per_steps 100 \
+  --eval_per_steps 10 \
   --num_train_epochs 2 \
   --output_dir ./debug_results/$NAME \
   --reduce_loss "sum" \
