@@ -370,6 +370,8 @@ class GradientTrackerV2Ip:
 
 
 def initialize_optim_states(optimizer):
+    import ipdb;
+    ipdb.set_trace();
     for group in optimizer.param_groups:
         for p in group['params']:
             if p.grad is None:
