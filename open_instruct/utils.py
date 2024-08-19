@@ -353,6 +353,10 @@ class FlatArguments:
         default=-1.0,
         metadata={"help": "The minimum weight for reweighting."},
     )
+    validation_dataset_names: str = field(
+        default="",
+        metadata={"help": "The name of the dataset to use for validation. Split by ,"},
+    )
 
     def __post_init__(self):
         if self.reduce_loss not in ["mean", "sum"]:

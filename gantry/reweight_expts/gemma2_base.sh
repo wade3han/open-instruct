@@ -11,8 +11,8 @@ NAME=debugs
 
 export WANDB_ENTITY='seungjuhan3'
 export WANDB_PROJECT='lora_olmo1b_selections'
-export WANDB_NAME='gemma2_2b_reweighting-exp5-50k'
-python open_instruct/gradient/finetune_pure_mixture_faster_exp5.py \
+export WANDB_NAME='gemma2_2b_tydiqa_base'
+python open_instruct/gradient/finetune_reweight.py \
   --use_multipack \
   --use_compile \
   --mask_users \
@@ -25,10 +25,10 @@ python open_instruct/gradient/finetune_pure_mixture_faster_exp5.py \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
   --learning_rate 5e-5 \
-  --warmup_ratio 0.03 \
+  --warmup_ratio 0.01 \
   --weight_decay 0. \
   --eval_per_steps 100 \
-  --num_train_epochs 2 \
+  --num_train_epochs 1 \
   --output_dir ./debug_results/$NAME \
   --reduce_loss "sum" \
   --lr_scheduler_type "wsd" \
@@ -38,5 +38,5 @@ python open_instruct/gradient/finetune_pure_mixture_faster_exp5.py \
   --max_train_samples 50000 \
   --with_tracking \
   --report_to wandb \
-  --reweighting \
+  --validation_dataset_names tydiqa \
   --per_device_eval_batch_size 1

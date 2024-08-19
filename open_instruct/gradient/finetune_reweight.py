@@ -1,4 +1,3 @@
-import itertools
 import logging
 import math
 import os
@@ -31,8 +30,9 @@ from transformers import (
     DataCollatorForSeq2Seq,
 )
 
+from open_instruct.gradient.utils import CombinedDataLoader, GradientTracker, initialize_optim_states
 from open_instruct.multipack import MultipackBatchSampler, get_dataset_lengths, \
-    V2BatchSamplerDataCollatorForSeq2SeqPadding, patch_for_multipack_legacy
+    V2BatchSamplerDataCollatorForSeq2SeqPadding, patch_for_multipack_legacy, patch_for_multipack
 from open_instruct.utils import ArgumentParserPlus, FlatArguments, MFUEstimator
 from open_instruct.wsd_scheduler import get_constant_schedule_with_warmup_and_cooldown
 
@@ -47,48 +47,6 @@ def get_number_of_params(model):
                       for p in model.parameters() if p.requires_grad])
     print(f"Total number of parameters that require gradients: {num_params}")
     return num_params
-
-
-# class CudaProjector:
-#     def __init__(self, grad_dim: int, proj_dim: int, seed: int, device: torch.device,
-#                  dtype: torch.dtype, block_size: int, max_batch_size: int):
-#         self.grad_dim = grad_dim
-#         self.proj_dim = proj_dim
-#         self.seed = seed
-#         self.device = device
-#         self.dtype = dtype
-#         self.block_size = block_size
-#         self.max_batch_size = max_batch_size
-#         self.proj_matrix = torch.randn((self.block_size, self.proj_dim), device=self.device, dtype=self.dtype)
-#
-#     @torch.no_grad()
-#     def project(self, full_vectorized_grads: torch.Tensor) -> torch.Tensor:
-#         """
-#         Project the full vectorized gradients to the projected space.
-#         """
-#         # full_vectorized_grads: [batch_size, grad_dim]
-#         # first, we need to pad the full_vectorized_grads to the block size.
-#         # note that the grad_dim should be the multiple of the block size.
-#         batch_size = full_vectorized_grads.shape[0]
-#         pad_size = self.grad_dim + (self.block_size - self.grad_dim % self.block_size) % self.block_size
-#         padded_full_vectorized_grads = torch.cat([
-#             full_vectorized_grads,
-#             torch.zeros(batch_size, pad_size - self.grad_dim, device=self.device, dtype=self.dtype)
-#         ], dim=1)
-#         # padded_full_vectorized_grads: [batch_size, pad_size]
-#         # next, we need to reshape the padded_full_vectorized_grads to the block size.
-#         reshaped_full_vectorized_grads = padded_full_vectorized_grads.view(-1, self.block_size)
-#
-#         # reshaped_full_vectorized_grads: [batch_size * (pad_size // block_size), block_size]
-#         # finally, we need to project the reshaped_full_vectorized_grads to the projected space.
-#         projected_full_vectorized_grads = torch.matmul(reshaped_full_vectorized_grads, self.proj_matrix) / math.sqrt(
-#             self.proj_dim)
-#         projected_full_vectorized_grads = projected_full_vectorized_grads.view(batch_size,
-#                                                                                (pad_size // self.block_size),
-#                                                                                self.proj_dim)
-#         projected_full_vectorized_grads = projected_full_vectorized_grads.sum(dim=1)
-#         # projected_full_vectorized_grads: [batch_size, proj_dim]
-#         return projected_full_vectorized_grads
 
 
 class _MapDatasetFetcher(_BaseDatasetFetcher):
@@ -136,7 +94,7 @@ torch.backends.cuda.matmul.allow_tf32 = True
 # The flag below controls whether to allow TF32 on cuDNN. This flag defaults to True.
 torch.backends.cudnn.allow_tf32 = True
 
-EVAL_MAX_SEQ_LENGTH = 8192
+EVAL_MAX_SEQ_LENGTH = 1024
 
 
 def encode_with_prompt_completion_format(example, tokenizer, max_seq_length, add_bos=False):
@@ -241,7 +199,6 @@ def encode_with_messages_format(example, tokenizer, max_seq_length, add_bos=Fals
     }
 
 
-@torch.no_grad()
 def test_model(args,
                model: nn.Module,
                test_data_loaders: list[DataLoader],
@@ -249,21 +206,20 @@ def test_model(args,
                completed_steps: int,
                embedding_size: int,
                device: torch.device,
-               projector: CudaProjector,
+               gradient_tracker: GradientTracker,
                ):
     # model.eval()
+    assert len(gradient_tracker.eval_gradient_store_avg) == 0, "gradient_store_avg should be empty when testing."
     total_eval_loss = 0
     DIVIDE_CONSTANT = EVAL_MAX_SEQ_LENGTH * args.per_device_eval_batch_size
     loss_fct = torch.nn.CrossEntropyLoss(reduction="sum")
-
-    gradient_store_avg = {}
-    count_per_dataset = {}
 
     for dataset_id, (test_data_loader, dataset_name) in enumerate(zip(test_data_loaders, test_data_loaders_names)):
         eval_loss = 0
         loss_count = 0
         num_batches = len(test_data_loader)
 
+        gradient_tracker.refresh()
         for eval_batch in test_data_loader:
             eval_batch_device = {k: v.to(device) for k, v in eval_batch.items()}
             outputs = model(**eval_batch_device, use_cache=False)
@@ -279,29 +235,14 @@ def test_model(args,
             # shift_labels = shift_labels.to(shift_logits.device)
             # loss = loss_fct(shift_logits, shift_labels)
             # loss = loss / DIVIDE_CONSTANT
-            # loss.backward()
-            #
-            # full_vectorized_grads = torch.cat(
-            #     [p.grad.view(-1) for n, p in model.named_parameters() if p.grad is not None])
-            # projected_vectorized_grads = projector.project(
-            #     full_vectorized_grads.to(torch.float16).unsqueeze(0).detach(),
-            #     model_id=0,
-            # )
-            # projected_vectorized_grads = projected_vectorized_grads.squeeze(0)
-            # if count_per_dataset.get(dataset_id) is None:
-            #     count_per_dataset[dataset_id] = 1
-            # else:
-            #     count_per_dataset[dataset_id] += 1
-            #
-            # if gradient_store_avg.get(dataset_id) is None:
-            #     gradient_store_avg[dataset_id] = projected_vectorized_grads
-            # else:
-            #     gradient_store_avg[dataset_id] += projected_vectorized_grads / num_batches
-
-            # model.zero_grad()
+            if args.reweighting:
+                loss.backward()
+                gradient_tracker.track_gradients(model, dataset_id, valid_num_batches=num_batches)
+                model.zero_grad()
 
             eval_loss += loss.detach().float()
             loss_count += 1
+        gradient_tracker.refresh()
         eval_loss = eval_loss / loss_count
         total_eval_loss += eval_loss
         print(f"Eval loss for {dataset_name}: {eval_loss}")
@@ -312,6 +253,8 @@ def test_model(args,
     if args.with_tracking:
         wandb.log({"eval_loss": total_eval_loss}, step=completed_steps)
 
+    gradient_store_avg = gradient_tracker.eval_gradient_store_avg
+    gradient_tracker.eval_reset()
     return gradient_store_avg
 
     # model.train()
@@ -507,6 +450,7 @@ def main():
 
     # monkeypatch
     if args.use_flash_attn:
+        patch_for_multipack(config.model_type, model_name=config._name_or_path)
         patch_for_multipack_legacy(config.model_type, model_name=config._name_or_path)
 
     # set the tokenizer chat template to the tulu format
@@ -546,8 +490,16 @@ def main():
         "lmsyschat",
         "tulu2mix-code_alpaca",
         "tulu2mix-cot",
+        "tulu2mix-flan_v2",
+        "tulu2mix-gpt4_alpaca",
         "tulu2mix-oasst1",
+        "tulu2mix-open_orca",
         "tulu2mix-science",
+        "tulu2mix-sharegpt",
+        "tulu2mix-wizardlm",
+        "ultrachat",
+        "ultrainteract",
+        "wildchat-gpt-4-0125-preview",
     ]
     lm_datasets_trains = []
     for dataset_name in selected_train_dataset_names:
@@ -579,15 +531,12 @@ def main():
             lm_datasets_train["train"] = lm_datasets_train["train"].select(range(args.max_train_samples))
         lm_datasets_trains.append(lm_datasets_train)
 
-    TEST_DATASET_DIR = "/net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/"
-    selected_validation_dataset_names = [
-        # "lmsyschat",
-        "tulu2mix-code_alpaca",
-        # "tulu2mix-cot",
-    ]
+    TEST_DATASET_DIR = "/net/nfs.cirrascale/mosaic/seungjuh/open-instruct-general/open_instruct/gradient"
+    selected_validation_dataset_names = args.validation_dataset_names.split(",")
+    assert len(selected_validation_dataset_names) > 0, "No validation datasets selected."
     lm_datasets_tests = []
     for dataset_name in selected_validation_dataset_names:
-        validation_datapath = f"{TEST_DATASET_DIR}/megamixv2_dedup_{dataset_name}_validation.jsonl"
+        validation_datapath = f"{TEST_DATASET_DIR}/{dataset_name}.jsonl"
         data_files = {"test": validation_datapath}
         raw_datasets_test = load_dataset(
             "json",
@@ -611,6 +560,7 @@ def main():
             desc="Tokenizing and reformatting instruction data",
         )
         lm_datasets_test.set_format(type="pt")
+        lm_datasets_test = lm_datasets_test.filter(lambda example: (example["labels"] != -100).any())
         lm_datasets_tests.append(lm_datasets_test)
 
     train_datasets = [lm_datasets_train["train"] for lm_datasets_train in lm_datasets_trains]
@@ -627,46 +577,6 @@ def main():
 
     batch_max_len = args.per_device_train_batch_size * args.max_seq_length  # 4 * 8192 = 32768
     batch_size = 1
-
-    class CombinedDataLoader:
-        def __init__(self, dataloaders: list[DataLoader], mixture_weights: list[float]):
-            """
-            Args:
-                dataloaders (list): A list of DataLoader objects.
-            """
-            assert len(dataloaders) == len(mixture_weights)
-            self.dataloaders = dataloaders
-            self.mixture_weights = mixture_weights
-            self.iterators = [iter(dl) for dl in dataloaders]
-
-        def __iter__(self):
-            return self
-
-        def update_mixture_weights(self, sim_matrix: torch.tensor):
-            current_mixture_weights = self.mixture_weights
-            print("Old mixture weights: {current_mixture_weights}")
-            new_mixture_weights_coeff = sim_matrix.mean(dim=1).cpu().numpy()  # [num_datasets]
-            current_mixture_weights = np.array(current_mixture_weights) * np.exp(new_mixture_weights_coeff)
-            current_mixture_weights /= current_mixture_weights.sum()
-            current_mixture_weights = current_mixture_weights.tolist()
-            print(f"New mixture weights: {current_mixture_weights}")
-            self.mixture_weights = current_mixture_weights
-
-        def __next__(self) -> tuple[dict, int]:
-            # Randomly select one of the dataloaders based on the mixture weights
-            chosen_index = random.choices(range(len(self.dataloaders)), weights=self.mixture_weights)[0]
-            chosen_iterator = self.iterators[chosen_index]
-
-            try:
-                return next(chosen_iterator), chosen_index
-            except StopIteration:
-                # Reset the iterator if it is exhausted
-                self.iterators[chosen_index] = iter(self.dataloaders[chosen_index])
-                return next(self.iterators[chosen_index]), chosen_index
-
-        def __len__(self):
-            # Define the length of the combined loader as the sum of lengths of individual dataloaders
-            return sum(len(dl) for dl in self.dataloaders)
 
     train_data_loaders = []
     for train_dataset in train_datasets:
@@ -696,18 +606,15 @@ def main():
 
         train_data_loaders.append(train_dataloader)
 
-    # def get_mixture_weights(weights: list[float]):
-    #     """
-    #     Normalize the weights to sum to 1.
-    #     """
-    #     exp_weights = [math.exp(w) for w in weights]
-    #     total = sum(exp_weights)
-    #     return [w / total for w in exp_weights]
+    mixture_weights = [1.0 / len(train_data_loaders) for _ in train_data_loaders]
+    # mixture_weights = [0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0]
+    # mixture_weights = [w / sum(mixture_weights) for w in mixture_weights]
 
-    # mixture_weights = [1.0 / len(train_data_loaders) for _ in train_data_loaders]
-    mixture_weights = [0, 1, 0, 0, 0]
     train_dataloader = CombinedDataLoader(train_data_loaders,
-                                          mixture_weights=mixture_weights)
+                                          mixture_weights=mixture_weights,
+                                          eval_per_steps=args.eval_per_steps,
+                                          min_weights=args.min_weights,
+                                          smoothing_factor=args.smoothing_factor)
 
     test_data_loaders = [
         DataLoader(
@@ -774,7 +681,7 @@ def main():
     total_batch_size = args.per_device_train_batch_size * args.gradient_accumulation_steps
 
     print("***** Running training *****")
-    print(f"  Num examples = {len(train_datasets)}")
+    print(f"  Num examples = {len(train_dataloader)}")
     print(f"  Num Epochs = {args.num_train_epochs}")
     print(f"  Instantaneous batch size per device = {args.per_device_train_batch_size}")
     print(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")
@@ -802,23 +709,12 @@ def main():
     seq_length_per_fwdbwd = 0
     _loss_quantiles = None  # only available when using below_median loss masking
 
-    gradient_store_exp_avg, gradient_store_exp_avg_sq = {}, {}
-    count_per_dataset = {}
     number_of_params = get_number_of_params(model)
     device = next(model.parameters()).device
-    dtype = next(model.parameters()).dtype
     block_size = 128
     proj_dim = 512
-    projector_batch_size = 16
+    projector_batch_size = 8
 
-    # projector = BasicProjector(grad_dim=number_of_params,
-    #                            proj_dim=8192,
-    #                            seed=args.seed,
-    #                            proj_type=ProjectionType.rademacher,
-    #                            device=torch.device('cpu'),
-    #                            dtype=torch.float32,
-    #                            block_size=block_size,
-    #                            )
     projector = CudaProjector(grad_dim=number_of_params,
                               proj_dim=proj_dim,
                               seed=args.seed,
@@ -827,22 +723,9 @@ def main():
                               block_size=block_size,
                               proj_type=ProjectionType.rademacher,
                               max_batch_size=projector_batch_size)
-    previous_projected_vectorized_grads = None
 
     assert args.per_device_train_batch_size == 1, "Only per_device_train_batch_size == 1 is supported."
-
-    def calc_sim(gradient_store_avg, gradient_store_exp_avg, gradient_store_exp_avg_sq):
-        num_train_set = len(gradient_store_exp_avg)
-        num_valid_set = len(gradient_store_avg)
-
-        sim_matrix = torch.zeros((num_train_set, num_valid_set))
-        for train_id, val_id in itertools.product(range(num_train_set), range(num_valid_set)):
-            train_grad = gradient_store_exp_avg[train_id] / torch.sqrt(gradient_store_exp_avg_sq[train_id] + 1e-8)
-            val_grad = gradient_store_avg[val_id]
-            sim = torch.nn.functional.cosine_similarity(train_grad, val_grad, dim=0)
-            sim_matrix[train_id, val_id] = sim
-
-        return sim_matrix
+    gradient_tracker = GradientTracker(args.beta1, args.beta2, projector, projector_batch_size, len(mixture_weights))
 
     for epoch in range(starting_epoch, args.num_train_epochs):
         model.train()
@@ -880,36 +763,9 @@ def main():
 
             (loss / args.gradient_accumulation_steps).backward()
 
-            # full_vectorized_grads = torch.cat(
-            #     [p.grad.view(-1) for n, p in model.named_parameters() if p.grad is not None])
-            # projected_vectorized_grads = projector.project(
-            #     full_vectorized_grads.to(torch.float16).unsqueeze(0).detach(),
-            #     model_id=0,
-            # )
-            # projected_vectorized_grads = projected_vectorized_grads.squeeze(0)
-            # if count_per_dataset.get(dataset_id) is None:
-            #     count_per_dataset[dataset_id] = 1
-            # else:
-            #     count_per_dataset[dataset_id] += 1
-            #
-            # if previous_projected_vectorized_grads is not None:
-            #     residual_projected_vectorized_grads = projected_vectorized_grads - previous_projected_vectorized_grads  # on cuda.
-            # else:
-            #     residual_projected_vectorized_grads = projected_vectorized_grads
-            #
-            # if gradient_store_exp_avg.get(dataset_id) is None:
-            #     gradient_store_exp_avg[dataset_id] = residual_projected_vectorized_grads
-            # else:
-            #     gradient_store_exp_avg[dataset_id] = args.beta1 * gradient_store_exp_avg[dataset_id] + (
-            #             1 - args.beta1) * residual_projected_vectorized_grads
-            #
-            # if gradient_store_exp_avg_sq.get(dataset_id) is None:
-            #     gradient_store_exp_avg_sq[dataset_id] = residual_projected_vectorized_grads ** 2
-            # else:
-            #     gradient_store_exp_avg_sq[dataset_id] = args.beta2 * gradient_store_exp_avg_sq[dataset_id] + (
-            #             1 - args.beta2) * residual_projected_vectorized_grads ** 2
-            #
-            # previous_projected_vectorized_grads = projected_vectorized_grads
+            # track the gradients
+            if args.reweighting:
+                gradient_tracker.track_gradients(model, dataset_id)
 
             if forward_steps % args.gradient_accumulation_steps == 0:
                 # get clip_grad_norm
@@ -930,21 +786,26 @@ def main():
             if forward_steps % args.gradient_accumulation_steps == 0:  # accumulation
                 if completed_steps % args.eval_per_steps == 0 and completed_steps > 0:
                     gradient_store_avg = test_model(args, model, test_data_loaders, selected_validation_dataset_names,
-                                                    completed_steps, embedding_size, device, projector)
-
-                    # # calculate the similarity.
-                    # sim_matrix_2by2 = calc_sim(gradient_store_avg, gradient_store_exp_avg, gradient_store_exp_avg_sq)
-                    # print("Similarity Matrix in the training step: ", completed_steps)
+                                                    completed_steps, embedding_size, device, gradient_tracker)
 
                     # use sim matrix to update the data weights.
-                    # if args.reweighting:
-                    #     train_dataloader.update_mixture_weights(sim_matrix_2by2)
-                    #     mixture_weights = train_dataloader.mixture_weights
-                    #     print(f"Updated mixture weights: {mixture_weights}")
+                    if args.reweighting:
+                        # calculate the similarity.
+                        sim_matrix_2by2 = gradient_tracker.calc_sim(gradient_store_avg)
+                        print("Similarity Matrix in the training step: ", completed_steps)
+                        train_dataloader.update_mixture_weights(sim_matrix_2by2)
+                        mixture_weights = train_dataloader.mixture_weights
+                        print(f"Updated mixture weights: {mixture_weights}")
+
+                        # reset the gradient store
+                        gradient_tracker.train_reset()
+
+                        # reset the momentum of the gradients
+                        initialize_optim_states(optimizer)
 
                     if args.with_tracking:
-                        wandb.log({f"mixture_weights_{i}": w for i, w in enumerate(mixture_weights)},
-                                  step=completed_steps)
+                        wandb.log({f"mixture_weights_{selected_train_dataset_names[i]}": w
+                                   for i, w in enumerate(mixture_weights)}, step=completed_steps)
 
                 progress_bar.update(1)
                 completed_steps += 1
@@ -1025,7 +886,7 @@ def main():
 
     # last evaluation
     test_model(args, model, test_data_loaders, selected_validation_dataset_names,
-               completed_steps, embedding_size, device, projector)
+               completed_steps, embedding_size, device, gradient_tracker)
 
     if args.output_dir is not None:
         save_model(model, args.output_dir, model.config, tokenizer)
