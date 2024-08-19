@@ -291,6 +291,10 @@ def save_model(model: nn.Module, output_dir, config, tokenizer):
     config.save_pretrained(output_dir)
 
 
+def save_optimizer(optimizer, output_dir):
+    torch.save(optimizer.state_dict(), os.path.join(output_dir, "optimizer.bin"))
+
+
 def main():
     parser = ArgumentParserPlus((FlatArguments))
     args = parser.parse()
@@ -874,6 +878,7 @@ def main():
                         if args.output_dir is not None:
                             output_dir = os.path.join(args.output_dir, output_dir)
                         save_model(model, output_dir, model.config, tokenizer)
+                        save_optimizer(optimizer, output_dir)
 
                 if completed_steps >= args.max_train_steps:
                     break
@@ -883,6 +888,7 @@ def main():
             if args.output_dir is not None:
                 output_dir = os.path.join(args.output_dir, output_dir)
             save_model(model, output_dir, model.config, tokenizer)
+            save_optimizer(optimizer, output_dir)
 
     # last evaluation
     test_model(args, model, test_data_loaders, selected_validation_dataset_names,
@@ -890,6 +896,7 @@ def main():
 
     if args.output_dir is not None:
         save_model(model, args.output_dir, model.config, tokenizer)
+        save_optimizer(optimizer, output_dir)
         if args.save_state:
             model.save_checkpoint(args.output_dir)
 
