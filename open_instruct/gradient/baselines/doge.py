@@ -379,6 +379,8 @@ def get_target_grad(args,
             # shift_labels = shift_labels.to(shift_logits.device)
             # loss = loss_fct(shift_logits, shift_labels)
             # loss = loss / DIVIDE_CONSTANT
+            import ipdb;
+            ipdb.set_trace();
             if args.reweighting:
                 loss.backward()
                 gradient_tracker.track_gradients(model, dataset_id, valid_num_batches=num_batches)
