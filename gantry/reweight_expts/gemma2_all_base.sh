@@ -40,4 +40,5 @@ python open_instruct/gradient/finetune_reweight.py \
   --validation_dataset_names bbh,gsm8k,mmlu,tydiqa \
   --lora_alpha 128 \
   --checkpointing_steps 400 \
+  --max_test_samples 100 \
   --per_device_eval_batch_size 1
