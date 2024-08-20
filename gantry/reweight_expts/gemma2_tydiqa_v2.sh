@@ -24,7 +24,7 @@ python open_instruct/gradient/finetune_reweight_v2.py \
   --preprocessing_num_workers 128 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
-  --learning_rate 5e-5 \
+  --learning_rate 2e-5 \
   --warmup_ratio 0.03 \
   --weight_decay 0. \
   --eval_per_steps 10 \
