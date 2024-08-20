@@ -384,8 +384,8 @@ def get_target_grad(args,
                 gradient_tracker.track_gradients(model, dataset_id, valid_num_batches=num_batches)
                 model.zero_grad()
 
-            if len(gradient_tracker.eval_gradient_store[
-                       dataset_id]) >= args.per_device_eval_batch_size * args.gradient_accumulation_steps:
+            if len(gradient_tracker.eval_gradient_store[dataset_id]) >= \
+                    args.per_device_eval_batch_size * args.gradient_accumulation_steps:
                 break
 
         gradient_tracker.refresh()
