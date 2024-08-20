@@ -1,7 +1,7 @@
 #!/bin/bash
 NUM_GPUS=1
 BATCH_SIZE_PER_GPU=1
-TOTAL_BATCH_SIZE=16
+TOTAL_BATCH_SIZE=128
 GRADIENT_ACC_STEPS=$(($TOTAL_BATCH_SIZE / $NUM_GPUS / $BATCH_SIZE_PER_GPU))
 echo "Training llama model using $NUM_GPUS GPUs, $BATCH_SIZE_PER_GPU batch size per GPU, $GRADIENT_ACC_STEPS gradient accumulation steps"
 # You can also set --gradient_checkpointing or use `stage3_offloading_accelerate.conf` to save memory,
@@ -27,7 +27,7 @@ python open_instruct/gradient/finetune_reweight.py \
   --learning_rate 2e-5 \
   --warmup_ratio 0.03 \
   --weight_decay 0. \
-  --eval_per_steps 100 \
+  --eval_per_steps 20 \
   --num_train_epochs 1 \
   --output_dir ./debug_results/$NAME \
   --reduce_loss "sum" \
