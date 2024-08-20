@@ -92,24 +92,18 @@ for train_grad1, train_grad2 in itertools.product(train_grads, train_grads):
 
 # 2.1. use batch_size=4 and get the cross-dataset similarity in the eval datasets.
 batch_size = 4
-similarity_eval = {}
-for train_grad1, train_grad2 in itertools.product(eval_grads, eval_grads):
-    if train_grad1["name"] != train_grad2["name"]:
-        print(f"Now processing {train_grad1['name']} and {train_grad2['name']}")
-        train_grad1_batch = get_batch_grads(train_grad1["grad"], batch_size=batch_size)
-        train_grad2_batch = get_batch_grads(train_grad2["grad"], batch_size=batch_size)
-        len_train_grad1 = train_grad1_batch.size(0)
-        len_train_grad2 = train_grad2_batch.size(0)
+for train_grad1 in eval_grads:
+    train_grad1_batch = get_batch_grads(train_grad1["grad"], batch_size=batch_size)
+    len_train_grad1 = train_grad1_batch.size(0)
 
-        cos_batch_store = []
-        for i in range(len_train_grad1):
-            for j in range(len_train_grad2):
-                if i != j:
-                    cos_batch_store.append(cos(i, j, train_grad1_batch, train_grad2_batch))
+    cos_batch_store = []
+    for i in range(len_train_grad1):
+        for j in range(len_train_grad1):
+            if i != j:
+                cos_batch_store.append(cos(i, j, train_grad1_batch, train_grad1_batch))
 
-        print(
-            f"Eval dataset similarity: {train_grad1['name']} and {train_grad2['name']}, similarity: {torch.stack(cos_batch_store).quantile(0.75):.2f}")
-        similarity_train[(train_grad1["name"], train_grad2["name"])] = torch.stack(cos_batch_store).mean()
+    print(
+        f"Eval dataset: {train_grad1['name']}, similarity: {torch.stack(cos_batch_store).quantile(0.75):.2f}")
 
 # 3. get the cross-dataset similarity in the eval datasets.
 similarity_eval = {}
