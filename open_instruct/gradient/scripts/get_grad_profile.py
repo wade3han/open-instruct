@@ -156,18 +156,73 @@ for i in range(20):
         print(
             f"Train dataset similarity: {sorted_similarity_train[i][0]}, similarity: {sorted_similarity_train[i][1]:.2f}")
 
-similarity_eval = torch.load("similarity_eval.pt")
-# get the top-10 most similar pairs.
-sorted_similarity_eval = sorted(similarity_eval.items(), key=lambda x: x[1], reverse=True)
-for i in range(20):
+# pick code_alpaca included pairs.
+code_alpaca_pairs = []
+for pair in sorted_similarity_train:
+    if "code_alpaca" in pair[0][0] or "code_alpaca" in pair[0][1]:
+        code_alpaca_pairs.append(pair)
+sorted_code_alpaca_pairs = sorted(code_alpaca_pairs, key=lambda x: x[1], reverse=True)
+for i in range(10):
     if i % 2 == 0:
         print(
-            f"Eval dataset similarity: {sorted_similarity_eval[i][0]}, similarity: {sorted_similarity_eval[i][1]:.2f}")
+            f"Train dataset similarity: {sorted_code_alpaca_pairs[i][0]}, similarity: {sorted_code_alpaca_pairs[i][1]:.2f}")
+
+similarity_eval = torch.load("similarity_eval.pt")
+# get the top-5 most similar pairs.
+sorted_similarity_eval = sorted(similarity_eval.items(), key=lambda x: x[1], reverse=True)
+for i in range(10):
+    if i % 2 == 0:
+        print(
+            f"Eval dataset similarity: {sorted_similarity_eval[i][0]}, similarity: {sorted_similarity_eval[i][1]:.2f}"
+        )
 
 similarity_train_eval = torch.load("similarity_train_eval.pt")
 # get the top-10 most similar pairs.
 sorted_similarity_train_eval = sorted(similarity_train_eval.items(), key=lambda x: x[1], reverse=True)
-for i in range(20):
-    if i % 2 == 0:
-        print(
-            f"Train and eval dataset similarity: {sorted_similarity_train_eval[i][0]}, similarity: {sorted_similarity_train_eval[i][1]:.2f}")
+for i in range(10):
+    print(
+        f"Train and eval dataset similarity: {sorted_similarity_train_eval[i][0]}, similarity: {sorted_similarity_train_eval[i][1]:.2f}")
+
+# pick gsm8k included pairs.
+gsm8k_pairs = []
+for pair in sorted_similarity_train_eval:
+    if "gsm8k" in pair[0][1]:
+        gsm8k_pairs.append(pair)
+
+sorted_gsm8k_pairs = sorted(gsm8k_pairs, key=lambda x: x[1], reverse=True)
+for i in range(10):
+    print(
+        f"Train and eval dataset similarity: {sorted_gsm8k_pairs[i][0]}, similarity: {sorted_gsm8k_pairs[i][1]:.2f}")
+
+# pick bbh included pairs.
+bbh_pairs = []
+for pair in sorted_similarity_train_eval:
+    if "bbh" in pair[0][1]:
+        bbh_pairs.append(pair)
+
+sorted_bbh_pairs = sorted(bbh_pairs, key=lambda x: x[1], reverse=True)
+for i in range(10):
+    print(
+        f"Train and eval dataset similarity: {sorted_bbh_pairs[i][0]}, similarity: {sorted_bbh_pairs[i][1]:.4f}")
+
+# pick tydiqa included pairs.
+tydiqa_pairs = []
+for pair in sorted_similarity_train_eval:
+    if "tydiqa" in pair[0][1]:
+        tydiqa_pairs.append(pair)
+
+sorted_tydiqa_pairs = sorted(tydiqa_pairs, key=lambda x: x[1], reverse=True)
+for i in range(10):
+    print(
+        f"Train and eval dataset similarity: {sorted_tydiqa_pairs[i][0]}, similarity: {sorted_tydiqa_pairs[i][1]:.2f}")
+
+# pick mmlu included pairs.
+mmlu_pairs = []
+for pair in sorted_similarity_train_eval:
+    if "mmlu" in pair[0][1]:
+        mmlu_pairs.append(pair)
+
+sorted_mmlu_pairs = sorted(mmlu_pairs, key=lambda x: x[1], reverse=True)
+for i in range(10):
+    print(
+        f"Train and eval dataset similarity: {sorted_mmlu_pairs[i][0]}, similarity: {sorted_mmlu_pairs[i][1]:.2f}")
