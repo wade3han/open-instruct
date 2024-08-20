@@ -30,7 +30,7 @@ from transformers import (
     DataCollatorForSeq2Seq,
 )
 
-from open_instruct.gradient.utils import CombinedDataLoader, GradientTracker, initialize_optim_states, save_optimizer
+from open_instruct.gradient.utils import CombinedDataLoader, GradientTracker, save_optimizer
 from open_instruct.multipack import MultipackBatchSampler, get_dataset_lengths, \
     V2BatchSamplerDataCollatorForSeq2SeqPadding, patch_for_multipack_legacy, patch_for_multipack
 from open_instruct.utils import ArgumentParserPlus, FlatArguments, MFUEstimator
@@ -889,6 +889,9 @@ def main():
                 output_dir = os.path.join(args.output_dir, output_dir)
             save_model(model, output_dir, model.config, tokenizer)
             save_optimizer(optimizer, output_dir)
+
+    # save the history of the mixture_weights.
+    torch.save(train_dataloader.mixture_weights_history, f"{args.output_dir}/mixture_weights_history.pt")
 
     # last evaluation
     test_model(args, model, test_data_loaders, selected_validation_dataset_names,
