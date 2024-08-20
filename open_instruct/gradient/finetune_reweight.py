@@ -292,7 +292,13 @@ def save_model(model: nn.Module, output_dir, config, tokenizer):
 
 
 def save_optimizer(optimizer, output_dir):
-    torch.save(optimizer.state_dict(), os.path.join(output_dir, "optimizer.bin"))
+    optimizer_state_dict = optimizer.state_dict()
+    state = optimizer_state_dict["state"]
+    state_dict = {}
+    for k, v in state.items():
+        state_dict[v["names"]] = v
+    optimizer_state_dict["state"] = state_dict
+    torch.save(optimizer_state_dict, os.path.join(output_dir, "optimizer.bin"))
 
 
 def main():
@@ -638,10 +644,12 @@ def main():
         {
             "params": [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)],
             "weight_decay": args.weight_decay,
+            "names": [n for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)]
         },
         {
             "params": [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)],
             "weight_decay": 0.0,
+            "names": [n for n, p in model.named_parameters() if any(nd in n for nd in no_decay)]
         },
     ]
     optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=args.learning_rate)
@@ -896,7 +904,7 @@ def main():
 
     if args.output_dir is not None:
         save_model(model, args.output_dir, model.config, tokenizer)
-        save_optimizer(optimizer, output_dir)
+        save_optimizer(optimizer, args.output_dir)
         if args.save_state:
             model.save_checkpoint(args.output_dir)
 

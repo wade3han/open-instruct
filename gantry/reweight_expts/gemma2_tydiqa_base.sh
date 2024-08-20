@@ -7,11 +7,11 @@ echo "Training llama model using $NUM_GPUS GPUs, $BATCH_SIZE_PER_GPU batch size 
 # You can also set --gradient_checkpointing or use `stage3_offloading_accelerate.conf` to save memory,
 # but it will trade off speed.
 # sweep learning rate from 2e-5 to 1e-6
-NAME=debugs
+NAME='gemma2_2b_tydiqa_base'
 
 export WANDB_ENTITY='seungjuhan3'
 export WANDB_PROJECT='lora_olmo1b_selections'
-export WANDB_NAME='gemma2_2b_tydiqa_base'
+export WANDB_NAME=$NAME
 python open_instruct/gradient/finetune_reweight.py \
   --use_multipack \
   --use_compile \
@@ -40,4 +40,5 @@ python open_instruct/gradient/finetune_reweight.py \
   --report_to wandb \
   --validation_dataset_names tydiqa \
   --lora_alpha 128 \
+  --checkpointing_steps 400 \
   --per_device_eval_batch_size 1
