@@ -571,6 +571,8 @@ def main():
         )
         lm_datasets_test.set_format(type="pt")
         lm_datasets_test = lm_datasets_test.filter(lambda example: (example["labels"] != -100).any())
+        if args.max_test_samples is not None and len(lm_datasets_test["test"]) > args.max_test_samples:
+            lm_datasets_test["test"] = lm_datasets_test["test"].select(range(args.max_test_samples))
         lm_datasets_tests.append(lm_datasets_test)
 
     train_datasets = [lm_datasets_train["train"] for lm_datasets_train in lm_datasets_trains]
