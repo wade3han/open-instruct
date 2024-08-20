@@ -31,7 +31,7 @@ from transformers import (
     DataCollatorForSeq2Seq,
 )
 
-from open_instruct.gradient.utils import CombinedDataLoader, initialize_optim_states, save_optimizer
+from open_instruct.gradient.utils import CombinedDataLoader, save_optimizer
 from open_instruct.multipack import MultipackBatchSampler, get_dataset_lengths, \
     V2BatchSamplerDataCollatorForSeq2SeqPadding, patch_for_multipack_legacy, patch_for_multipack
 from open_instruct.utils import ArgumentParserPlus, FlatArguments, MFUEstimator
@@ -379,14 +379,12 @@ def get_target_grad(args,
             # shift_labels = shift_labels.to(shift_logits.device)
             # loss = loss_fct(shift_logits, shift_labels)
             # loss = loss / DIVIDE_CONSTANT
-            import ipdb;
-            ipdb.set_trace();
             if args.reweighting:
                 loss.backward()
                 gradient_tracker.track_gradients(model, dataset_id, valid_num_batches=num_batches)
                 model.zero_grad()
 
-            if len(gradient_tracker.eval_gradient_store[dataset_id]) >= \
+            if len(gradient_tracker.eval_gradient_store.get(dataset_id, [])) >= \
                     args.per_device_eval_batch_size * args.gradient_accumulation_steps:
                 break
 
