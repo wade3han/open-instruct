@@ -719,6 +719,7 @@ def train(dataset_name: str,
 
 def eval(dataset_name: str,
          model_path: str,
+         max_num_samples: int | None = None,
          ):
     tokenizer = AutoTokenizer.from_pretrained(model_path)
     if tokenizer.pad_token is None:
@@ -743,6 +744,9 @@ def eval(dataset_name: str,
         model.resize_token_embeddings(len(tokenizer))
     dataset = get_training_dataset(
         dataset_name, tokenizer, 2048, sample_percentage=1.0)
+    if max_num_samples is not None:
+        dataset = dataset.select(range(max_num_samples))
+
     columns = deepcopy(dataset.column_names)
     columns.remove("input_ids")
     columns.remove("labels")
