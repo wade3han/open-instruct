@@ -99,10 +99,11 @@ for train_grad1, train_grad2 in itertools.product(eval_grads, eval_grads):
         train_grad1_batch = get_batch_grads(train_grad1["grad"], batch_size=batch_size)
         train_grad2_batch = get_batch_grads(train_grad2["grad"], batch_size=batch_size)
         len_train_grad1 = train_grad1_batch.size(0)
+        len_train_grad2 = train_grad2_batch.size(0)
 
         cos_batch_store = []
         for i in range(len_train_grad1):
-            for j in range(len_train_grad1):
+            for j in range(len_train_grad2):
                 if i != j:
                     cos_batch_store.append(cos(i, j, train_grad1_batch, train_grad2_batch))
 
