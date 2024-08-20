@@ -12,7 +12,7 @@ NAME=gemma2_2b_all_base_lr2e-5
 export WANDB_ENTITY='seungjuhan3'
 export WANDB_PROJECT='lora_olmo1b_selections'
 export WANDB_NAME=$NAME
-python open_instruct/gradient/finetune_reweight.py \
+python open_instruct/gradient/finetune_reweight_v2.py \
   --use_multipack \
   --use_compile \
   --mask_users \
@@ -27,7 +27,7 @@ python open_instruct/gradient/finetune_reweight.py \
   --learning_rate 2e-5 \
   --warmup_ratio 0.03 \
   --weight_decay 0. \
-  --eval_per_steps 100 \
+  --eval_per_steps 10 \
   --num_train_epochs 1 \
   --output_dir ./debug_results/$NAME \
   --reduce_loss "sum" \
