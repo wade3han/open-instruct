@@ -21,7 +21,7 @@ selected_train_dataset_names = [
 
 train_grads = []
 for dataset_name in selected_train_dataset_names:
-    gradpath = f"/net/nfs.cirrascale/mosaic/seungjuh/open-instruct-general/debug_results/gemma2_2b_bbh_base_lr2e-5/step_400/open-instruct/datasets/megamixv2_dedup_{dataset_name}_train10k.jsonl/dim8192/grads-320.pt"
+    gradpath = f"debug_results/gemma2_2b_bbh_base_lr2e-5/step_400/gradients/net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/megamixv2_dedup_{dataset_name}_train10k.jsonl/dim8192/grads-320.pt"
     grad = torch.load(gradpath)
     train_grads.append({"name": dataset_name, "grad": grad})
 
@@ -34,7 +34,7 @@ selected_test_dataset_names = [
 ]
 eval_grads = []
 for dataset_name in selected_test_dataset_names:
-    gradpath = f"/net/nfs.cirrascale/mosaic/seungjuh/open-instruct-general/debug_results/gemma2_2b_bbh_base_lr2e-5/step_400/gradients/open_instruct/gradient/{dataset_name}.jsonl/dim8192/all_unormalized.pt"
+    gradpath = f"debug_results/gemma2_2b_bbh_base_lr2e-5/step_400/gradients/net/nfs.cirrascale/mosaic/seungjuh/open-instruct-general/open_instruct/gradient/{dataset_name}.jsonl/dim8192/all_unormalized.pt"
     grad = torch.load(gradpath)
     eval_grads.append({"name": dataset_name, "grad": grad})
 

@@ -5,7 +5,7 @@ script_format = "python open_instruct/gradient/baselines/less.py eval \
 --max_num_samples 320 \
 --model_path debug_results/gemma2_2b_bbh_base_lr2e-5/step_400/"
 
-TRAIN_DATASET_DIR = "debug_results/gemma2_2b_bbh_base_lr2e-5/step_400/gradients/net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets"
+TRAIN_DATASET_DIR = "/net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/"
 selected_train_dataset_names = [
     "lmsyschat",
     "tulu2mix-code_alpaca",
@@ -28,7 +28,7 @@ for dataset_name in selected_train_dataset_names:
     os.system(script)
     print(f"Finished {dataset_name}")
 
-TEST_DATASET_DIR = "debug_results/gemma2_2b_bbh_base_lr2e-5/step_400/gradients/net/nfs.cirrascale/mosaic/seungjuh/open-instruct-general/open_instruct/gradient/"
+TEST_DATASET_DIR = "/net/nfs.cirrascale/mosaic/seungjuh/open-instruct-general/open_instruct/gradient"
 selected_test_dataset_names = [
     "gsm8k",
     "mmlu",
