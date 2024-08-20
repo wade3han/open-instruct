@@ -488,11 +488,20 @@ def main():
     TRAIN_DATASET_DIR = "/net/nfs.cirrascale/mosaic/seungjuh/open-instruct/datasets/"
     selected_train_dataset_names = [
         "lmsyschat",
-        "ultrainteract",
+        # "tulu2mix-code_alpaca",
         "tulu2mix-cot",
+        "tulu2mix-flan_v2",
+        "tulu2mix-gpt4_alpaca",
         "tulu2mix-oasst1",
+        "tulu2mix-open_orca",
         "tulu2mix-science",
+        "tulu2mix-sharegpt",
+        "tulu2mix-wizardlm",
+        "ultrachat",
+        "ultrainteract",
+        "wildchat-gpt-4-0125-preview",
     ]
+    mixture_weights = [0.01, 0.1, 0.1, 0.15, 0.3, 0.1, 0.1, 0.01, 0.1, 0.1, 0.1, 0.01]
     lm_datasets_trains = []
     for dataset_name in selected_train_dataset_names:
         train_datapath = f"{TRAIN_DATASET_DIR}/megamixv2_dedup_{dataset_name}_train10k.jsonl"
@@ -609,7 +618,7 @@ def main():
     #     "tulu2mix-oasst1",
     #     "tulu2mix-science",
     # ]
-    mixture_weights = [0.01, 0.01, 0.5, 0.1, 0.38]
+    # mixture_weights = [0.01, 0.01, 0.5, 0.1, 0.38]
     mixture_weights = [w / sum(mixture_weights) for w in mixture_weights]
     assert not args.reweighting, f"Reweighting is not supported with mixture weights."
 
