@@ -952,6 +952,7 @@ def main():
                         (1 - args.smoothing_factor) * current_mixture_weights / current_mixture_weights.sum() + \
                         args.smoothing_factor * np.ones_like(current_mixture_weights) / len(current_mixture_weights)
                     current_mixture_weights /= current_mixture_weights.sum()
+                    current_mixture_weights *= len(current_mixture_weights)
                     domain_weights_per_id = current_mixture_weights.tolist()
                     domain_weights_per_id_list.append(domain_weights_per_id)
 
