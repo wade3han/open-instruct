@@ -27,17 +27,19 @@ python open_instruct/gradient/finetune_reweight_gsm8k.py \
   --learning_rate 2e-5 \
   --warmup_ratio 0.03 \
   --weight_decay 0. \
-  --eval_per_steps 100 \
+  --eval_per_steps 10 \
   --num_train_epochs 1 \
   --output_dir ./debug_results/$NAME \
   --reduce_loss "sum" \
   --lr_scheduler_type "wsd" \
   --cooldown_ratio 0.2 \
-  --logging_steps 20 --clip_grad_norm 1.0 \
+  --logging_steps 20 \
+  --clip_grad_norm 1.0 \
   --max_train_samples 50000 \
   --with_tracking \
   --report_to wandb \
   --validation_dataset_names gsm8k \
   --lora_alpha 128 \
+  --max_test_samples 100 \
   --checkpointing_steps 400 \
   --per_device_eval_batch_size 1
