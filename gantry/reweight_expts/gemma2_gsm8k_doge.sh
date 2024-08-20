@@ -27,7 +27,7 @@ python open_instruct/gradient/baselines/doge.py \
   --learning_rate 2e-5 \
   --warmup_ratio 0.03 \
   --weight_decay 0. \
-  --eval_per_steps 1 \
+  --eval_per_steps 20 \
   --num_train_epochs 1 \
   --output_dir ./debug_results/$NAME \
   --reduce_loss "sum" \

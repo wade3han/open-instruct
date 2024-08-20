@@ -966,6 +966,8 @@ def main():
                     # reset the momentum of the gradients
                     # initialize_optim_states(optimizer)
 
+                    print(f"Updated domain weights: {domain_weights_per_id}")
+
                     if args.with_tracking:
                         wandb.log({f"mixture_weights_{selected_train_dataset_names[i]}": w
                                    for i, w in enumerate(domain_weights_per_id)}, step=completed_steps)
