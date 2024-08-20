@@ -43,4 +43,5 @@ python open_instruct/gradient/finetune_reweight_v2.py \
   --smoothing_factor 1e-3 \
   --lora_alpha 128 \
   --reweight_warmup_steps 100 \
+  --max_test_samples 100 \
   --per_device_eval_batch_size 1

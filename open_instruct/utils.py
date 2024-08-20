@@ -357,6 +357,15 @@ class FlatArguments:
         default="",
         metadata={"help": "The name of the dataset to use for validation. Split by ,"},
     )
+    max_test_samples: Optional[int] = field(
+        default=None,
+        metadata={
+            "help": (
+                "For debugging purposes or quicker training, truncate the number of test examples to this "
+                "value if set."
+            )
+        },
+    )
 
     def __post_init__(self):
         if self.reduce_loss not in ["mean", "sum"]:

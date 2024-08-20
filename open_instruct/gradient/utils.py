@@ -202,13 +202,13 @@ class GradientTrackerV2:
         self.temporary_dataset_ids = []
         self.previous_full_vectorized_grads = None
 
-    def train_reset(self):
-        self.train_gradient_store_exp_avg = {}
-        self.train_gradient_store_exp_avg_sq = {}
-        self.count_per_dataset = {}
+    # def train_reset(self):
+    #     self.train_gradient_store_exp_avg = {}
+    #     self.train_gradient_store_exp_avg_sq = {}
+    #     self.count_per_dataset = {}
 
-    def eval_reset(self):
-        self.eval_gradient_store_avg = {}
+    # def eval_reset(self):
+    #     self.eval_gradient_store_avg = {}
 
     def track_gradients(self, model: nn.Module, dataset_id: int, valid_num_batches: int | None = None):
         full_vectorized_grads = torch.cat(
