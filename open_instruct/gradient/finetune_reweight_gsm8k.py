@@ -30,7 +30,7 @@ from transformers import (
     DataCollatorForSeq2Seq,
 )
 
-from open_instruct.gradient.utils import CombinedDataLoader, GradientTracker, initialize_optim_states
+from open_instruct.gradient.utils import CombinedDataLoader, GradientTracker, initialize_optim_states, save_optimizer
 from open_instruct.multipack import MultipackBatchSampler, get_dataset_lengths, \
     V2BatchSamplerDataCollatorForSeq2SeqPadding, patch_for_multipack_legacy, patch_for_multipack
 from open_instruct.utils import ArgumentParserPlus, FlatArguments, MFUEstimator
@@ -289,16 +289,6 @@ def save_model(model: nn.Module, output_dir, config, tokenizer):
     model.save_pretrained(output_dir)
     tokenizer.save_pretrained(output_dir)
     config.save_pretrained(output_dir)
-
-
-def save_optimizer(optimizer, output_dir):
-    optimizer_state_dict = optimizer.state_dict()
-    state = optimizer_state_dict["state"]
-    state_dict = {}
-    for k, v in state.items():
-        state_dict[v["names"]] = v
-    optimizer_state_dict["state"] = state_dict
-    torch.save(optimizer_state_dict, os.path.join(output_dir, "optimizer.bin"))
 
 
 def main():

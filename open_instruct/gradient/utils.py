@@ -289,3 +289,17 @@ def initialize_optim_states(optimizer):
             if 'exp_avg_sq' in param_state:
                 param_state['exp_avg_sq'] = torch.zeros_like(param_state['exp_avg_sq'])
             # print(f"Initialized optimizer state for {p}")
+
+
+def save_optimizer(optimizer, output_dir):
+    optimizer_state_dict = optimizer.state_dict()
+    state = optimizer_state_dict["state"]
+    param_groups = optimizer_state_dict["param_groups"]
+
+    state_dict = {}
+    for group in param_groups:
+        for p, n in zip(group["params"], group["names"]):
+            if p in state:
+                state_dict[n] = state[p]
+    optimizer_state_dict["state"] = state_dict
+    torch.save(optimizer_state_dict, os.path.join(output_dir, "optimizer.bin"))
