@@ -7,12 +7,12 @@ echo "Training llama model using $NUM_GPUS GPUs, $BATCH_SIZE_PER_GPU batch size 
 # You can also set --gradient_checkpointing or use `stage3_offloading_accelerate.conf` to save memory,
 # but it will trade off speed.
 # sweep learning rate from 2e-5 to 1e-6
-NAME=gemma2_2b_all_reweight_lr2e-5
+NAME=gemma2_2b_gsm8k_doge_lr2e-5
 
 export WANDB_ENTITY='seungjuhan3'
 export WANDB_PROJECT='lora_olmo1b_selections'
 export WANDB_NAME=$NAME
-python open_instruct/gradient/finetune_reweight.py \
+python open_instruct/gradient/baselines/doge.py \
   --use_multipack \
   --use_compile \
   --mask_users \
@@ -27,7 +27,7 @@ python open_instruct/gradient/finetune_reweight.py \
   --learning_rate 2e-5 \
   --warmup_ratio 0.03 \
   --weight_decay 0. \
-  --eval_per_steps 10 \
+  --eval_per_steps 1 \
   --num_train_epochs 1 \
   --output_dir ./debug_results/$NAME \
   --reduce_loss "sum" \
@@ -38,10 +38,9 @@ python open_instruct/gradient/finetune_reweight.py \
   --max_train_samples 50000 \
   --with_tracking \
   --report_to wandb \
-  --reweighting \
-  --validation_dataset_names bbh,gsm8k,mmlu,tydiqa \
-  --smoothing_factor 1e-3 \
+  --validation_dataset_names gsm8k \
   --lora_alpha 128 \
-  --reweight_warmup_steps 100 \
   --max_test_samples 100 \
+  --reweighting \
+  --smoothing_factor 1e-3 \
   --per_device_eval_batch_size 1
