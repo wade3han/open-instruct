@@ -937,42 +937,42 @@ def main():
             effective_num_tokens_per_fwdbwd += (batch_device["labels"] != -100).detach().sum().item()
 
             if forward_steps % args.gradient_accumulation_steps == 0:  # accumulation
-                if completed_steps % args.eval_per_steps == 0 and completed_steps > 0:
-                    test_model(args, model, test_data_loaders, selected_validation_dataset_names,
-                               completed_steps, embedding_size, device)
+                # use sim matrix to update the data weights.
+                if args.reweighting and completed_steps > args.reweight_warmup_steps:
+                    # calculate the similarity.
+                    gradient_store_avg = get_target_grad(args, model, target_data_loaders,
+                                                         selected_validation_dataset_names,
+                                                         completed_steps, embedding_size, device, gradient_tracker)
+                    sim_matrix_2by2 = gradient_tracker.calc_sim(gradient_store_avg)
 
-                    # use sim matrix to update the data weights.
-                    if args.reweighting and completed_steps > args.reweight_warmup_steps:
-                        # calculate the similarity.
-                        gradient_store_avg = get_target_grad(args, model, target_data_loaders,
-                                                             selected_validation_dataset_names,
-                                                             completed_steps, embedding_size, device, gradient_tracker)
-                        sim_matrix_2by2 = gradient_tracker.calc_sim(gradient_store_avg)
+                    new_mixture_weights_coeff = sim_matrix_2by2.mean(dim=1).cpu().numpy()  # [num_datasets]
+                    current_mixture_weights = np.array(domain_weights_per_id) * np.exp(
+                        (args.eval_per_steps / 10) * new_mixture_weights_coeff)
+                    current_mixture_weights = \
+                        (1 - args.smoothing_factor) * current_mixture_weights / current_mixture_weights.sum() + \
+                        args.smoothing_factor * np.ones_like(current_mixture_weights) / len(current_mixture_weights)
+                    current_mixture_weights /= current_mixture_weights.sum()
+                    domain_weights_per_id = current_mixture_weights.tolist()
+                    domain_weights_per_id_list.append(domain_weights_per_id)
 
-                        new_mixture_weights_coeff = sim_matrix_2by2.mean(dim=1).cpu().numpy()  # [num_datasets]
-                        current_mixture_weights = np.array(domain_weights_per_id) * np.exp(
-                            (args.eval_per_steps / 10) * new_mixture_weights_coeff)
-                        current_mixture_weights = \
-                            (1 - args.smoothing_factor) * current_mixture_weights / current_mixture_weights.sum() + \
-                            args.smoothing_factor * np.ones_like(current_mixture_weights) / len(current_mixture_weights)
-                        current_mixture_weights /= current_mixture_weights.sum()
-                        domain_weights_per_id = current_mixture_weights.tolist()
-                        domain_weights_per_id_list.append(domain_weights_per_id)
+                    # print("Similarity Matrix in the training step: ", completed_steps)
+                    # train_dataloader.update_mixture_weights(sim_matrix_2by2)
+                    # mixture_weights = train_dataloader.mixture_weights
+                    # print(f"Updated mixture weights: {mixture_weights}")
 
-                        # print("Similarity Matrix in the training step: ", completed_steps)
-                        # train_dataloader.update_mixture_weights(sim_matrix_2by2)
-                        # mixture_weights = train_dataloader.mixture_weights
-                        # print(f"Updated mixture weights: {mixture_weights}")
+                    # reset the gradient store
+                    gradient_tracker.train_reset()
 
-                        # reset the gradient store
-                        gradient_tracker.train_reset()
-
-                        # reset the momentum of the gradients
-                        # initialize_optim_states(optimizer)
+                    # reset the momentum of the gradients
+                    # initialize_optim_states(optimizer)
 
                     if args.with_tracking:
                         wandb.log({f"mixture_weights_{selected_train_dataset_names[i]}": w
                                    for i, w in enumerate(domain_weights_per_id)}, step=completed_steps)
+
+                if completed_steps % args.eval_per_steps == 0 and completed_steps > 0:
+                    test_model(args, model, test_data_loaders, selected_validation_dataset_names,
+                               completed_steps, embedding_size, device)
 
                 progress_bar.update(1)
                 completed_steps += 1
