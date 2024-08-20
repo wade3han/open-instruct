@@ -804,7 +804,7 @@ def main():
             effective_num_tokens_per_fwdbwd += (batch_device["labels"] != -100).detach().sum().item()
 
             if forward_steps % args.gradient_accumulation_steps == 0:  # accumulation
-                if completed_steps == 600:
+                if args.max_train_steps - completed_steps == 600:
                     # adhoc logic; change the data weights.
                     train_dataloader.mixture_weights = [0.01, 0.01, 0.3, 0.1, 0.01, 0.15, 0.1, 0.01, 0.2, 0.01, 0.01,
                                                         0.15, 0.2]
