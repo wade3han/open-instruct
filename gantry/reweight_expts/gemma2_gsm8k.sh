@@ -33,7 +33,7 @@ python open_instruct/gradient/finetune_reweight.py \
   --reduce_loss "sum" \
   --lr_scheduler_type "wsd" \
   --cooldown_ratio 0.2 \
-  --logging_steps 1 \
+  --logging_steps 20\
   --clip_grad_norm 1.0 \
   --max_train_samples 50000 \
   --with_tracking \

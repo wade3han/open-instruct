@@ -33,7 +33,7 @@ tasks:
       --output_dir /output/
       --with_tracking
       --report_to tensorboard
-      --logging_steps 1 &&
+      --logging_steps 20&&
       python open_instruct/merge_lora.py
       --base_model_name_or_path /hf_llama_models
       --lora_model_name_or_path /output
