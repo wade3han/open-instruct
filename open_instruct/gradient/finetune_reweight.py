@@ -801,11 +801,11 @@ def main():
                         mixture_weights = train_dataloader.mixture_weights
                         print(f"Updated mixture weights: {mixture_weights}")
 
-                        # reset the gradient store
-                        gradient_tracker.train_reset()
-
-                        # reset the momentum of the gradients
-                        initialize_optim_states(optimizer)
+                        # # reset the gradient store
+                        # gradient_tracker.train_reset()
+                        #
+                        # # reset the momentum of the gradients
+                        # initialize_optim_states(optimizer)
 
                     if args.with_tracking:
                         wandb.log({f"mixture_weights_{selected_train_dataset_names[i]}": w

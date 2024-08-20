@@ -12,7 +12,7 @@ NAME=gemma2_2b_all_base_lr2e-5
 export WANDB_ENTITY='seungjuhan3'
 export WANDB_PROJECT='lora_olmo1b_selections'
 export WANDB_NAME=$NAME
-python open_instruct/gradient/finetune_reweight_v2.py \
+python open_instruct/gradient/finetune_reweight.py \
   --use_multipack \
   --use_compile \
   --mask_users \
