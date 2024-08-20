@@ -131,3 +131,28 @@ for train_grad, eval_grad in itertools.product(train_grads, eval_grads):
 torch.save(similarity_train, "similarity_train.pt")
 torch.save(similarity_eval, "similarity_eval.pt")
 torch.save(similarity_train_eval, "similarity_train_eval.pt")
+
+# 6. print the results, using the pt files.
+similarity_train = torch.load("similarity_train.pt")
+# get the top-10 most similar pairs.
+sorted_similarity_train = sorted(similarity_train.items(), key=lambda x: x[1], reverse=True)
+for i in range(20):
+    if i % 2 == 0:
+        print(
+            f"Train dataset similarity: {sorted_similarity_train[i][0]}, similarity: {sorted_similarity_train[i][1]:.2f}")
+
+similarity_eval = torch.load("similarity_eval.pt")
+# get the top-10 most similar pairs.
+sorted_similarity_eval = sorted(similarity_eval.items(), key=lambda x: x[1], reverse=True)
+for i in range(20):
+    if i % 2 == 0:
+        print(
+            f"Eval dataset similarity: {sorted_similarity_eval[i][0]}, similarity: {sorted_similarity_eval[i][1]:.2f}")
+
+similarity_train_eval = torch.load("similarity_train_eval.pt")
+# get the top-10 most similar pairs.
+sorted_similarity_train_eval = sorted(similarity_train_eval.items(), key=lambda x: x[1], reverse=True)
+for i in range(20):
+    if i % 2 == 0:
+        print(
+            f"Train and eval dataset similarity: {sorted_similarity_train_eval[i][0]}, similarity: {sorted_similarity_train_eval[i][1]:.2f}")
