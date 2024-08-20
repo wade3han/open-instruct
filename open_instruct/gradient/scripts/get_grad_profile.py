@@ -31,8 +31,7 @@ selected_test_dataset_names = [
     "bbh",
 ]
 for dataset_name in selected_test_dataset_names:
-    gradpath = "/net/nfs.cirrascale/mosaic/seungjuh/open-instruct-general/debug_results/gemma2_2b_bbh_base_lr2e-5/step_400/gradients/open_instruct/gradient/gsm8k.jsonl/dim8192/grads-160.pt"
-    test_datapath = f"{TEST_DATASET_DIR}/{dataset_name}.jsonl"
+    gradpath = f"/net/nfs.cirrascale/mosaic/seungjuh/open-instruct-general/debug_results/gemma2_2b_bbh_base_lr2e-5/step_400/gradients/open_instruct/gradient/{dataset_name}.jsonl/dim8192/.pt"
 
 # 1. test how batched gradient similarity changes with batch size.
 batch_sizes = [1, 4, 16, 64, 256]

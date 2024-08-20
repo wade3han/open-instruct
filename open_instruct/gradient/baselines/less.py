@@ -744,7 +744,7 @@ def eval(dataset_name: str,
         model.resize_token_embeddings(len(tokenizer))
     dataset = get_training_dataset(
         dataset_name, tokenizer, 2048, sample_percentage=1.0)
-    if max_num_samples is not None:
+    if max_num_samples is not None and len(dataset) > max_num_samples:
         dataset = dataset.select(range(max_num_samples))
 
     columns = deepcopy(dataset.column_names)
