@@ -946,7 +946,7 @@ def main():
                     sim_matrix_2by2 = gradient_tracker.calc_sim(gradient_store_avg)
 
                     new_mixture_weights_coeff = sim_matrix_2by2.mean(dim=1).cpu().numpy()  # [num_datasets]
-                    current_mixture_weights = np.array(domain_weights_per_id) * np.exp(
+                    current_mixture_weights = np.array(domain_weights_per_id) / len(domain_weights_per_id) * np.exp(
                         (args.eval_per_steps / 10) * new_mixture_weights_coeff)
                     current_mixture_weights = \
                         (1 - args.smoothing_factor) * current_mixture_weights / current_mixture_weights.sum() + \
