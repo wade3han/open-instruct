@@ -24,7 +24,7 @@ deepspeed --include localhost:0,1,2,3 open_instruct/finetune_trainer.py \
     --warmup_ratio 0.03 \
     --weight_decay 0. \
     --evaluation_strategy "no" \
-    --logging_steps 1 \
+    --logging_steps 20\
     --save_strategy epoch \
     --save_total_limit 1 \
     --num_train_epochs 2 \

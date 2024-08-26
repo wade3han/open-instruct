@@ -336,6 +336,37 @@ class FlatArguments:
         metadata={"help": "The rank of ladamw."},
     )
 
+    # REWEIGHT
+    reweighting: bool = field(
+        default=False,
+        metadata={"help": "Whether to use reweighting."},
+    )
+    reweight_warmup_steps: int = field(
+        default=0,
+        metadata={"help": "The number of steps before reweighting starts."},
+    )
+    smoothing_factor: float = field(
+        default=0.0,
+        metadata={"help": "The smoothing factor for reweighting."},
+    )
+    min_weights: float = field(
+        default=-1.0,
+        metadata={"help": "The minimum weight for reweighting."},
+    )
+    validation_dataset_names: str = field(
+        default="",
+        metadata={"help": "The name of the dataset to use for validation. Split by ,"},
+    )
+    max_test_samples: Optional[int] = field(
+        default=None,
+        metadata={
+            "help": (
+                "For debugging purposes or quicker training, truncate the number of test examples to this "
+                "value if set."
+            )
+        },
+    )
+
     def __post_init__(self):
         if self.reduce_loss not in ["mean", "sum"]:
             raise ValueError("reduce_loss must be either 'mean' or 'sum'")

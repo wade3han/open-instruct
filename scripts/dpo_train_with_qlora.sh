@@ -33,7 +33,7 @@ accelerate launch \
     --output_dir output/tulu_v2_dpo_qlora/ \
     --with_tracking \
     --report_to tensorboard \
-    --logging_steps 1 &&
+    --logging_steps 20&&
 
 python open_instruct/merge_lora.py \
     --base_model_name_or_path allenai/tulu-2-7b \
