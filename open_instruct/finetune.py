@@ -262,6 +262,14 @@ class FlatArguments:
         default=None,
         metadata={"help": "Entity to use for logging to wandb."},
     )
+    wandb_project: Optional[str] = field(
+        default=None,
+        metadata={"help": "Project to use for logging to wandb."},
+    )
+    wandb_name: Optional[str] = field(
+        default=None,
+        metadata={"help": "Name to use for logging to wandb."},
+    )
     resume_from_checkpoint: Optional[str] = field(
         default=None,
         metadata={"help": "If the training should continue from a checkpoint folder."},
@@ -864,7 +872,10 @@ def main(args: FlatArguments):
         accelerator.init_trackers(
             "open_instruct_internal",
             experiment_config,
-            init_kwargs={"wandb": {"entity": args.wandb_entity, "tags": [args.exp_name] + get_wandb_tags()}},
+            init_kwargs={"wandb": {"entity": args.wandb_entity,
+                                   "project": args.wandb_project,
+                                   "name": args.wandb_name,
+                                   "tags": [args.exp_name] + get_wandb_tags()}},
         )
         wandb_tracker = accelerator.get_tracker("wandb")
 
