@@ -870,10 +870,9 @@ def main(args: FlatArguments):
             args.wandb_entity = maybe_use_ai2_wandb_entity()
             experiment_config.update(vars(beaker_config))
         accelerator.init_trackers(
-            "open_instruct_internal",
+            "open_instruct_internal" if args.wandb_project is None else args.wandb_project,
             experiment_config,
             init_kwargs={"wandb": {"entity": args.wandb_entity,
-                                   "project": args.wandb_project,
                                    "name": args.wandb_name,
                                    "tags": [args.exp_name] + get_wandb_tags()}},
         )
