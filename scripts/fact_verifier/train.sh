@@ -8,6 +8,7 @@ echo "Training llama model using $NUM_GPUS GPUs, $BATCH_SIZE_PER_GPU batch size 
 # but it will trade off speed.
 # sweep learning rate from 2e-5 to 1e-6
 
+name=v0_gemma2_seq2048;
 accelerate launch \
   --mixed_precision bf16 \
   --num_machines 1 \
@@ -17,7 +18,7 @@ accelerate launch \
   open_instruct/finetune.py \
   --wandb_entity seungjuhan3 \
   --wandb_project fact_verifier \
-  --wandb_name v0_gemma2 \
+  --wandb_name $name \
   --model_name_or_path google/gemma-2-2b \
   --use_lora \
   --lora_rank 64 \
@@ -26,15 +27,15 @@ accelerate launch \
   --tokenizer_name google/gemma-2-2b \
   --use_slow_tokenizer \
   --train_file /home/ubuntu/scalable-factuality/adhoc/wiki/sample_500_tulu2_atomic_facts_messages.jsonl \
-  --max_seq_length 4096 \
+  --max_seq_length 2048 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
   --learning_rate 5e-5 \
   --lr_scheduler_type linear \
   --warmup_ratio 0.03 \
   --weight_decay 0. \
-  --num_train_epochs 2 \
-  --output_dir ./output/ \
+  --num_train_epochs 1 \
+  --output_dir $name \
   --report_to wandb \
   --logging_steps 10 \
   --with_tracking
