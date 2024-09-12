@@ -27,7 +27,7 @@ accelerate launch \
   --tokenizer_name google/gemma-2-2b \
   --use_slow_tokenizer \
   --train_file /home/ubuntu/scalable-factuality/adhoc/wiki/v0_1_balanced.jsonl \
-  --max_seq_length 4096 \
+  --max_seq_length 3072 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
   --learning_rate 5e-5 \
