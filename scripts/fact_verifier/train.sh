@@ -8,7 +8,7 @@ echo "Training llama model using $NUM_GPUS GPUs, $BATCH_SIZE_PER_GPU batch size 
 # but it will trade off speed.
 # sweep learning rate from 2e-5 to 1e-6
 
-name=v0_gemma2_seq2048;
+name=v0_1_balanced_gemma2_seq2048;
 accelerate launch \
   --mixed_precision bf16 \
   --num_machines 1 \
@@ -26,8 +26,8 @@ accelerate launch \
   --lora_dropout 0.05 \
   --tokenizer_name google/gemma-2-2b \
   --use_slow_tokenizer \
-  --train_file /home/ubuntu/scalable-factuality/adhoc/wiki/sample_500_tulu2_atomic_facts_messages.jsonl \
-  --max_seq_length 2048 \
+  --train_file /home/ubuntu/scalable-factuality/adhoc/wiki/v0_1_balanced.jsonl \
+  --max_seq_length 4096 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
   --learning_rate 5e-5 \
@@ -38,4 +38,5 @@ accelerate launch \
   --output_dir $name \
   --report_to wandb \
   --logging_steps 10 \
+  --gradient_checkpointing \
   --with_tracking
