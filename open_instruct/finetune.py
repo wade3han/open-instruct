@@ -174,7 +174,7 @@ class FlatArguments:
         default=False,
         metadata={
             "help": "Forcibly add bos token to the beginning of the input sequence."
-            " Use only when tokenizer does not add bos token by default."
+                    " Use only when tokenizer does not add bos token by default."
         },
     )
     clip_grad_norm: float = field(
@@ -248,14 +248,14 @@ class FlatArguments:
         default=1800,
         metadata={
             "help": "Timeout for the training process in seconds."
-            "Useful if tokenization process is long. Default is 1800 seconds (30 minutes)."
+                    "Useful if tokenization process is long. Default is 1800 seconds (30 minutes)."
         },
     )
     reduce_loss: str = field(
         default="mean",
         metadata={
             "help": "How to reduce loss over tokens. Options are 'mean' or 'sum'."
-            "Using 'sum' can improve chat model performance."
+                    "Using 'sum' can improve chat model performance."
         },
     )
     wandb_entity: Optional[str] = field(
@@ -282,9 +282,9 @@ class FlatArguments:
         default="all",
         metadata={
             "help": "The integration(s) to report results and logs to. "
-            "Can be a single string or a list of strings. "
-            "Options are 'tensorboard', 'wandb', 'comet_ml', 'clearml', or 'all'. "
-            "Specify multiple by listing them: e.g., ['tensorboard', 'wandb']"
+                    "Can be a single string or a list of strings. "
+                    "Options are 'tensorboard', 'wandb', 'comet_ml', 'clearml', or 'all'. "
+                    "Specify multiple by listing them: e.g., ['tensorboard', 'wandb']"
         },
     )
     save_to_hub: Optional[str] = field(
@@ -303,7 +303,8 @@ class FlatArguments:
     checkpointing_steps: Optional[str] = field(
         default=None,
         metadata={
-            "help": "Whether the various states should be saved at the end of every n steps, or 'epoch' for each epoch."  # noqa
+            "help": "Whether the various states should be saved at the end of every n steps, or 'epoch' for each epoch."
+            # noqa
         },
     )
     overwrite_output_dir: bool = field(
@@ -351,10 +352,10 @@ class FlatArguments:
         if self.reduce_loss not in ["mean", "sum"]:
             raise ValueError("reduce_loss must be either 'mean' or 'sum'")
         if (
-            self.dataset_name is None
-            and self.train_file is None
-            and self.dataset_mixer is None
-            and self.dataset_mixer_list is None
+                self.dataset_name is None
+                and self.train_file is None
+                and self.dataset_mixer is None
+                and self.dataset_mixer_list is None
         ):
             raise ValueError("Need either a dataset name, dataset mixer, or a training file.")
         else:
@@ -362,12 +363,13 @@ class FlatArguments:
                 extension = self.train_file.split(".")[-1]
                 assert extension in ["json", "jsonl"], "`train_file` should be a json or a jsonl file."
         if (
-            (self.dataset_name is not None and (self.dataset_mixer is not None or self.dataset_mixer_list is not None))
-            or (self.dataset_name is not None and self.train_file is not None)
-            or (
+                (self.dataset_name is not None and (
+                        self.dataset_mixer is not None or self.dataset_mixer_list is not None))
+                or (self.dataset_name is not None and self.train_file is not None)
+                or (
                 (self.dataset_mixer is not None or self.dataset_mixer_list is not None) and self.train_file is not None
-            )
-            or (self.dataset_mixer is not None and self.dataset_mixer_list is not None)
+        )
+                or (self.dataset_mixer is not None and self.dataset_mixer_list is not None)
         ):
             raise ValueError("Cannot provide two dataset selection mechanisms.")
 
@@ -698,20 +700,23 @@ def main(args: FlatArguments):
 
     # set the tokenizer chat template to the tulu format
     # this makes evaluation/etc easier down the line.
-    chat_template = (
-        "{% for message in messages %}\n"
-        "{% if message['role'] == 'system' %}\n"
-        "{{ '<|system|>\n' + message['content'] }}\n"
-        "{% elif message['role'] == 'user' %}\n"
-        "{{ '<|user|>\n' + message['content'] }}\n"
-        "{% elif message['role'] == 'assistant' %}\n"
-        "{{ '<|assistant|>\n'  + message['content'] + eos_token }}\n"
-        "{% endif %}\n"
-        "{% if loop.last and add_generation_prompt %}\n{{ '<|assistant|>' }}\n"
-        "{% endif %}\n"
-        "{% endfor %}"
-    )
-    tokenizer.chat_template = chat_template
+    if tokenizer.chat_template is None:
+        chat_template = (
+            "{% for message in messages %}\n"
+            "{% if message['role'] == 'system' %}\n"
+            "{{ '<|system|>\n' + message['content'] }}\n"
+            "{% elif message['role'] == 'user' %}\n"
+            "{{ '<|user|>\n' + message['content'] }}\n"
+            "{% elif message['role'] == 'assistant' %}\n"
+            "{{ '<|assistant|>\n'  + message['content'] + eos_token }}\n"
+            "{% endif %}\n"
+            "{% if loop.last and add_generation_prompt %}\n{{ '<|assistant|>' }}\n"
+            "{% endif %}\n"
+            "{% endfor %}"
+        )
+        tokenizer.chat_template = chat_template
+    else:
+        print("Using existing chat template: ", tokenizer.chat_template)
     if args.add_bos:
         # also add bos in the chat template
         tokenizer.chat_template = "{{ bos_token }}" + tokenizer.chat_template
@@ -976,9 +981,9 @@ def main(args: FlatArguments):
                 completed_steps += 1
                 if args.logging_steps and completed_steps % args.logging_steps == 0:
                     avg_loss = (
-                        accelerator.gather(total_loss).mean().item()
-                        / args.gradient_accumulation_steps
-                        / args.logging_steps
+                            accelerator.gather(total_loss).mean().item()
+                            / args.gradient_accumulation_steps
+                            / args.logging_steps
                     )
                     metrics_to_log = {
                         "learning_rate": lr_scheduler.get_last_lr()[0],
@@ -986,9 +991,9 @@ def main(args: FlatArguments):
                     }
                     if args.load_balancing_loss:
                         avg_aux_loss = (
-                            accelerator.gather(total_aux_loss).mean().item()
-                            / args.gradient_accumulation_steps
-                            / args.logging_steps
+                                accelerator.gather(total_aux_loss).mean().item()
+                                / args.gradient_accumulation_steps
+                                / args.logging_steps
                         )
                         logger.info(
                             f"  Step: {completed_steps}, LR: {lr_scheduler.get_last_lr()[0]}, Loss: {avg_loss}, Aux Loss: {avg_aux_loss}"
@@ -1014,7 +1019,7 @@ def main(args: FlatArguments):
                         accelerator.save_state(output_dir)
                         # use this to mark the checkpoint as completely saved, to avoid restoring from garbled checkpoints
                         with open(
-                            os.path.join(get_last_checkpoint_path(args, incomplete=True), "COMPLETED"), "w"
+                                os.path.join(get_last_checkpoint_path(args, incomplete=True), "COMPLETED"), "w"
                         ) as f:
                             f.write("COMPLETED")  # annoyingly, empty files arent uploaded by beaker.
                         if accelerator.is_local_main_process:
