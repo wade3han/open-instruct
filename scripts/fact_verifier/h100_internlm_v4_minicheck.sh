@@ -21,6 +21,10 @@ accelerate launch \
   --wandb_name $name \
   --model_name_or_path internlm/internlm2_5-7b-chat \
   --tokenizer_name internlm/internlm2_5-7b-chat \
+  --use_lora \
+  --lora_rank 64 \
+  --lora_alpha 16 \
+  --lora_dropout 0.05 \
   --trust_remote_code \
   --use_slow_tokenizer \
   --train_file /home/ubuntu/v4_minicheck.jsonl \
