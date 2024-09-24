@@ -21,6 +21,7 @@ accelerate launch \
   --wandb_name $name \
   --model_name_or_path internlm/internlm2_5-7b-chat \
   --tokenizer_name internlm/internlm2_5-7b-chat \
+  --trust_remote_code \
   --use_slow_tokenizer \
   --train_file /home/ubuntu/v4_minicheck.jsonl \
   --max_seq_length 2048 \
