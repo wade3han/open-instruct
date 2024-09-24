@@ -145,6 +145,10 @@ class FlatArguments:
     train_file: Optional[str] = field(
         default=None, metadata={"help": "The input training data file (a json/jsonl file)."}
     )
+    eval_file: str = field(
+        default=None,
+        metadata={"help": "The input evaluation data file (a json/jsonl file)."},
+    )
     max_train_samples: Optional[int] = field(
         default=None,
         metadata={
@@ -192,6 +196,10 @@ class FlatArguments:
     logging_steps: Optional[int] = field(
         default=None,
         metadata={"help": "Log the training loss and learning rate every logging_steps steps."},
+    )
+    eval_steps: Optional[int] = field(
+        default=None,
+        metadata={"help": "Evaluate the model every eval_steps steps."},
     )
     lora_rank: int = field(
         default=64,
@@ -559,6 +567,11 @@ def main(args: FlatArguments):
             **dataset_args,
         )
 
+    eval_datasets = load_dataset(
+        "json",
+        data_files={"eval": args.eval_file},
+    )
+
     # Load pretrained model and tokenizer
     if args.config_name:
         config = AutoConfig.from_pretrained(
@@ -758,6 +771,7 @@ def main(args: FlatArguments):
         raise ValueError("You need to have either 'prompt'&'completion' or 'messages' in your column names.")
 
     train_dataset = raw_datasets["train"]
+    eval_dataset = eval_datasets["eval"]
 
     # debugging tool for fewer samples
     if args.max_train_samples is not None:
@@ -779,6 +793,19 @@ def main(args: FlatArguments):
         train_dataset.set_format(type="pt")
         train_dataset = train_dataset.filter(lambda example: (example["labels"] != -100).any())
 
+        eval_dataset = eval_dataset.map(
+            encode_function,
+            batched=False,
+            num_proc=args.preprocessing_num_workers,
+            load_from_cache_file=not args.overwrite_cache,
+            remove_columns=[
+                name for name in eval_dataset.column_names if name not in ["input_ids", "labels", "attention_mask"]
+            ],
+            desc="Tokenizing and reformatting instruction data",
+        )
+        eval_dataset.set_format(type="pt")
+        eval_dataset = eval_dataset.filter(lambda example: (example["labels"] != -100).any())
+
     # Log a few random samples from the training set:
     for index in random.sample(range(len(train_dataset)), 3):
         logger.info(f"Sample {index} of the training set: {train_dataset[index]}.")
@@ -787,6 +814,12 @@ def main(args: FlatArguments):
     train_dataloader = DataLoader(
         train_dataset,
         shuffle=True,
+        collate_fn=DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="longest"),
+        batch_size=args.per_device_train_batch_size,
+    )
+    eval_dataloader = DataLoader(
+        eval_dataset,
+        shuffle=False,
         collate_fn=DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="longest"),
         batch_size=args.per_device_train_batch_size,
     )
@@ -845,8 +878,8 @@ def main(args: FlatArguments):
         num_warmup_steps=int(num_training_steps_for_scheduler * args.warmup_ratio),
     )
     # Prepare everything with `accelerator`.
-    model, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
-        model, optimizer, train_dataloader, lr_scheduler
+    model, optimizer, train_dataloader, eval_dataloader, lr_scheduler = accelerator.prepare(
+        model, optimizer, train_dataloader, eval_dataloader, lr_scheduler
     )
 
     # We need to recalculate our total training steps as the size of the training dataloader may have changed.
@@ -1010,6 +1043,32 @@ def main(args: FlatArguments):
                         )
                     total_loss = 0
                     total_aux_loss = 0
+
+                if args.eval_steps and completed_steps % args.eval_steps == 0:
+                    model.eval()
+                    eval_loss = 0
+                    for eval_step, eval_batch in enumerate(eval_dataloader):
+                        with torch.no_grad():
+                            if args.reduce_loss == "mean":
+                                outputs = model(**eval_batch, use_cache=False)
+                                eval_loss += outputs.loss.item()
+                            else:
+                                outputs = model(**eval_batch, use_cache=False)
+                                logits = outputs.logits
+                                labels = eval_batch["labels"]
+                                shift_logits = logits[..., :-1, :].contiguous()
+                                shift_labels = labels[..., 1:].contiguous()
+                                shift_logits = shift_logits.view(-1, embedding_size)
+                                shift_labels = shift_labels.view(-1)
+                                loss_fct = torch.nn.CrossEntropyLoss(reduction="sum")
+                                shift_labels = shift_labels.to(shift_logits.device)
+                                loss = loss_fct(shift_logits, shift_labels)
+                                eval_loss += loss.item()
+                    eval_loss /= len(eval_dataloader)
+                    logger.info(f"  Evaluation Loss: {eval_loss}")
+                    if args.with_tracking:
+                        accelerator.log({"eval_loss": eval_loss}, step=completed_steps)
+                    model.train()
 
                 if isinstance(checkpointing_steps, int):
                     if completed_steps % checkpointing_steps == 0:

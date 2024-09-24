@@ -23,6 +23,7 @@ accelerate launch \
   --tokenizer_name meta-llama/Meta-Llama-3.1-8B-Instruct \
   --use_slow_tokenizer \
   --train_file /home/ubuntu/build_oi_no_reasoning.jsonl \
+  --eval_file /home/ubuntu/open-instruct-general/eval.jsonl \
   --max_seq_length 3072 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
@@ -33,6 +34,7 @@ accelerate launch \
   --num_train_epochs 1 \
   --output_dir $name \
   --report_to wandb \
+  --eval_steps 1 \
   --logging_steps 10 \
   --gradient_checkpointing \
   --with_tracking
