@@ -1,6 +1,6 @@
 #!/bin/bash
 NUM_GPUS=1
-BATCH_SIZE_PER_GPU=4
+BATCH_SIZE_PER_GPU=8
 TOTAL_BATCH_SIZE=16
 GRADIENT_ACC_STEPS=$(($TOTAL_BATCH_SIZE / $NUM_GPUS / $BATCH_SIZE_PER_GPU))
 echo "Training llama model using $NUM_GPUS GPUs, $BATCH_SIZE_PER_GPU batch size per GPU, $GRADIENT_ACC_STEPS gradient accumulation steps"
@@ -27,7 +27,7 @@ accelerate launch \
   --tokenizer_name google/gemma-2-2b-it \
   --use_slow_tokenizer \
   --train_file /home/ubuntu/v1.jsonl \
-  --max_seq_length 3072 \
+  --max_seq_length 2048 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
   --learning_rate 5e-5 \
