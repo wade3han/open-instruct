@@ -1047,6 +1047,9 @@ def main(args: FlatArguments):
                 if args.eval_steps and completed_steps % args.eval_steps == 0:
                     model.eval()
                     eval_loss = 0
+
+                    eval_progress_bar = tqdm(range(len(eval_dataloader)), disable=not accelerator.is_local_main_process)
+
                     for eval_step, eval_batch in enumerate(eval_dataloader):
                         with torch.no_grad():
                             if args.reduce_loss == "mean":
@@ -1064,6 +1067,8 @@ def main(args: FlatArguments):
                                 shift_labels = shift_labels.to(shift_logits.device)
                                 loss = loss_fct(shift_logits, shift_labels)
                                 eval_loss += loss.item()
+                        eval_progress_bar.update(1)
+                    eval_progress_bar.close()
                     eval_loss /= len(eval_dataloader)
                     logger.info(f"  Evaluation Loss: {eval_loss}")
                     if args.with_tracking:
