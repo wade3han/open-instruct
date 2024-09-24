@@ -37,4 +37,5 @@ accelerate launch \
   --eval_file /home/ubuntu/open-instruct-general/eval.jsonl \
   --eval_steps 100 \
   --logging_steps 25 \
+  --gradient_checkpointing \
   --with_tracking
