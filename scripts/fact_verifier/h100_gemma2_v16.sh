@@ -26,7 +26,7 @@ accelerate launch \
   --lora_dropout 0.05 \
   --tokenizer_name google/gemma-2-2b-it \
   --use_slow_tokenizer \
-  --train_file /home/ubuntu/v16.jsonl \
+  --train_file /home/ubuntu/v16_3epochs.jsonl \
   --max_seq_length 2048 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
@@ -34,7 +34,7 @@ accelerate launch \
   --lr_scheduler_type linear \
   --warmup_ratio 0.03 \
   --weight_decay 0. \
-  --num_train_epochs 1 \
+  --num_train_epochs 3 \
   --output_dir $name \
   --report_to wandb \
   --eval_file /home/ubuntu/open-instruct-general/eval.jsonl \
