@@ -1,7 +1,7 @@
 #!/bin/bash
-NUM_GPUS=1
+NUM_GPUS=4
 BATCH_SIZE_PER_GPU=1
-TOTAL_BATCH_SIZE=16
+TOTAL_BATCH_SIZE=128
 GRADIENT_ACC_STEPS=$(($TOTAL_BATCH_SIZE / $NUM_GPUS / $BATCH_SIZE_PER_GPU))
 echo "Training llama model using $NUM_GPUS GPUs, $BATCH_SIZE_PER_GPU batch size per GPU, $GRADIENT_ACC_STEPS gradient accumulation steps"
 # You can also set --gradient_checkpointing or use `stage3_offloading_accelerate.conf` to save memory,
@@ -23,7 +23,7 @@ accelerate launch \
   --tokenizer_name internlm/internlm2_5-7b-chat \
   --trust_remote_code \
   --use_slow_tokenizer \
-  --train_file /home/ubuntu/v4_minicheck.jsonl \
+  --train_file /home/ubuntu/v15_1_minicheck.jsonl \
   --max_seq_length 2048 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
@@ -31,7 +31,7 @@ accelerate launch \
   --lr_scheduler_type linear \
   --warmup_ratio 0.03 \
   --weight_decay 0. \
-  --num_train_epochs 1 \
+  --num_train_epochs 2 \
   --output_dir $name \
   --report_to wandb \
   --eval_file /home/ubuntu/open-instruct-general/eval.jsonl \
