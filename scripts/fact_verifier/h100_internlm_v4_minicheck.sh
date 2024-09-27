@@ -1,6 +1,6 @@
 #!/bin/bash
 NUM_GPUS=4
-BATCH_SIZE_PER_GPU=1
+BATCH_SIZE_PER_GPU=2
 TOTAL_BATCH_SIZE=128
 GRADIENT_ACC_STEPS=$(($TOTAL_BATCH_SIZE / $NUM_GPUS / $BATCH_SIZE_PER_GPU))
 echo "Training llama model using $NUM_GPUS GPUs, $BATCH_SIZE_PER_GPU batch size per GPU, $GRADIENT_ACC_STEPS gradient accumulation steps"
