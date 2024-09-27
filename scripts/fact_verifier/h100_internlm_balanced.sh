@@ -27,7 +27,7 @@ accelerate launch \
   --max_seq_length 2048 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
-  --learning_rate 5e-5 \
+  --learning_rate 1e-6 \
   --lr_scheduler_type linear \
   --warmup_ratio 0.03 \
   --weight_decay 0. \
@@ -35,7 +35,7 @@ accelerate launch \
   --output_dir $name \
   --report_to wandb \
   --eval_file /home/ubuntu/open-instruct-general/eval.jsonl \
-  --eval_steps 100 \
+  --eval_steps 1000 \
   --gradient_checkpointing \
   --logging_steps 25 \
   --with_tracking
