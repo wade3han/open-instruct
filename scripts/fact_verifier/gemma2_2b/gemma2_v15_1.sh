@@ -38,6 +38,6 @@ accelerate launch \
   --output_dir $name \
   --report_to wandb \
   --eval_file /home/ubuntu/open-instruct-general/eval.jsonl \
-  --eval_steps 100 \
-  --logging_steps 25 \
+  --eval_steps 40 \
+  --logging_steps 20 \
   --with_tracking
