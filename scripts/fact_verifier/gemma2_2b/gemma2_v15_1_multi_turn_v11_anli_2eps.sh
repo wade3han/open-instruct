@@ -1,6 +1,6 @@
 #!/bin/bash
 NUM_GPUS=1
-BATCH_SIZE_PER_GPU=4
+BATCH_SIZE_PER_GPU=2
 TOTAL_BATCH_SIZE=128
 GRADIENT_ACC_STEPS=$(($TOTAL_BATCH_SIZE / $NUM_GPUS / $BATCH_SIZE_PER_GPU))
 echo "Training llama model using $NUM_GPUS GPUs, $BATCH_SIZE_PER_GPU batch size per GPU, $GRADIENT_ACC_STEPS gradient accumulation steps"
@@ -8,7 +8,7 @@ echo "Training llama model using $NUM_GPUS GPUs, $BATCH_SIZE_PER_GPU batch size 
 # but it will trade off speed.
 # sweep learning rate from 2e-5 to 1e-6
 
-name=v15_1_harder2_anli_2eps
+name=v15_1_multi_turn_v11_anli_2eps
 accelerate launch \
   --mixed_precision bf16 \
   --num_machines 1 \
@@ -26,7 +26,7 @@ accelerate launch \
   --lora_dropout 0.05 \
   --tokenizer_name google/gemma-2-2b-it \
   --use_slow_tokenizer \
-  --train_file /home/ubuntu/v15_1_harder2.jsonl \
+  --train_file /home/ubuntu/v15_1_multi_turn_v11_anli_2eps.jsonl \
   --max_seq_length 2048 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
