@@ -1044,7 +1044,8 @@ def main(args: FlatArguments):
                     total_loss = 0
                     total_aux_loss = 0
 
-                if args.eval_steps and completed_steps % args.eval_steps == 0:
+                if args.eval_steps and (
+                        completed_steps % args.eval_steps == 0 or args.max_train_steps == completed_steps):
                     model.eval()
                     eval_loss = 0
 
