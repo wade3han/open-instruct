@@ -1116,7 +1116,7 @@ def main(args: FlatArguments):
 
     # remove all checkpoints to save space
     if accelerator.is_local_main_process:
-        clean_last_n_checkpoints(args.output_dir, keep_last_n_checkpoints=0)
+        clean_last_n_checkpoints(args.output_dir, keep_last_n_checkpoints=3)
 
     if is_beaker_job() and accelerator.is_main_process:
         # dpo script only supports these two options right now for datasets
