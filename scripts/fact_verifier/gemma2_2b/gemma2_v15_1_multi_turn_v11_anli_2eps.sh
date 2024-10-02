@@ -26,7 +26,7 @@ accelerate launch \
   --lora_dropout 0.05 \
   --tokenizer_name google/gemma-2-2b-it \
   --use_slow_tokenizer \
-  --train_file /home/ubuntu/v15_1_multi_turn_v11_anli_2eps.jsonl \
+  --train_file /home/ubuntu/v15_1_multi_turn_v11_anli.jsonl \
   --max_seq_length 2048 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
