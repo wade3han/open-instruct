@@ -1080,7 +1080,14 @@ def main(args: FlatArguments):
                         output_dir = f"step_{completed_steps}"
                         if args.output_dir is not None:
                             output_dir = os.path.join(args.output_dir, output_dir)
-                        accelerator.save_state(output_dir)
+                        # accelerator.save_state(output_dir)
+                        save_with_accelerate(
+                            accelerator,
+                            model,
+                            tokenizer,
+                            output_dir,
+                            args.use_lora,
+                        )
                         # use this to mark the checkpoint as completely saved, to avoid restoring from garbled checkpoints
                         with open(
                                 os.path.join(get_last_checkpoint_path(args, incomplete=True), "COMPLETED"), "w"
@@ -1097,7 +1104,14 @@ def main(args: FlatArguments):
             output_dir = f"epoch_{epoch}"
             if args.output_dir is not None:
                 output_dir = os.path.join(args.output_dir, output_dir)
-            accelerator.save_state(output_dir)
+            # accelerator.save_state(output_dir)
+            save_with_accelerate(
+                accelerator,
+                model,
+                tokenizer,
+                output_dir,
+                args.use_lora,
+            )
             # use this to mark the checkpoint as completely saved, to avoid restoring from garbled checkpoints
             with open(os.path.join(get_last_checkpoint_path(args, incomplete=True), "COMPLETED"), "w") as f:
                 f.write("COMPLETED")  # annoyingly, empty files arent uploaded by beaker.
