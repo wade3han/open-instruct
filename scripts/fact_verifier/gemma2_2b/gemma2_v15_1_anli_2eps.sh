@@ -8,7 +8,7 @@ echo "Training llama model using $NUM_GPUS GPUs, $BATCH_SIZE_PER_GPU batch size 
 # but it will trade off speed.
 # sweep learning rate from 2e-5 to 1e-6
 
-name=v15_1_anli
+name=v15_1_anli_2eps
 accelerate launch \
   --mixed_precision bf16 \
   --num_machines 1 \
@@ -37,6 +37,7 @@ accelerate launch \
   --num_train_epochs 2 \
   --output_dir $name \
   --report_to wandb \
+  --checkpointing_steps epoch \
   --eval_file /home/ubuntu/open-instruct-general/fact_verification_dev.jsonl \
   --eval_steps 40 \
   --logging_steps 10 \
