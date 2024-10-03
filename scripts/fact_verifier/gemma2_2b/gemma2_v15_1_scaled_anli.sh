@@ -34,10 +34,11 @@ accelerate launch \
   --lr_scheduler_type linear \
   --warmup_ratio 0.03 \
   --weight_decay 0. \
-  --num_train_epochs 2 \
+  --num_train_epochs 1 \
   --output_dir $name \
   --report_to wandb \
   --eval_file /home/ubuntu/open-instruct-general/fact_verification_dev.jsonl \
   --eval_steps 40 \
   --logging_steps 10 \
+  --checkpointing_steps epoch \
   --with_tracking
