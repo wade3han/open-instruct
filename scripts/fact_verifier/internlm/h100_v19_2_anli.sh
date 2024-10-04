@@ -8,7 +8,7 @@ echo "Training llama model using $NUM_GPUS GPUs, $BATCH_SIZE_PER_GPU batch size 
 # but it will trade off speed.
 # sweep learning rate from 2e-5 to 1e-6
 
-name=internlm_v19_2_anli_lr2e-6
+name=internlm_v19_2_anli_lr1e-6
 accelerate launch \
   --mixed_precision bf16 \
   --num_machines 1 \
@@ -27,7 +27,7 @@ accelerate launch \
   --max_seq_length 2048 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
-  --learning_rate 2e-6 \
+  --learning_rate 1e-6 \
   --lr_scheduler_type linear \
   --warmup_ratio 0.03 \
   --weight_decay 0. \
