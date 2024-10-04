@@ -225,7 +225,7 @@ class FlatArguments:
         metadata={"help": "Total number of training epochs to perform."},
     )
     output_dir: str = field(
-        default="output/",
+        default=None,
         metadata={"help": "The output directory where the model predictions and checkpoints will be written."},
     )
     per_device_train_batch_size: int = field(

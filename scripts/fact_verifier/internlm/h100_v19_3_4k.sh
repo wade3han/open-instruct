@@ -32,7 +32,6 @@ accelerate launch \
   --warmup_ratio 0.03 \
   --weight_decay 0. \
   --num_train_epochs 4 \
-  --output_dir $name \
   --report_to wandb \
   --eval_file /home/ubuntu/open-instruct-general/fact_verification_dev.jsonl \
   --eval_steps 40 \
