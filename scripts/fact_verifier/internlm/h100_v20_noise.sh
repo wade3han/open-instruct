@@ -8,7 +8,7 @@ echo "Training llama model using $NUM_GPUS GPUs, $BATCH_SIZE_PER_GPU batch size 
 # but it will trade off speed.
 # sweep learning rate from 2e-5 to 1e-6
 
-name=internlm_v20_lr1e-6_noise
+name=internlm_v20_noise_lr1e-6
 accelerate launch \
   --mixed_precision bf16 \
   --num_machines 1 \
@@ -23,7 +23,7 @@ accelerate launch \
   --tokenizer_name internlm/internlm2_5-7b-chat \
   --trust_remote_code \
   --use_slow_tokenizer \
-  --train_file /home/ubuntu/v20.jsonl \
+  --train_file /home/ubuntu/v20_noise.jsonl \
   --max_seq_length 2048 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
@@ -34,7 +34,6 @@ accelerate launch \
   --num_train_epochs 2 \
   --output_dir $name \
   --report_to wandb \
-  --reduce_loss sum \
   --eval_file /home/ubuntu/open-instruct-general/fact_verification_dev.jsonl \
   --eval_steps 40 \
   --gradient_checkpointing \
