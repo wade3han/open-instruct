@@ -987,8 +987,7 @@ def main(args: FlatArguments):
                     shift_logits = logits[..., :-1, :].contiguous()
                     shift_labels = labels[..., 1:].contiguous()
                     # Flatten the tokens
-                    # loss_fct = torch.nn.CrossEntropyLoss(reduction="sum")
-                    loss_fct = torch.nn.CrossEntropyLoss(reduction="sum", label_smoothing=0.1)
+                    loss_fct = torch.nn.CrossEntropyLoss(reduction="sum")
                     shift_logits = shift_logits.view(-1, embedding_size)
                     shift_labels = shift_labels.view(-1)
                     # Enable model parallelism

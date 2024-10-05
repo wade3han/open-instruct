@@ -34,7 +34,7 @@ accelerate launch \
   --lr_scheduler_type linear \
   --warmup_ratio 0.03 \
   --weight_decay 0. \
-  --num_train_epochs 2 \
+  --num_train_epochs 10 \
   --output_dir $name \
   --report_to wandb \
   --checkpointing_steps epoch \
