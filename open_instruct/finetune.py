@@ -987,7 +987,8 @@ def main(args: FlatArguments):
                     shift_logits = logits[..., :-1, :].contiguous()
                     shift_labels = labels[..., 1:].contiguous()
                     # Flatten the tokens
-                    loss_fct = torch.nn.CrossEntropyLoss(reduction="sum")
+                    # loss_fct = torch.nn.CrossEntropyLoss(reduction="sum")
+                    loss_fct = torch.nn.CrossEntropyLoss(reduction="sum", label_smoothing=0.1)
                     shift_logits = shift_logits.view(-1, embedding_size)
                     shift_labels = shift_labels.view(-1)
                     # Enable model parallelism
@@ -1053,21 +1054,8 @@ def main(args: FlatArguments):
 
                     for eval_step, eval_batch in enumerate(eval_dataloader):
                         with torch.no_grad():
-                            if args.reduce_loss == "mean":
-                                outputs = model(**eval_batch, use_cache=False)
-                                eval_loss += outputs.loss.item()
-                            else:
-                                outputs = model(**eval_batch, use_cache=False)
-                                logits = outputs.logits
-                                labels = eval_batch["labels"]
-                                shift_logits = logits[..., :-1, :].contiguous()
-                                shift_labels = labels[..., 1:].contiguous()
-                                shift_logits = shift_logits.view(-1, embedding_size)
-                                shift_labels = shift_labels.view(-1)
-                                loss_fct = torch.nn.CrossEntropyLoss(reduction="sum")
-                                shift_labels = shift_labels.to(shift_logits.device)
-                                loss = loss_fct(shift_logits, shift_labels)
-                                eval_loss += loss.item()
+                            outputs = model(**eval_batch, use_cache=False)
+                            eval_loss += outputs.loss.item()
                         eval_progress_bar.update(1)
                     eval_progress_bar.close()
                     eval_loss /= len(eval_dataloader)
