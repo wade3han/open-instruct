@@ -8,7 +8,7 @@ echo "Training llama model using $NUM_GPUS GPUs, $BATCH_SIZE_PER_GPU batch size 
 # but it will trade off speed.
 # sweep learning rate from 2e-5 to 1e-6
 
-name=internlm_v20_noise_lr1e-6
+name=internlm_v20_noise_sum_lr1e-6
 accelerate launch \
   --mixed_precision bf16 \
   --num_machines 1 \
@@ -36,6 +36,7 @@ accelerate launch \
   --report_to wandb \
   --eval_file /home/ubuntu/open-instruct-general/fact_verification_dev.jsonl \
   --eval_steps 40 \
+  --reduce_loss sum \
   --gradient_checkpointing \
   --logging_steps 10 \
   --with_tracking
