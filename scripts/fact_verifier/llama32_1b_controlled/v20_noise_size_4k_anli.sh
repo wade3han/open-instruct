@@ -13,7 +13,7 @@ accelerate launch \
   --mixed_precision bf16 \
   --num_machines 1 \
   --num_processes $NUM_GPUS \
-  --main_process_port 29503 \
+  --main_process_port 29501 \
   --use_deepspeed \
   --deepspeed_config_file configs/ds_configs/stage3_no_offloading_accelerate.conf \
   open_instruct/finetune.py \
