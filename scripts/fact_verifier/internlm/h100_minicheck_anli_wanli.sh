@@ -8,7 +8,7 @@ echo "Training llama model using $NUM_GPUS GPUs, $BATCH_SIZE_PER_GPU batch size 
 # but it will trade off speed.
 # sweep learning rate from 2e-5 to 1e-6
 
-name=internlm_minicheck_anli_lr5e-7_1epoch
+name=internlm_minicheck_anli_wanli_lr5e-7_1epoch
 accelerate launch \
   --mixed_precision bf16 \
   --num_machines 1 \
@@ -23,7 +23,7 @@ accelerate launch \
   --tokenizer_name internlm/internlm2_5-7b-chat \
   --trust_remote_code \
   --use_slow_tokenizer \
-  --train_file /home/ubuntu/minicheck_anli.jsonl \
+  --train_file /home/ubuntu/minicheck_anli_wanli.jsonl \
   --max_seq_length 2048 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
