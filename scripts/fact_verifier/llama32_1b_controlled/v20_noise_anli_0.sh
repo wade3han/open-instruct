@@ -27,7 +27,7 @@ accelerate launch \
   --lora_dropout 0.05 \
   --tokenizer_name meta-llama/Llama-3.2-1B-Instruct \
   --use_slow_tokenizer \
-  --train_file /home/ubuntu/v20_noise_anli_0.jsonl \
+  --train_file /home/ubuntu/v20_noise_anli_wanli_0.jsonl \
   --max_seq_length 2048 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
