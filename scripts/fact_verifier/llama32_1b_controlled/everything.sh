@@ -37,7 +37,6 @@ accelerate launch \
   --num_train_epochs 1 \
   --output_dir $name \
   --report_to wandb \
-  --checkpointing_steps epoch \
   --eval_file /home/ubuntu/open-instruct-general/fact_verification_dev.jsonl \
   --eval_steps 40 \
   --logging_steps 10 \
