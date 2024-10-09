@@ -13,7 +13,7 @@ accelerate launch \
   --mixed_precision bf16 \
   --num_machines 1 \
   --num_processes $NUM_GPUS \
-  --main_process_port 29500 \
+  --main_process_port 0 \
   --use_deepspeed \
   --deepspeed_config_file configs/ds_configs/stage3_no_offloading_accelerate.conf \
   open_instruct/finetune.py \
@@ -27,7 +27,7 @@ accelerate launch \
   --lora_dropout 0.05 \
   --tokenizer_name meta-llama/Llama-3.2-1B-Instruct \
   --use_slow_tokenizer \
-  --train_file /home/ubuntu/v20_anli_wanli_all_5.0.jsonl \
+  --train_file /home/ubuntu/v20_anli_wanli_all_10.0.jsonl \
   --max_seq_length 2048 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
