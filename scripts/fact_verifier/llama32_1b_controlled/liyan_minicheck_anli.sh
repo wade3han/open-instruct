@@ -8,12 +8,12 @@ echo "Training llama model using $NUM_GPUS GPUs, $BATCH_SIZE_PER_GPU batch size 
 # but it will trade off speed.
 # sweep learning rate from 2e-5 to 1e-6
 
-name=llama3_2_1B_minicheck_anli_liyan
+name=llama3_2_1B_minicheck_anli_liyan_2epoch
 accelerate launch \
   --mixed_precision bf16 \
   --num_machines 1 \
   --num_processes $NUM_GPUS \
-  --main_process_port 29501 \
+  --main_process_port 29511 \
   --use_deepspeed \
   --deepspeed_config_file configs/ds_configs/stage3_no_offloading_accelerate.conf \
   open_instruct/finetune.py \
@@ -35,7 +35,7 @@ accelerate launch \
   --lr_scheduler_type linear \
   --warmup_ratio 0.03 \
   --weight_decay 0. \
-  --num_train_epochs 1 \
+  --num_train_epochs 2 \
   --output_dir $name \
   --report_to wandb \
   --eval_file /home/ubuntu/open-instruct-general/fact_verification_dev.jsonl \
