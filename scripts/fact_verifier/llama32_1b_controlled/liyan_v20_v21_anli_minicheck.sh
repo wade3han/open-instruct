@@ -27,7 +27,7 @@ accelerate launch \
   --lora_dropout 0.05 \
   --tokenizer_name meta-llama/Llama-3.2-1B-Instruct \
   --use_slow_tokenizer \
-  --train_file /home/ubuntu/v21_v20_anli_minicheck_liyan.jsonl \
+  --train_file /home/ubuntu/v20_v21_anli_liyan_minicheck.jsonl \
   --max_seq_length 2048 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
