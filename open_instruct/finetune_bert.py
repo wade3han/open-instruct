@@ -89,6 +89,7 @@ def train(dataset_path: str):
             )
             loss = outputs.loss
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             training_step += 1
             optimizer.step()
             scheduler.step()
