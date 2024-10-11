@@ -75,6 +75,8 @@ def train(dataset_path: str):
 
     # Training loop
     training_step = 0
+    accumulated_loss = 0
+    loss_count = 0
     for epoch in range(epochs):
         model.train()
         loop = tqdm(train_loader, leave=True)
@@ -91,16 +93,21 @@ def train(dataset_path: str):
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             training_step += 1
+            loss_count += 1
+            accumulated_loss += loss.item()
             optimizer.step()
             scheduler.step()
 
             loop.set_description(f"Epoch {epoch + 1}")
-            loop.set_postfix(loss=loss.item())
+            loop.set_postfix(loss=accumulated_loss / loss_count)
 
             # log the loss to wandb
             if training_step % 100 == 0:
                 lr = optimizer.param_groups[0]["lr"]
-                wandb.log({"loss": loss.item(), "lr": lr}, step=training_step)
+                wandb.log({"loss": accumulated_loss / loss_count, "lr": lr}, step=training_step)
+                accumulated_loss = 0
+                loss_count = 0
+
 
     # Save the fine-tuned model and tokenizer
     output_dir = "./finetuned_roberta"
