@@ -24,7 +24,8 @@ def load_data(dataset_path: str) -> Dataset:
         # each item have statement, document, label.
         formatted_data.append(
             {
-                "text": f"{item['statement']}\n\n{item['document']}",
+                "statement": item["statement"],
+                "document": item["document"],
                 "label": item["label"],
             }
         )
@@ -36,18 +37,19 @@ def train(dataset_path: str):
     dataset = load_data(dataset_path)
 
     # Tokenization function
-    def tokenize_function(examples):
-        return tokenizer(
-            examples["text"], padding="max_length", truncation=True, max_length=512
-        )
+    def tokenize_function(example):
+        statement = example["statement"]
+        document = example["document"]
+        text = tokenizer.eos_token.join([statement, document])
+        return tokenizer(text, padding="max_length", truncation=True, max_length=512)
 
     # Tokenize the datasets
-    tokenized_dataset = dataset.map(tokenize_function, batched=True)
+    tokenized_dataset = dataset.map(tokenize_function)
 
     # Set the format for PyTorch
     tokenized_dataset.set_format(
         "torch", columns=["input_ids", "attention_mask", "label"]
-    )
+    )  # label 1 is SUPPORTED, label 0 is NOT_SUPPORTED
 
     # Create DataLoaders
     train_loader = DataLoader(tokenized_dataset, batch_size=8, shuffle=True)
@@ -95,7 +97,9 @@ def train(dataset_path: str):
             loop.set_postfix(loss=loss.item())
 
             # log the loss to wandb
-            wandb.log({"loss": loss.item()}, step=training_step)
+            if training_step % 100 == 0:
+                lr = optimizer.param_groups[0]["lr"]
+                wandb.log({"loss": loss.item(), "lr": lr}, step=training_step)
 
     # Save the fine-tuned model and tokenizer
     output_dir = "./finetuned_roberta"
