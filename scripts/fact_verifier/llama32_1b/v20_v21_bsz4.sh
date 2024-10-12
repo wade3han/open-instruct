@@ -39,6 +39,6 @@ accelerate launch \
   --output_dir $name \
   --report_to wandb \
   --eval_file /home/ubuntu/open-instruct-general/fact_verification_dev.jsonl \
-  --eval_steps 640 \
+  --eval_steps 10000 \
   --logging_steps 10 \
   --with_tracking
