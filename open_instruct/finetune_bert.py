@@ -74,8 +74,8 @@ def train(dataset_path: str):
     )
 
     # Create DataLoaders
-    train_loader = DataLoader(tokenized_train_dataset, batch_size=4, shuffle=True)
-    test_loader = DataLoader(tokenized_test_dataset, batch_size=4, shuffle=False)
+    train_loader = DataLoader(tokenized_train_dataset, batch_size=8, shuffle=True)
+    test_loader = DataLoader(tokenized_test_dataset, batch_size=8, shuffle=False)
 
     # Set up the optimizer and scheduler
     optimizer = torch.optim.AdamW(
@@ -101,9 +101,9 @@ def train(dataset_path: str):
     accumulated_loss = 0
     loss_count = 0
     for epoch in range(epochs):
-        model.train()
         loop = tqdm(train_loader, leave=True)
         for batch in loop:
+            model.train()
             optimizer.zero_grad()
             input_ids = batch["input_ids"].to(device)
             attention_mask = batch["attention_mask"].to(device)
