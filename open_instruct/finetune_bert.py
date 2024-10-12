@@ -1,4 +1,5 @@
 import json
+import random
 import fire
 import torch
 import wandb
@@ -14,15 +15,30 @@ model = RobertaForSequenceClassification.from_pretrained("roberta-large")
 
 
 # Load the IMDb dataset
-def load_data(dataset_path: str) -> Dataset:
+def load_data(dataset_path: str) -> tuple[Dataset, Dataset]:
     # dataset_path is jsonl file.
     with open(dataset_path, "r") as f:
         data = [json.loads(line) for line in f]
 
-    formatted_data = []
-    for item in data:
+    # split the data into train and test
+    random.seed(42)
+    random.shuffle(data)
+    train_data = data[:int(0.9 * len(data))]
+    test_data = data[int(0.9 * len(data)):]
+
+    formatted_train_data = []
+    formatted_test_data = []
+    for item in train_data:
         # each item have statement, document, label.
-        formatted_data.append(
+        formatted_train_data.append(
+            {
+                "statement": item["statement"],
+                "document": item["document"],
+                "label": item["label"],
+            }
+        )
+    for item in test_data:
+        formatted_test_data.append(
             {
                 "statement": item["statement"],
                 "document": item["document"],
@@ -30,11 +46,11 @@ def load_data(dataset_path: str) -> Dataset:
             }
         )
 
-    return Dataset.from_list(formatted_data)
+    return Dataset.from_list(formatted_train_data), Dataset.from_list(formatted_test_data)
 
 
 def train(dataset_path: str):
-    dataset = load_data(dataset_path)
+    train_dataset, test_dataset = load_data(dataset_path)
 
     # Tokenization function
     def tokenize_function(example):
@@ -44,15 +60,20 @@ def train(dataset_path: str):
         return tokenizer(text, padding="max_length", truncation=True, max_length=512)
 
     # Tokenize the datasets
-    tokenized_dataset = dataset.map(tokenize_function)
+    tokenized_train_dataset = train_dataset.map(tokenize_function)
+    tokenized_test_dataset = test_dataset.map(tokenize_function)
 
     # Set the format for PyTorch
-    tokenized_dataset.set_format(
+    tokenized_train_dataset.set_format(
         "torch", columns=["input_ids", "attention_mask", "label"]
     )  # label 1 is SUPPORTED, label 0 is NOT_SUPPORTED
+    tokenized_test_dataset.set_format(
+        "torch", columns=["input_ids", "attention_mask", "label"]
+    )
 
     # Create DataLoaders
-    train_loader = DataLoader(tokenized_dataset, batch_size=4, shuffle=True)
+    train_loader = DataLoader(tokenized_train_dataset, batch_size=4, shuffle=True)
+    test_loader = DataLoader(tokenized_test_dataset, batch_size=4, shuffle=False)
 
     # Set up the optimizer and scheduler
     optimizer = torch.optim.AdamW(
@@ -108,6 +129,29 @@ def train(dataset_path: str):
                 accumulated_loss = 0
                 loss_count = 0
 
+            if training_step % 1000 == 0:
+                # evaluate the model
+                model.eval()
+                accumulated_eval_loss = 0
+                eval_loss_count = 0
+                with torch.no_grad():
+                    for batch in test_loader:
+                        input_ids = batch["input_ids"].to(device)
+                        attention_mask = batch["attention_mask"].to(device)
+                        labels = batch["label"].to(device)
+                        outputs = model(
+                            input_ids=input_ids,
+                            attention_mask=attention_mask,
+                            labels=labels,
+                        )
+                        loss = outputs.loss
+                        accumulated_eval_loss += loss.item()
+                        eval_loss_count += 1
+
+                # log the loss to wandb
+                wandb.log({"eval_loss": accumulated_eval_loss / eval_loss_count}, step=training_step)
+                accumulated_eval_loss = 0
+                eval_loss_count = 0
 
     # Save the fine-tuned model and tokenizer
     output_dir = "./finetuned_roberta"
