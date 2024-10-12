@@ -110,6 +110,8 @@ def train(dataset_path: str):
             outputs = model(
                 input_ids=input_ids, attention_mask=attention_mask, labels=labels
             )
+            import ipdb;
+            ipdb.set_trace();
             loss = outputs.loss
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
