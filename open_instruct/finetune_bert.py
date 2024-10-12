@@ -23,8 +23,8 @@ def load_data(dataset_path: str) -> tuple[Dataset, Dataset]:
     # split the data into train and test
     random.seed(42)
     random.shuffle(data)
-    train_data = data[:int(0.9 * len(data))]
-    test_data = data[int(0.9 * len(data)):]
+    train_data = data[: int(0.9 * len(data))]
+    test_data = data[int(0.9 * len(data)) :]
 
     formatted_train_data = []
     formatted_test_data = []
@@ -46,11 +46,15 @@ def load_data(dataset_path: str) -> tuple[Dataset, Dataset]:
             }
         )
 
-    return Dataset.from_list(formatted_train_data), Dataset.from_list(formatted_test_data)
+    return Dataset.from_list(formatted_train_data), Dataset.from_list(
+        formatted_test_data
+    )
 
 
 def train(dataset_path: str):
     train_dataset, test_dataset = load_data(dataset_path)
+    import ipdb;
+    ipdb.set_trace();
 
     # Tokenization function
     def tokenize_function(example):
@@ -110,8 +114,9 @@ def train(dataset_path: str):
             outputs = model(
                 input_ids=input_ids, attention_mask=attention_mask, labels=labels
             )
-            import ipdb;
-            ipdb.set_trace();
+            import ipdb
+
+            ipdb.set_trace()
             loss = outputs.loss
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
@@ -127,7 +132,10 @@ def train(dataset_path: str):
             # log the loss to wandb
             if training_step % 100 == 0:
                 lr = optimizer.param_groups[0]["lr"]
-                wandb.log({"loss": accumulated_loss / loss_count, "lr": lr}, step=training_step)
+                wandb.log(
+                    {"loss": accumulated_loss / loss_count, "lr": lr},
+                    step=training_step,
+                )
                 accumulated_loss = 0
                 loss_count = 0
 
@@ -151,7 +159,10 @@ def train(dataset_path: str):
                         eval_loss_count += 1
 
                 # log the loss to wandb
-                wandb.log({"eval_loss": accumulated_eval_loss / eval_loss_count}, step=training_step)
+                wandb.log(
+                    {"eval_loss": accumulated_eval_loss / eval_loss_count},
+                    step=training_step,
+                )
                 accumulated_eval_loss = 0
                 eval_loss_count = 0
 
