@@ -77,8 +77,6 @@ def train(dataset_path: str):
     train_loader = DataLoader(tokenized_train_dataset, batch_size=4, shuffle=True)
     test_loader = DataLoader(tokenized_test_dataset, batch_size=4, shuffle=False)
 
-    import ipdb;
-    ipdb.set_trace();
     # Set up the optimizer and scheduler
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=1e-5
@@ -114,12 +112,9 @@ def train(dataset_path: str):
             outputs = model(
                 input_ids=input_ids, attention_mask=attention_mask, labels=labels
             )
-            import ipdb
-
-            ipdb.set_trace()
             loss = outputs.loss
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             training_step += 1
             loss_count += 1
             accumulated_loss += loss.item()
@@ -133,9 +128,11 @@ def train(dataset_path: str):
             if training_step % 100 == 0:
                 lr = optimizer.param_groups[0]["lr"]
                 wandb.log(
-                    {"loss": accumulated_loss / loss_count, "lr": lr},
+                    {"loss": accumulated_loss / loss_count, "lr": lr, "grad_norm": grad_norm},
                     step=training_step,
                 )
+                import ipdb
+                ipdb.set_trace();
                 accumulated_loss = 0
                 loss_count = 0
 
