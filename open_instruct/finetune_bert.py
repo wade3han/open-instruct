@@ -51,7 +51,7 @@ def load_data(dataset_path: str) -> tuple[Dataset, Dataset]:
     )
 
 
-def train(dataset_path: str):
+def train(dataset_path: str, model_name: str):
     train_dataset, test_dataset = load_data(dataset_path)
 
     # Tokenization function
@@ -93,7 +93,7 @@ def train(dataset_path: str):
     model.to(device)
 
     wandb.init(
-        project="fact_verifier_small", entity="seungjuhan3", name="roberta-large"
+        project="fact_verifier_small", entity="seungjuhan3", name=model_name
     )
 
     # Training loop
@@ -128,7 +128,11 @@ def train(dataset_path: str):
             if training_step % 100 == 0:
                 lr = optimizer.param_groups[0]["lr"]
                 wandb.log(
-                    {"loss": accumulated_loss / loss_count, "lr": lr, "grad_norm": grad_norm},
+                    {
+                        "loss": accumulated_loss / loss_count,
+                        "lr": lr,
+                        "grad_norm": grad_norm,
+                    },
                     step=training_step,
                 )
                 accumulated_loss = 0
@@ -162,7 +166,7 @@ def train(dataset_path: str):
                 eval_loss_count = 0
 
     # Save the fine-tuned model and tokenizer
-    output_dir = "./finetuned_roberta"
+    output_dir = f"./finetuned_roberta_{model_name}"
 
     model.save_pretrained(output_dir)
     tokenizer.save_pretrained(output_dir)
