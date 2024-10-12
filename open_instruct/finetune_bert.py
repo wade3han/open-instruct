@@ -131,8 +131,6 @@ def train(dataset_path: str):
                     {"loss": accumulated_loss / loss_count, "lr": lr, "grad_norm": grad_norm},
                     step=training_step,
                 )
-                import ipdb
-                ipdb.set_trace();
                 accumulated_loss = 0
                 loss_count = 0
 
