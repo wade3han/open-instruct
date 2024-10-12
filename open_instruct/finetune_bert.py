@@ -53,8 +53,6 @@ def load_data(dataset_path: str) -> tuple[Dataset, Dataset]:
 
 def train(dataset_path: str):
     train_dataset, test_dataset = load_data(dataset_path)
-    import ipdb;
-    ipdb.set_trace();
 
     # Tokenization function
     def tokenize_function(example):
@@ -79,6 +77,8 @@ def train(dataset_path: str):
     train_loader = DataLoader(tokenized_train_dataset, batch_size=4, shuffle=True)
     test_loader = DataLoader(tokenized_test_dataset, batch_size=4, shuffle=False)
 
+    import ipdb;
+    ipdb.set_trace();
     # Set up the optimizer and scheduler
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=1e-5
