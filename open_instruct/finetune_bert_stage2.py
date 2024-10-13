@@ -64,9 +64,6 @@ def train(dataset_path: str, model_name: str, model_path: str):
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=1e-5,
-        weight_decay=0.0,
-        betas=(0.9, 0.999),
-        eps=1e-8,
     )  # 1e-5 for the RoBERTa-large
     epochs = 1
     total_steps = len(train_loader) * epochs
