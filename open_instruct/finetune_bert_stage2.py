@@ -66,6 +66,7 @@ def train(dataset_path: str, model_name: str, model_path: str):
         model.parameters(),
         lr=1e-5,
     )  # 1e-5 for the RoBERTa-large
+    import ipdb; ipdb.set_trace();
 
     # load optimizer state
     if os.path.exists(f"{model_path}/optimizer.pt"):
@@ -82,7 +83,6 @@ def train(dataset_path: str, model_name: str, model_path: str):
     # Move model to device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
-    optimizer.to(device)
 
     wandb.init(
         project="fact_verifier_small", entity="seungjuhan3", name=model_name
