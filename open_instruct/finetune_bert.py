@@ -82,13 +82,14 @@ def train(dataset_path: str, model_name: str):
 
     # Set up the optimizer and scheduler
     optimizer = torch.optim.AdamW(
-        model.parameters(), lr=1e-5
-        # model.parameters(), lr=5e-5
+        # model.parameters(), lr=1e-5
+        model.parameters(), lr=5e-5
     )  # 1e-5 for the RoBERTa-large
     # 5e-5 for the Deberta-v3-large
     epochs = 2
     total_steps = len(train_loader) * epochs
-    num_warmup_steps = int(0.03 * total_steps)
+    # num_warmup_steps = int(0.03 * total_steps)
+    num_warmup_steps = int(0.06 * total_steps)
     scheduler = get_cosine_schedule_with_warmup(
         optimizer, num_warmup_steps=num_warmup_steps, num_training_steps=total_steps
     )
