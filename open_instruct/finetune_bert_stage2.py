@@ -58,7 +58,7 @@ def train(dataset_path: str, model_name: str, model_path: str):
     )  # label 1 is SUPPORTED, label 0 is NOT_SUPPORTED
 
     # Create DataLoaders
-    train_loader = DataLoader(tokenized_train_dataset, batch_size=4, shuffle=True)
+    train_loader = DataLoader(tokenized_train_dataset, batch_size=8, shuffle=True)
 
     # Set up the optimizer and scheduler
     optimizer = torch.optim.AdamW(
