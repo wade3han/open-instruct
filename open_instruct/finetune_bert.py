@@ -6,7 +6,8 @@ import wandb
 from torch.utils.data import DataLoader
 from transformers import get_linear_schedule_with_warmup
 from tqdm import tqdm
-from datasets import load_dataset, Dataset
+from accelerate.utils import set_seed
+from datasets import Dataset
 
 # Load the tokenizer and model
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
@@ -55,6 +56,7 @@ def load_data(dataset_path: str) -> tuple[Dataset, Dataset]:
 
 
 def train(dataset_path: str, model_name: str):
+    set_seed(42)
     train_dataset, test_dataset = load_data(dataset_path)
 
     # Tokenization function
