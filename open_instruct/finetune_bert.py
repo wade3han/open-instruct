@@ -56,7 +56,7 @@ def load_data(dataset_path: str) -> tuple[Dataset, Dataset]:
 
 
 def train(dataset_path: str, model_name: str):
-    set_seed(42)
+    set_seed(43)
     train_dataset, test_dataset = load_data(dataset_path)
 
     # Tokenization function
