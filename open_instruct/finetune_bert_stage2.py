@@ -66,10 +66,9 @@ def train(dataset_path: str, model_name: str, model_path: str):
         model.parameters(),
         lr=1e-5,
     )  # 1e-5 for the RoBERTa-large
-
     # load optimizer state
     if os.path.exists(f"{model_path}/optimizer.pt"):
-        state_dict = torch.load(f"{model_path}/optimizer.pt", map_location="cpu")
+        state_dict = torch.load(f"{model_path}/optimizer.pt", map_location="cpu", weights_only=True)
         optimizer.load_state_dict(state_dict)
         print(f"Optimizer state loaded from {model_path}/optimizer.pt")
     

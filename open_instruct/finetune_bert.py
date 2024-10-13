@@ -135,11 +135,6 @@ def train(dataset_path: str, model_name: str):
 
     # save optimizer state
     optimizer_state_dict = optimizer.state_dict()
-    # send the optimizer state to cpu
-    optimizer_state_dict["step"] = optimizer_state_dict["step"].to("cpu")
-    for key in optimizer_state_dict["state"]:
-        optimizer_state_dict["state"][key] = optimizer_state_dict["state"][key].to("cpu")
-        
     torch.save(optimizer_state_dict, f"{output_dir}/optimizer.pt")
     print(f"Optimizer state saved to {output_dir}/optimizer.pt")
 
