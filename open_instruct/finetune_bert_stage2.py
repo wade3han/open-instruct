@@ -47,7 +47,7 @@ def train(dataset_path: str, model_name: str, model_path: str):
         statement = example["statement"]
         document = example["document"]
         text = tokenizer.eos_token.join([document, statement])
-        return tokenizer(text, padding="max_length", truncation=True, max_length=2048)
+        return tokenizer(text, padding="max_length", truncation=True, max_length=512)
 
     # Tokenize the datasets
     tokenized_train_dataset = train_dataset.map(tokenize_function)
