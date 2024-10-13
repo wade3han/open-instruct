@@ -47,7 +47,7 @@ def train(dataset_path: str, model_name: str, model_path: str):
         statement = example["statement"]
         document = example["document"]
         text = tokenizer.eos_token.join([document, statement])
-        return tokenizer(text, padding="max_length", truncation=True, max_length=512)
+        return tokenizer(text, padding="max_length", truncation=True, max_length=2048)
 
     # Tokenize the datasets
     tokenized_train_dataset = train_dataset.map(tokenize_function)
@@ -62,7 +62,11 @@ def train(dataset_path: str, model_name: str, model_path: str):
 
     # Set up the optimizer and scheduler
     optimizer = torch.optim.AdamW(
-        model.parameters(), lr=1e-5
+        model.parameters(),
+        lr=1e-5,
+        weight_decay=0.0,
+        betas=(0.9, 0.999),
+        eps=1e-8,
     )  # 1e-5 for the RoBERTa-large
     epochs = 1
     total_steps = len(train_loader) * epochs
