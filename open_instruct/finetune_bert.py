@@ -3,15 +3,16 @@ import random
 import fire
 import torch
 import wandb
-from transformers import RobertaForSequenceClassification, RobertaTokenizer
 from torch.utils.data import DataLoader
 from transformers import get_linear_schedule_with_warmup
 from tqdm import tqdm
 from datasets import load_dataset, Dataset
 
 # Load the tokenizer and model
-tokenizer = RobertaTokenizer.from_pretrained("roberta-large")
-model = RobertaForSequenceClassification.from_pretrained("roberta-large")
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+
+tokenizer = AutoTokenizer.from_pretrained("microsoft/deberta-v3-large")
+model = AutoModelForSequenceClassification.from_pretrained("microsoft/deberta-v3-large")
 
 
 # Load the IMDb dataset
@@ -79,8 +80,10 @@ def train(dataset_path: str, model_name: str):
 
     # Set up the optimizer and scheduler
     optimizer = torch.optim.AdamW(
-        model.parameters(), lr=1e-5
+        # model.parameters(), lr=1e-5
+        model.parameters(), lr=5e-5
     )  # 1e-5 for the RoBERTa-large
+    # 5e-5 for the Deberta-v3-large
     epochs = 2
     total_steps = len(train_loader) * epochs
     num_warmup_steps = int(0.03 * total_steps)
@@ -166,7 +169,8 @@ def train(dataset_path: str, model_name: str):
                 eval_loss_count = 0
 
     # Save the fine-tuned model and tokenizer
-    output_dir = f"./finetuned_roberta_{model_name}"
+    output_dir = f"./finetuned_deberta_{model_name}"
+    # output_dir = f"./finetuned_roberta_{model_name}"
 
     model.save_pretrained(output_dir)
     tokenizer.save_pretrained(output_dir)

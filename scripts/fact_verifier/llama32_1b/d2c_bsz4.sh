@@ -20,12 +20,12 @@ accelerate launch \
   --wandb_entity seungjuhan3 \
   --wandb_project fact_verifier_controlled \
   --wandb_name $name \
-  --model_name_or_path /home/ubuntu/open-instruct-general/llama3_2_1B_anli_c2d_bsz4 \
+  --model_name_or_path /home/ubuntu/open-instruct-general/llama3_2_1B_anli_c2d_bsz4/merged \
   --use_lora \
   --lora_rank 64 \
   --lora_alpha 16 \
   --lora_dropout 0.05 \
-  --tokenizer_name /home/ubuntu/open-instruct-general/llama3_2_1B_anli_c2d_bsz4 \
+  --tokenizer_name /home/ubuntu/open-instruct-general/llama3_2_1B_anli_c2d_bsz4/merged \
   --use_slow_tokenizer \
   --train_file /home/ubuntu/d2c.jsonl \
   --max_seq_length 2048 \

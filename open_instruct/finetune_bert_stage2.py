@@ -3,7 +3,7 @@ import random
 import fire
 import torch
 import wandb
-from transformers import RobertaForSequenceClassification, RobertaTokenizer
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from torch.utils.data import DataLoader
 from transformers import get_linear_schedule_with_warmup
 from tqdm import tqdm
@@ -49,8 +49,8 @@ def load_data(dataset_path: str) -> tuple[Dataset, Dataset]:
 
 def train(dataset_path: str, model_name: str, model_path: str):
     # Load the tokenizer and model
-    tokenizer = RobertaTokenizer.from_pretrained(model_path)
-    model = RobertaForSequenceClassification.from_pretrained(model_path)
+    tokenizer = AutoTokenizer.from_pretrained(model_path)
+    model = AutoModelForSequenceClassification.from_pretrained(model_path)
 
     train_dataset, test_dataset = load_data(dataset_path)
 
