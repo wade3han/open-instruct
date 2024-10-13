@@ -25,8 +25,6 @@ def load_data(dataset_path: str) -> tuple[Dataset, Dataset]:
         data = [json.loads(line) for line in f]
 
     # split the data into train and test
-    random.seed(42)
-    random.shuffle(data)
     train_data = data[: int(0.9 * len(data))]
     test_data = data[int(0.9 * len(data)) :]
 
@@ -56,7 +54,7 @@ def load_data(dataset_path: str) -> tuple[Dataset, Dataset]:
 
 
 def train(dataset_path: str, model_name: str):
-    set_seed(43)
+    set_seed(44)
     train_dataset, test_dataset = load_data(dataset_path)
 
     # Tokenization function
