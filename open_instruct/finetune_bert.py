@@ -4,7 +4,7 @@ import fire
 import torch
 import wandb
 from torch.utils.data import DataLoader
-from transformers import get_linear_schedule_with_warmup
+from transformers import get_cosine_schedule_with_warmup
 from tqdm import tqdm
 from accelerate.utils import set_seed
 from datasets import Dataset
@@ -13,7 +13,7 @@ from datasets import Dataset
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
 tokenizer = AutoTokenizer.from_pretrained("microsoft/deberta-v3-large")
-model = AutoModelForSequenceClassification.from_pretrained("microsoft/deberta-v3-large")
+model = AutoModelForSequenceClassification.from_pretrained("microsoft/deberta-v3-large", num_labels=2)
 # tokenizer = AutoTokenizer.from_pretrained("roberta-large")
 # model = AutoModelForSequenceClassification.from_pretrained("roberta-large")
 
@@ -91,7 +91,7 @@ def train(dataset_path: str, model_name: str):
     epochs = 2
     total_steps = len(train_loader) * epochs
     num_warmup_steps = int(0.03 * total_steps)
-    scheduler = get_linear_schedule_with_warmup(
+    scheduler = get_cosine_schedule_with_warmup(
         optimizer, num_warmup_steps=num_warmup_steps, num_training_steps=total_steps
     )
 
