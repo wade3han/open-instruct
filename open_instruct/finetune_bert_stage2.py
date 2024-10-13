@@ -1,4 +1,5 @@
 import json
+import os
 import random
 import fire
 import torch
@@ -65,6 +66,12 @@ def train(dataset_path: str, model_name: str, model_path: str):
         model.parameters(),
         lr=1e-5,
     )  # 1e-5 for the RoBERTa-large
+
+    # load optimizer state
+    if os.path.exists(f"{model_path}/optimizer.pt"):
+        optimizer.load_state_dict(torch.load(f"{model_path}/optimizer.pt"))
+        print(f"Optimizer state loaded from {model_path}/optimizer.pt")
+    
     epochs = 1
     total_steps = len(train_loader) * epochs
     num_warmup_steps = int(0.03 * total_steps)
@@ -123,7 +130,7 @@ def train(dataset_path: str, model_name: str, model_path: str):
                 loss_count = 0
 
     # Save the fine-tuned model and tokenizer
-    output_dir = f"./finetuned_roberta_{model_name}"
+    output_dir = f"./finetuned_deberta_{model_name}"
 
     model.save_pretrained(output_dir)
     tokenizer.save_pretrained(output_dir)

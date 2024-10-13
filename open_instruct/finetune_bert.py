@@ -110,6 +110,7 @@ def train(dataset_path: str, model_name: str):
 
             loop.set_description(f"Epoch {epoch + 1}")
             loop.set_postfix(loss=accumulated_loss / loss_count)
+            break
 
             # log the loss to wandb
             if training_step % 100 == 0:
@@ -131,6 +132,10 @@ def train(dataset_path: str, model_name: str):
 
     model.save_pretrained(output_dir)
     tokenizer.save_pretrained(output_dir)
+
+    # save optimizer state
+    torch.save(optimizer.state_dict(), f"{output_dir}/optimizer.pt")
+    print(f"Optimizer state saved to {output_dir}/optimizer.pt")
 
     print(f"Model and tokenizer saved to {output_dir}")
 
