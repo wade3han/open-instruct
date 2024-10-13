@@ -12,10 +12,10 @@ from datasets import Dataset
 # Load the tokenizer and model
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
-# tokenizer = AutoTokenizer.from_pretrained("microsoft/deberta-v3-large")
-# model = AutoModelForSequenceClassification.from_pretrained("microsoft/deberta-v3-large")
-tokenizer = AutoTokenizer.from_pretrained("roberta-large")
-model = AutoModelForSequenceClassification.from_pretrained("roberta-large")
+tokenizer = AutoTokenizer.from_pretrained("microsoft/deberta-v3-large")
+model = AutoModelForSequenceClassification.from_pretrained("microsoft/deberta-v3-large")
+# tokenizer = AutoTokenizer.from_pretrained("roberta-large")
+# model = AutoModelForSequenceClassification.from_pretrained("roberta-large")
 
 
 # Load the IMDb dataset
@@ -84,8 +84,8 @@ def train(dataset_path: str, model_name: str):
 
     # Set up the optimizer and scheduler
     optimizer = torch.optim.AdamW(
-        model.parameters(), lr=1e-5
-        # model.parameters(), lr=5e-5
+        # model.parameters(), lr=1e-5
+        model.parameters(), lr=5e-5
     )  # 1e-5 for the RoBERTa-large
     # 5e-5 for the Deberta-v3-large
     epochs = 2
