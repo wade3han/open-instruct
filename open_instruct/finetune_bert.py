@@ -134,7 +134,8 @@ def train(dataset_path: str, model_name: str):
     tokenizer.save_pretrained(output_dir)
 
     # save optimizer state
-    torch.save(optimizer.state_dict(), f"{output_dir}/optimizer.pt")
+    optimizer_state_dict = optimizer.state_dict()
+    torch.save(optimizer_state_dict, f"{output_dir}/optimizer.pt")
     print(f"Optimizer state saved to {output_dir}/optimizer.pt")
 
     print(f"Model and tokenizer saved to {output_dir}")
