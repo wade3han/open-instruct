@@ -63,7 +63,7 @@ def train(dataset_path: str, model_name: str):
 
     # Set up the optimizer and scheduler
     optimizer = torch.optim.AdamW(
-        model.parameters(), lr=5e-5, weight_decay=0.0, betas=(0.9, 0.999), eps=1e-8
+        model.parameters(), lr=2e-5, weight_decay=0.0, betas=(0.9, 0.999), eps=1e-8
         # model.parameters(), lr=5e-5
     )  # 1e-5 for the RoBERTa-large
     # 5e-5 for the Deberta-v3-large
