@@ -11,8 +11,10 @@ from datasets import load_dataset, Dataset
 # Load the tokenizer and model
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
-tokenizer = AutoTokenizer.from_pretrained("microsoft/deberta-v3-large")
-model = AutoModelForSequenceClassification.from_pretrained("microsoft/deberta-v3-large")
+# tokenizer = AutoTokenizer.from_pretrained("microsoft/deberta-v3-large")
+# model = AutoModelForSequenceClassification.from_pretrained("microsoft/deberta-v3-large")
+tokenizer = AutoTokenizer.from_pretrained("roberta-large")
+model = AutoModelForSequenceClassification.from_pretrained("roberta-large")
 
 
 # Load the IMDb dataset
