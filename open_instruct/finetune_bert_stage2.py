@@ -83,6 +83,11 @@ def train(dataset_path: str, model_name: str, model_path: str):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
+    for state in optimizer.state.values():
+        for k, v in state.items():
+            if isinstance(v, torch.Tensor):
+                state[k] = v.to(device)
+
     wandb.init(
         project="fact_verifier_small", entity="seungjuhan3", name=model_name
     )
