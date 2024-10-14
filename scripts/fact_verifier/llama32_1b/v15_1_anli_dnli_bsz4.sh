@@ -14,7 +14,7 @@ accelerate launch \
   --num_machines 1 \
   --num_processes $NUM_GPUS \
   --use_deepspeed \
-  --main_process_port 29502 \
+  --main_process_port 29503 \
   --deepspeed_config_file configs/ds_configs/stage3_no_offloading_accelerate.conf \
   open_instruct/finetune.py \
   --wandb_entity seungjuhan3 \
