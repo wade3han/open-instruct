@@ -110,7 +110,6 @@ def train(dataset_path: str, model_name: str):
 
             loop.set_description(f"Epoch {epoch + 1}")
             loop.set_postfix(loss=accumulated_loss / loss_count)
-            break
 
             # log the loss to wandb
             if training_step % 100 == 0:
