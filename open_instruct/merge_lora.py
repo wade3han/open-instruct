@@ -110,15 +110,18 @@ if __name__ == "__main__":
             tokenizer = AutoTokenizer.from_pretrained(args.base_model_name_or_path, use_fast=args.use_fast_tokenizer)
 
     embedding_size = base_model.get_input_embeddings().weight.shape[0]
-    if len(tokenizer) > embedding_size:
-        print(
-            f"The vocabulary the tokenizer contains {len(tokenizer)-embedding_size} more tokens than the base model."
-        )
-        print("Resizing the token embeddings of the merged model...")
-        if args.pad_to_multiple_of > 0:
-            base_model.resize_token_embeddings(len(tokenizer), pad_to_multiple_of=args.pad_to_multiple_of)
-        else:
-            base_model.resize_token_embeddings(len(tokenizer))
+    if embedding_size == 128256:
+        base_model.resize_token_embeddings(128264)
+    else:
+        if len(tokenizer) > embedding_size:
+            print(
+                f"The vocabulary the tokenizer contains {len(tokenizer)-embedding_size} more tokens than the base model."
+            )
+            print("Resizing the token embeddings of the merged model...")
+            if args.pad_to_multiple_of > 0:
+                base_model.resize_token_embeddings(len(tokenizer), pad_to_multiple_of=args.pad_to_multiple_of)
+            else:
+                base_model.resize_token_embeddings(len(tokenizer))
 
     print("Loading the lora model...")
     lora_model = PeftModel.from_pretrained(base_model, args.lora_model_name_or_path)
