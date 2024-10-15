@@ -49,15 +49,23 @@ def train(
         from peft import LoraConfig, get_peft_model
 
         lora_config = LoraConfig(
-            r=8,
-            lora_alpha=32,
+            r=128,
+            task_type="SEQ_CLS",
+            lora_alpha=512,
             lora_dropout=0.1,
-            target_modules=["q_proj", "v_proj"],
+            target_modules=[
+                "query_proj",
+                "key_proj",
+                "value_proj",
+                "attention.output.dense",
+            ],  # for deberta-v3-large
+            modules_to_save=["classifier", "pooler"],
         )
         model = AutoModelForSequenceClassification.from_pretrained(
             "microsoft/deberta-v3-large", num_labels=2
         )
         model = get_peft_model(model, lora_config)
+        model.print_trainable_parameters()
     else:
         model = AutoModelForSequenceClassification.from_pretrained(
             "microsoft/deberta-v3-large", num_labels=2
