@@ -39,6 +39,7 @@ def train(
     model_name: str,
     lr: float = 1e-5,
     batch_size: int = 8,
+    num_epochs: int = 2,
     use_lora: bool = False,
 ):
     set_seed(42)
@@ -97,7 +98,7 @@ def train(
         lr=lr,
     )  # 1e-5 for the RoBERTa-large
     # 5e-5 for the Deberta-v3-large
-    epochs = 2
+    epochs = num_epochs
     total_steps = len(train_loader) * epochs
     num_warmup_steps = int(0.03 * total_steps)
     scheduler = get_cosine_schedule_with_warmup(
