@@ -35,11 +35,30 @@ def load_data(dataset_path: str) -> Dataset:
     return Dataset.from_list(formatted_train_data)
 
 
-def train(dataset_path: str, model_name: str, model_path: str):
+def train(
+    dataset_path: str,
+    model_name: str,
+    model_path: str,
+    lr: float = 1e-5,
+    batch_size: int = 8,
+    use_lora: bool = False,
+):
     set_seed(42)
     # Load the tokenizer and model
     tokenizer = AutoTokenizer.from_pretrained(model_path)
-    model = AutoModelForSequenceClassification.from_pretrained(model_path)
+    if use_lora:
+        from peft import LoraConfig, get_peft_model
+
+        lora_config = LoraConfig(
+            r=8,
+            lora_alpha=32,
+            lora_dropout=0.1,
+            target_modules=["q_proj", "v_proj"],
+        )
+        model = AutoModelForSequenceClassification.from_pretrained(model_path, num_labels=2)
+        model = get_peft_model(model, lora_config)
+    else:
+        model = AutoModelForSequenceClassification.from_pretrained(model_path, num_labels=2)
 
     train_dataset = load_data(dataset_path)
 
@@ -59,19 +78,23 @@ def train(dataset_path: str, model_name: str, model_path: str):
     )  # label 1 is SUPPORTED, label 0 is NOT_SUPPORTED
 
     # Create DataLoaders
-    train_loader = DataLoader(tokenized_train_dataset, batch_size=8, shuffle=True)
+    train_loader = DataLoader(
+        tokenized_train_dataset, batch_size=batch_size, shuffle=True
+    )
 
     # Set up the optimizer and scheduler
     optimizer = torch.optim.AdamW(
         model.parameters(),
-        lr=1e-5,
+        lr=lr,
     )  # 1e-5 for the RoBERTa-large
     # load optimizer state
-    # if os.path.exists(f"{model_path}/optimizer.pt"):
-    #     state_dict = torch.load(f"{model_path}/optimizer.pt", map_location="cpu", weights_only=True)
-    #     optimizer.load_state_dict(state_dict)
-    #     print(f"Optimizer state loaded from {model_path}/optimizer.pt")
-    
+    if os.path.exists(f"{model_path}/optimizer.pt"):
+        state_dict = torch.load(
+            f"{model_path}/optimizer.pt", map_location="cpu", weights_only=True
+        )
+        optimizer.load_state_dict(state_dict)
+        print(f"Optimizer state loaded from {model_path}/optimizer.pt")
+
     epochs = 1
     total_steps = len(train_loader) * epochs
     num_warmup_steps = int(0.03 * total_steps)
@@ -83,14 +106,13 @@ def train(dataset_path: str, model_name: str, model_path: str):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
-    # for state in optimizer.state.values():
-    #     for k, v in state.items():
-    #         if isinstance(v, torch.Tensor):
-    #             state[k] = v.to(device)
+    if os.path.exists(f"{model_path}/optimizer.pt"):
+        for state in optimizer.state.values():
+            for k, v in state.items():
+                if isinstance(v, torch.Tensor):
+                    state[k] = v.to(device)
 
-    wandb.init(
-        project="fact_verifier_small", entity="seungjuhan3", name=model_name
-    )
+    wandb.init(project="fact_verifier_small", entity="seungjuhan3", name=model_name)
 
     # Training loop
     training_step = 0

@@ -12,11 +12,6 @@ from datasets import Dataset
 # Load the tokenizer and model
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
-tokenizer = AutoTokenizer.from_pretrained("microsoft/deberta-v3-large")
-model = AutoModelForSequenceClassification.from_pretrained("microsoft/deberta-v3-large", num_labels=2)
-# tokenizer = AutoTokenizer.from_pretrained("roberta-large")
-# model = AutoModelForSequenceClassification.from_pretrained("roberta-large")
-
 
 # Load the IMDb dataset
 def load_data(dataset_path: str) -> Dataset:
@@ -39,9 +34,34 @@ def load_data(dataset_path: str) -> Dataset:
     return Dataset.from_list(formatted_train_data)
 
 
-def train(dataset_path: str, model_name: str):
+def train(
+    dataset_path: str,
+    model_name: str,
+    lr: float = 1e-5,
+    batch_size: int = 8,
+    use_lora: bool = False,
+):
     set_seed(42)
     train_dataset = load_data(dataset_path)
+
+    tokenizer = AutoTokenizer.from_pretrained("microsoft/deberta-v3-large")
+    if use_lora:
+        from peft import LoraConfig, get_peft_model
+
+        lora_config = LoraConfig(
+            r=8,
+            lora_alpha=32,
+            lora_dropout=0.1,
+            target_modules=["q_proj", "v_proj"],
+        )
+        model = AutoModelForSequenceClassification.from_pretrained(
+            "microsoft/deberta-v3-large", num_labels=2
+        )
+        model = get_peft_model(model, lora_config)
+    else:
+        model = AutoModelForSequenceClassification.from_pretrained(
+            "microsoft/deberta-v3-large", num_labels=2
+        )
 
     # Tokenization function
     def tokenize_function(example):
@@ -59,13 +79,14 @@ def train(dataset_path: str, model_name: str):
     )  # label 1 is SUPPORTED, label 0 is NOT_SUPPORTED
 
     # Create DataLoaders
-    train_loader = DataLoader(tokenized_train_dataset, batch_size=8, shuffle=True)
+    train_loader = DataLoader(
+        tokenized_train_dataset, batch_size=batch_size, shuffle=True
+    )
 
     # Set up the optimizer and scheduler
     optimizer = torch.optim.AdamW(
-        model.parameters(), lr=1e-5,
-        # model.parameters(), lr=2e-5, weight_decay=0.0, betas=(0.9, 0.999), eps=1e-8
-        # model.parameters(), lr=5e-5
+        model.parameters(),
+        lr=lr,
     )  # 1e-5 for the RoBERTa-large
     # 5e-5 for the Deberta-v3-large
     epochs = 2
@@ -79,9 +100,7 @@ def train(dataset_path: str, model_name: str):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
-    wandb.init(
-        project="fact_verifier_small", entity="seungjuhan3", name=model_name
-    )
+    wandb.init(project="fact_verifier_small", entity="seungjuhan3", name=model_name)
 
     # Training loop
     training_step = 0
@@ -127,15 +146,14 @@ def train(dataset_path: str, model_name: str):
 
     # Save the fine-tuned model and tokenizer
     output_dir = f"./finetuned_deberta_{model_name}"
-    # output_dir = f"./finetuned_roberta_{model_name}"
 
     model.save_pretrained(output_dir)
     tokenizer.save_pretrained(output_dir)
 
     # # save optimizer state
-    # optimizer_state_dict = optimizer.state_dict()
-    # torch.save(optimizer_state_dict, f"{output_dir}/optimizer.pt")
-    # print(f"Optimizer state saved to {output_dir}/optimizer.pt")
+    optimizer_state_dict = optimizer.state_dict()
+    torch.save(optimizer_state_dict, f"{output_dir}/optimizer.pt")
+    print(f"Optimizer state saved to {output_dir}/optimizer.pt")
 
     print(f"Model and tokenizer saved to {output_dir}")
 
