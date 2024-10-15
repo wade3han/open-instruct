@@ -41,6 +41,7 @@ def train(
     batch_size: int = 8,
     num_epochs: int = 2,
     use_lora: bool = False,
+    use_debug: bool = False,
 ):
     set_seed(42)
     train_dataset = load_data(dataset_path)
@@ -152,6 +153,9 @@ def train(
                 )
                 accumulated_loss = 0
                 loss_count = 0
+                
+            if use_debug:
+                break
 
     # Save the fine-tuned model and tokenizer
     output_dir = f"./finetuned_deberta_{model_name}"
@@ -163,6 +167,17 @@ def train(
     optimizer_state_dict = optimizer.state_dict()
     torch.save(optimizer_state_dict, f"{output_dir}/optimizer.pt")
     print(f"Optimizer state saved to {output_dir}/optimizer.pt")
+
+    # save the optimizer_idx_to_param_name.
+    param_id_name_dict = {id(p): n for n, p in model.named_parameters() if p.requires_grad}
+    optimizer_params = [p for p_group in optimizer.param_groups for p in p_group['params']]
+
+    optimizer_model_param_dict = {}
+    for idx, param in enumerate(optimizer_params):
+        optimizer_model_param_dict[idx] = param_id_name_dict[id(param)]
+
+    with open(f"{output_dir}/optimizer_map.json", "w") as f:
+        json.dump(optimizer_model_param_dict, f)
 
     print(f"Model and tokenizer saved to {output_dir}")
 
