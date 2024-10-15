@@ -23,7 +23,7 @@ accelerate launch \
   --tokenizer_name internlm/internlm2_5-7b-chat \
   --trust_remote_code \
   --use_slow_tokenizer \
-  --train_file /home/ubuntu/train_decompose_then_verify_v15_1.jsonl.jsonl \
+  --train_file /home/ubuntu/train_decompose_then_verify_v15_1.jsonl \
   --max_seq_length 2048 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
