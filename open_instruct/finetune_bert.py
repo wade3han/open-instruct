@@ -95,7 +95,7 @@ def train(
 
     # Set up the optimizer and scheduler
     optimizer = torch.optim.AdamW(
-        model.parameters(),
+        [p for p in model.parameters() if p.requires_grad],
         lr=lr,
     )  # 1e-5 for the RoBERTa-large
     # 5e-5 for the Deberta-v3-large
