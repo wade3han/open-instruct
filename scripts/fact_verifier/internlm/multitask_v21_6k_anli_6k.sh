@@ -8,7 +8,7 @@ echo "Training llama model using $NUM_GPUS GPUs, $BATCH_SIZE_PER_GPU batch size 
 # but it will trade off speed.
 # sweep learning rate from 2e-5 to 1e-6
 
-name=internlm_multitask_v21_6k_anli_3k_decompose_and_verify
+name=internlm_multitask_v21_6k_anli_6k_decompose_and_verify
 accelerate launch \
   --mixed_precision bf16 \
   --num_machines 1 \
@@ -23,7 +23,7 @@ accelerate launch \
   --tokenizer_name internlm/internlm2_5-7b-chat \
   --trust_remote_code \
   --use_slow_tokenizer \
-  --train_file /home/ubuntu/multitask_v21_anli_9k.jsonl \
+  --train_file /home/ubuntu/multitask_v21_anli_12k.jsonl \
   --max_seq_length 2048 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
