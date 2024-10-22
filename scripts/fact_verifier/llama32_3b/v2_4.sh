@@ -1,6 +1,6 @@
 #!/bin/bash
 NUM_GPUS=1
-BATCH_SIZE_PER_GPU=4
+BATCH_SIZE_PER_GPU=2
 TOTAL_BATCH_SIZE=4
 GRADIENT_ACC_STEPS=$(($TOTAL_BATCH_SIZE / $NUM_GPUS / $BATCH_SIZE_PER_GPU))
 echo "Training llama model using $NUM_GPUS GPUs, $BATCH_SIZE_PER_GPU batch size per GPU, $GRADIENT_ACC_STEPS gradient accumulation steps"
@@ -8,7 +8,7 @@ echo "Training llama model using $NUM_GPUS GPUs, $BATCH_SIZE_PER_GPU batch size 
 # but it will trade off speed.
 # sweep learning rate from 2e-5 to 1e-6
 
-name=llama3_2_1B_v2_4_2eps
+name=llama3_2_3B_v2_4_1ep
 accelerate launch \
   --mixed_precision bf16 \
   --num_machines 1 \
@@ -20,12 +20,12 @@ accelerate launch \
   --wandb_entity seungjuhan3 \
   --wandb_project fact_verifier_controlled \
   --wandb_name $name \
-  --model_name_or_path meta-llama/Llama-3.2-1B-Instruct \
+  --model_name_or_path meta-llama/Llama-3.2-3B-Instruct \
   --use_lora \
   --lora_rank 64 \
   --lora_alpha 16 \
   --lora_dropout 0.05 \
-  --tokenizer_name meta-llama/Llama-3.2-1B-Instruct \
+  --tokenizer_name meta-llama/Llama-3.2-3B-Instruct \
   --use_slow_tokenizer \
   --train_file /home/ubuntu/v2_4.jsonl \
   --max_seq_length 2048 \
@@ -35,7 +35,7 @@ accelerate launch \
   --lr_scheduler_type linear \
   --warmup_ratio 0.03 \
   --weight_decay 0. \
-  --num_train_epochs 2 \
+  --num_train_epochs 1 \
   --output_dir $name \
   --report_to wandb \
   --eval_file /home/ubuntu/open-instruct-general/fact_verification_dev.jsonl \
