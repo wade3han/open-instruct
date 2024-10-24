@@ -8,38 +8,37 @@ echo "Training llama model using $NUM_GPUS GPUs, $BATCH_SIZE_PER_GPU batch size 
 # but it will trade off speed.
 # sweep learning rate from 2e-5 to 1e-6
 
-name=llama3_2_1B_stage2_anli_liyan_c2d_bsz4_lr1e-4
+name=llama3_2_1B_v3_6_anli_liyan
 accelerate launch \
   --mixed_precision bf16 \
   --num_machines 1 \
   --num_processes $NUM_GPUS \
   --use_deepspeed \
-  --main_process_port 29500 \
+  --main_process_port 29505 \
   --deepspeed_config_file configs/ds_configs/stage3_no_offloading_accelerate.conf \
   open_instruct/finetune.py \
   --wandb_entity seungjuhan3 \
   --wandb_project fact_verifier_controlled \
   --wandb_name $name \
-  --model_name_or_path /home/ubuntu/open-instruct-general/llama3_2_1B_anli_liyan_c2d_bsz4/merged \
+  --model_name_or_path meta-llama/Llama-3.2-1B-Instruct \
   --use_lora \
   --lora_rank 64 \
   --lora_alpha 16 \
   --lora_dropout 0.05 \
-  --tokenizer_name /home/ubuntu/open-instruct-general/llama3_2_1B_anli_liyan_c2d_bsz4/merged \
+  --tokenizer_name meta-llama/Llama-3.2-1B-Instruct \
   --use_slow_tokenizer \
-  --train_file /home/ubuntu/d2c.jsonl \
+  --train_file /home/ubuntu/v3_6_anli_liyan.jsonl \
   --max_seq_length 2048 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
-  --learning_rate 1e-4 \
+  --learning_rate 5e-5 \
   --lr_scheduler_type linear \
   --warmup_ratio 0.03 \
   --weight_decay 0. \
-  --num_train_epochs 2 \
+  --num_train_epochs 1 \
   --output_dir $name \
   --report_to wandb \
   --eval_file /home/ubuntu/open-instruct-general/fact_verification_dev.jsonl \
   --eval_steps 10000 \
-  --checkpointing_steps epoch \
   --logging_steps 10 \
   --with_tracking
