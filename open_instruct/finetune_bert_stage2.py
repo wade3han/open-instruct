@@ -12,27 +12,25 @@ from accelerate.utils import set_seed
 from datasets import Dataset
 
 
-# Load the IMDb dataset
 def load_data(dataset_path: str) -> Dataset:
     # dataset_path is jsonl file.
     with open(dataset_path, "r") as f:
         data = [json.loads(line) for line in f]
 
-    # split the data into train and test
-    train_data = data
-
     formatted_train_data = []
-    for item in train_data:
+    for item in data:
+        document = "\n".join(item["reference_documents"])
         # each item have statement, document, label.
         formatted_train_data.append(
             {
                 "statement": item["statement"],
-                "document": item["document"],
-                "label": item["label"],
+                "document": document,
+                "label": 1 if item["label"] == "S" else 0,
             }
         )
 
     return Dataset.from_list(formatted_train_data)
+
 
 
 def train(
