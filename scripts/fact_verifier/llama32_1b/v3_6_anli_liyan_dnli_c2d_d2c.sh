@@ -8,7 +8,7 @@ echo "Training llama model using $NUM_GPUS GPUs, $BATCH_SIZE_PER_GPU batch size 
 # but it will trade off speed.
 # sweep learning rate from 2e-5 to 1e-6
 
-name=llama3_2_1B_v3_6_anli_liyan_dnli_c2d_d2c
+name=llama3_2_1B_v3_6_anli_liyan_dnli_c2d_d2c_2eps
 accelerate launch \
   --mixed_precision bf16 \
   --num_machines 1 \
@@ -35,7 +35,7 @@ accelerate launch \
   --lr_scheduler_type linear \
   --warmup_ratio 0.03 \
   --weight_decay 0. \
-  --num_train_epochs 1 \
+  --num_train_epochs 2 \
   --output_dir $name \
   --report_to wandb \
   --eval_file /home/ubuntu/open-instruct-general/fact_verification_dev.jsonl \
