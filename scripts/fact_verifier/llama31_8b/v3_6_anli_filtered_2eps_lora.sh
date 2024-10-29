@@ -1,14 +1,14 @@
 #!/bin/bash
 NUM_GPUS=1
 BATCH_SIZE_PER_GPU=4
-TOTAL_BATCH_SIZE=16
+TOTAL_BATCH_SIZE=4
 GRADIENT_ACC_STEPS=$(($TOTAL_BATCH_SIZE / $NUM_GPUS / $BATCH_SIZE_PER_GPU))
 echo "Training llama model using $NUM_GPUS GPUs, $BATCH_SIZE_PER_GPU batch size per GPU, $GRADIENT_ACC_STEPS gradient accumulation steps"
 # You can also set --gradient_checkpointing or use `stage3_offloading_accelerate.conf` to save memory,
 # but it will trade off speed.
 # sweep learning rate from 2e-5 to 1e-6
 
-name=llama3_1_8B_v3_6_anli_filtered_2eps
+name=llama3_1_8B_v3_6_anli_filtered_2eps_lora_bsz4
 accelerate launch \
   --mixed_precision bf16 \
   --num_machines 1 \
@@ -41,5 +41,6 @@ accelerate launch \
   --eval_file /home/ubuntu/open-instruct-general/fact_verification_dev.jsonl \
   --eval_steps 10000 \
   --checkpointing_steps epoch \
+  --gradient_checkpointing \
   --logging_steps 10 \
   --with_tracking
