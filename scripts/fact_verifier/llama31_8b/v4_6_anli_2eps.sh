@@ -8,7 +8,7 @@ echo "Training llama model using $NUM_GPUS GPUs, $BATCH_SIZE_PER_GPU batch size 
 # but it will trade off speed.
 # sweep learning rate from 2e-5 to 1e-6
 
-name=llama3_1_8B_v3_6_anli_filtered_2eps
+name=llama3_1_8B_v4_6_anli_2eps
 accelerate launch \
   --mixed_precision bf16 \
   --num_machines 1 \
@@ -23,7 +23,7 @@ accelerate launch \
   --model_name_or_path meta-llama/Llama-3.1-8B-Instruct \
   --tokenizer_name meta-llama/Llama-3.1-8B-Instruct \
   --use_slow_tokenizer \
-  --train_file /home/ubuntu/v3_6-anli-filtered.jsonl \
+  --train_file /home/ubuntu/v4_6-anli.jsonl \
   --max_seq_length 2048 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
