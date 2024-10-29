@@ -41,6 +41,5 @@ accelerate launch \
   --eval_file /home/ubuntu/open-instruct-general/fact_verification_dev.jsonl \
   --eval_steps 10000 \
   --checkpointing_steps epoch \
-  --gradient_checkpointing \
   --logging_steps 10 \
   --with_tracking
