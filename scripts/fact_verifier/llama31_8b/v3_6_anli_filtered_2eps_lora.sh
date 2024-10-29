@@ -28,7 +28,7 @@ accelerate launch \
   --lora_alpha 16 \
   --lora_dropout 0.05 \
   --train_file /home/ubuntu/v3_6-anli-filtered.jsonl \
-  --max_seq_length 2048 \
+  --max_seq_length 1024 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
   --learning_rate 1e-6 \
