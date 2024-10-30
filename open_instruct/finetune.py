@@ -739,13 +739,17 @@ def main(args: FlatArguments):
             model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=args.gradient_checkpointing)
 
         logger.info("Initializing LORA model...")
+        if args.model_name_or_path == "internlm/internlm2_5-7b-chat":
+            target_modules = ["wqkv", "wo", "w1", "w2", "w3"]
+        else:
+            target_modules = ["q_proj", "o_proj", "v_proj", "k_proj", "gate_proj", "up_proj", "down_proj"]
         peft_config = LoraConfig(
             task_type=TaskType.CAUSAL_LM,
             inference_mode=False,
             r=args.lora_rank,
             lora_alpha=args.lora_alpha,
             lora_dropout=args.lora_dropout,
-            target_modules=["q_proj", "o_proj", "v_proj", "k_proj", "gate_proj", "up_proj", "down_proj"],
+            target_modules=target_modules,
         )
         model = get_peft_model(model, peft_config)
         model.print_trainable_parameters()
