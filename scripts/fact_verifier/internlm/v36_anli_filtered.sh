@@ -23,6 +23,7 @@ accelerate launch \
   --model_name_or_path internlm/internlm2_5-7b-chat \
   --tokenizer_name internlm/internlm2_5-7b-chat \
   --use_slow_tokenizer \
+  --trust_remote_code \
   --use_lora \
   --lora_rank 64 \
   --lora_alpha 16 \
