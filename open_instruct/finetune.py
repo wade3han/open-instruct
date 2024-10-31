@@ -741,6 +741,8 @@ def main(args: FlatArguments):
         logger.info("Initializing LORA model...")
         if args.model_name_or_path == "internlm/internlm2_5-7b-chat" or args.model_name_or_path == "/home/ubuntu/open-instruct-general/internlm_7B_v3_6_anli_filtered_2eps/temp":
             target_modules = ["wqkv", "wo", "w1", "w2", "w3"]
+        elif args.model_name_or_path == "microsoft/Phi-3-medium-4k-instruct":
+            target_modules = ["o_proj", "qkv_proj", "gate_up_proj", "down_proj"]
         else:
             target_modules = ["q_proj", "o_proj", "v_proj", "k_proj", "gate_proj", "up_proj", "down_proj"]
         peft_config = LoraConfig(
