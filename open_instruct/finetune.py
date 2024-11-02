@@ -561,6 +561,8 @@ def main(args: FlatArguments):
         dataset_args = {}
         if args.train_file is not None:
             data_files["train"] = args.train_file
+        if "," in data_files["train"]:
+            data_files["train"] = data_files["train"].split(",")
         raw_datasets = load_dataset(
             "json",
             data_files=data_files,
