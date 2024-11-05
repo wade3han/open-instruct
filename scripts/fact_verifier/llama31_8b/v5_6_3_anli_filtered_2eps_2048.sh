@@ -1,6 +1,6 @@
 #!/bin/bash
 NUM_GPUS=1
-BATCH_SIZE_PER_GPU=4
+BATCH_SIZE_PER_GPU=2
 TOTAL_BATCH_SIZE=4
 GRADIENT_ACC_STEPS=$(($TOTAL_BATCH_SIZE / $NUM_GPUS / $BATCH_SIZE_PER_GPU))
 echo "Training llama model using $NUM_GPUS GPUs, $BATCH_SIZE_PER_GPU batch size per GPU, $GRADIENT_ACC_STEPS gradient accumulation steps"
@@ -8,7 +8,7 @@ echo "Training llama model using $NUM_GPUS GPUs, $BATCH_SIZE_PER_GPU batch size 
 # but it will trade off speed.
 # sweep learning rate from 2e-5 to 1e-6
 
-name=llama32_1B_v5_1_anli_2eps_2048
+name=llama3_1_8B_v5_6_3_anli_filtered_2eps_2048
 accelerate launch \
   --mixed_precision bf16 \
   --num_machines 1 \
@@ -20,14 +20,14 @@ accelerate launch \
   --wandb_entity seungjuhan3 \
   --wandb_project fact_verifier_controlled \
   --wandb_name $name \
-  --model_name_or_path meta-llama/Llama-3.2-1B-Instruct \
-  --tokenizer_name meta-llama/Llama-3.2-1B-Instruct \
+  --model_name_or_path meta-llama/Llama-3.1-8B-Instruct \
+  --tokenizer_name meta-llama/Llama-3.1-8B-Instruct \
   --use_slow_tokenizer \
   --use_lora \
   --lora_rank 64 \
   --lora_alpha 16 \
   --lora_dropout 0.05 \
-  --train_file /home/ubuntu/scalable-factuality/train/train/v5_1-anli.jsonl \
+  --train_file /home/ubuntu/v5_6_3-anli-filtered.jsonl \
   --max_seq_length 2048 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
