@@ -27,7 +27,7 @@ accelerate launch \
   --lora_rank 64 \
   --lora_alpha 16 \
   --lora_dropout 0.05 \
-  --train_file /home/ubuntu/scalable-factuality/train/train/size_cont_v0_1_0_32000-size_anli_full_2000.jsonl \
+  --train_file /home/ubuntu/scalable-factuality/train/train/size_cont_v0_1_0_32000-size_anli_64k_2000.jsonl \
   --max_seq_length 2048 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
