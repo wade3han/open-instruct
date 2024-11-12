@@ -8,7 +8,7 @@ echo "Training llama model using $NUM_GPUS GPUs, $BATCH_SIZE_PER_GPU batch size 
 # but it will trade off speed.
 # sweep learning rate from 2e-5 to 1e-6
 
-name=llama32_1B_nohard_cont_v0_1_2_8k_anli_2eps_2048
+name=llama32_1B_nohard_cont_v0_1_2_8k_anli_8k_2eps_2048
 accelerate launch \
   --mixed_precision bf16 \
   --num_machines 1 \
@@ -27,7 +27,7 @@ accelerate launch \
   --lora_rank 64 \
   --lora_alpha 16 \
   --lora_dropout 0.05 \
-  --train_file /home/ubuntu/scalable-factuality/train/train/size_nohard_cont_v0_1_2_8000-anli.jsonl \
+  --train_file /home/ubuntu/scalable-factuality/train/train/size_nohard_cont_v0_1_2_8000-size_anli_64k_8000.jsonl \
   --max_seq_length 2048 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
