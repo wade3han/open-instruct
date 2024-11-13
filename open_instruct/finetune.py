@@ -1093,8 +1093,7 @@ def main(args: FlatArguments):
                             clean_last_n_checkpoints(args.output_dir, args.keep_last_n_checkpoints)
                         accelerator.wait_for_everyone()
 
-                # if completed_steps >= args.max_train_steps:
-                if completed_steps >= 10:
+                if completed_steps >= args.max_train_steps:
                     break
 
         if checkpointing_steps == "epoch":
