@@ -1093,7 +1093,8 @@ def main(args: FlatArguments):
                             clean_last_n_checkpoints(args.output_dir, args.keep_last_n_checkpoints)
                         accelerator.wait_for_everyone()
 
-                if completed_steps >= args.max_train_steps:
+                # if completed_steps >= args.max_train_steps:
+                if completed_steps >= 10:
                     break
 
         if checkpointing_steps == "epoch":
@@ -1182,20 +1183,23 @@ def main(args: FlatArguments):
             print(f"Submit jobs after model training is finished - Stderr:\n{stderr.decode()}")
             print(f"Submit jobs after model training is finished - process return code: {process.returncode}")
 
-    optimizer_state_dict = optimizer.state_dict()
-    torch.save(optimizer_state_dict, f"{args.output_dir}/optimizer.pt")
-    print(f"Optimizer state saved to {args.output_dir}/optimizer.pt")
+    if not args.use_deepspeed:
+        optimizer_state_dict = optimizer.state_dict()
+        torch.save(optimizer_state_dict, f"{args.output_dir}/optimizer.pt")
+        print(f"Optimizer state saved to {args.output_dir}/optimizer.pt")
 
-    # save the optimizer_idx_to_param_name.
-    param_id_name_dict = {id(p): n for n, p in model.named_parameters() if p.requires_grad}
-    optimizer_params = [p for p_group in optimizer.param_groups for p in p_group['params']]
+        # save the optimizer_idx_to_param_name.
+        import ipdb;
+        ipdb.set_trace();
+        param_id_name_dict = {id(p): n for n, p in model.named_parameters() if p.requires_grad}
+        optimizer_params = [p for p_group in optimizer.param_groups for p in p_group['params']]
 
-    optimizer_model_param_dict = {}
-    for idx, param in enumerate(optimizer_params):
-        optimizer_model_param_dict[idx] = param_id_name_dict[id(param)]
+        optimizer_model_param_dict = {}
+        for idx, param in enumerate(optimizer_params):
+            optimizer_model_param_dict[idx] = param_id_name_dict[id(param)]
 
-    with open(f"{args.output_dir}/optimizer_map.json", "w") as f:
-        json.dump(optimizer_model_param_dict, f)
+        with open(f"{args.output_dir}/optimizer_map.json", "w") as f:
+            json.dump(optimizer_model_param_dict, f)
 
     print(f"Model and tokenizer saved to {args.output_dir}")
 
