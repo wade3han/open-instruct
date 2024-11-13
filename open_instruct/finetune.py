@@ -1194,10 +1194,10 @@ def main(args: FlatArguments):
     for idx, param in enumerate(optimizer_params):
         optimizer_model_param_dict[idx] = param_id_name_dict[id(param)]
 
-    with open(f"{output_dir}/optimizer_map.json", "w") as f:
+    with open(f"{args.output_dir}/optimizer_map.json", "w") as f:
         json.dump(optimizer_model_param_dict, f)
 
-    print(f"Model and tokenizer saved to {output_dir}")
+    print(f"Model and tokenizer saved to {args.output_dir}")
 
     if args.push_to_hub:
         push_folder_to_hub(
