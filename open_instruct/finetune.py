@@ -1182,6 +1182,10 @@ def main(args: FlatArguments):
             print(f"Submit jobs after model training is finished - Stderr:\n{stderr.decode()}")
             print(f"Submit jobs after model training is finished - process return code: {process.returncode}")
 
+    optimizer_state_dict = optimizer.state_dict()
+    torch.save(optimizer_state_dict, f"{args.output_dir}/optimizer.pt")
+    print(f"Optimizer state saved to {args.output_dir}/optimizer.pt")
+
     if args.push_to_hub:
         push_folder_to_hub(
             accelerator,
