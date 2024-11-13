@@ -1188,8 +1188,6 @@ def main(args: FlatArguments):
     print(f"Optimizer state saved to {args.output_dir}/optimizer.pt")
 
     # save the optimizer_idx_to_param_name.
-    import ipdb;
-    ipdb.set_trace();
     param_id_name_dict = {id(p): n for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)}
     optimizer_params = [p for p_group in optimizer.param_groups for p in p_group['params']]
 
