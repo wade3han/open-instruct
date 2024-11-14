@@ -27,7 +27,7 @@ accelerate launch \
   --lora_rank 64 \
   --lora_alpha 16 \
   --lora_dropout 0.05 \
-  --train_file /home/ubuntu/scalable-factuality/train/train/train_cot/final_reasoning_path_cont_v3_0_1-final_reasoning_path_anli.jsonl \
+  --train_file /home/ubuntu/scalable-factuality/train/train_cot/final_reasoning_path_cont_v3_0_1-final_reasoning_path_anli.jsonl \
   --max_seq_length 2048 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
