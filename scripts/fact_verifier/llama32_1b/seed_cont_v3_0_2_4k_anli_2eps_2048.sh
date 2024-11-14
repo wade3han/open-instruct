@@ -28,7 +28,7 @@ accelerate launch \
   --lora_rank 64 \
   --lora_alpha 16 \
   --lora_dropout 0.05 \
-  --train_file /home/ubuntu/scalable-factuality/train/train/size_cont_v3_0_2_8000-size_anli_64k_8000.jsonl \
+  --train_file /home/ubuntu/scalable-factuality/train/train/size_cont_v3_0_2_4000-size_anli_64k_8000.jsonl \
   --max_seq_length 2048 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
@@ -64,7 +64,7 @@ accelerate launch \
   --lora_rank 64 \
   --lora_alpha 16 \
   --lora_dropout 0.05 \
-  --train_file /home/ubuntu/scalable-factuality/train/train/size_cont_v3_0_2_8000-size_anli_64k_8000.jsonl \
+  --train_file /home/ubuntu/scalable-factuality/train/train/size_cont_v3_0_2_4000-size_anli_64k_8000.jsonl \
   --max_seq_length 2048 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
@@ -100,7 +100,7 @@ accelerate launch \
   --lora_rank 64 \
   --lora_alpha 16 \
   --lora_dropout 0.05 \
-  --train_file /home/ubuntu/scalable-factuality/train/train/size_cont_v3_0_2_8000-size_anli_64k_8000.jsonl \
+  --train_file /home/ubuntu/scalable-factuality/train/train/size_cont_v3_0_2_4000-size_anli_64k_8000.jsonl \
   --max_seq_length 2048 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
