@@ -14,7 +14,7 @@ accelerate launch \
   --num_machines 1 \
   --num_processes $NUM_GPUS \
   --use_deepspeed \
-  --main_process_port 29499 \
+  --main_process_port 29508 \
   --deepspeed_config_file configs/ds_configs/stage3_no_offloading_accelerate.conf \
   open_instruct/finetune.py \
   --wandb_entity seungjuhan3 \
@@ -35,7 +35,7 @@ accelerate launch \
   --lr_scheduler_type linear \
   --warmup_ratio 0.03 \
   --weight_decay 0. \
-  --num_train_epochs 10 \
+  --num_train_epochs 2 \
   --output_dir $name \
   --report_to wandb \
   --eval_file /home/ubuntu/open-instruct-general/fact_verification_dev.jsonl \
