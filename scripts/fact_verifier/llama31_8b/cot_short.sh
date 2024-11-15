@@ -8,13 +8,13 @@ echo "Training llama model using $NUM_GPUS GPUs, $BATCH_SIZE_PER_GPU batch size 
 # but it will trade off speed.
 # sweep learning rate from 2e-5 to 1e-6
 
-name=llama3_1_8B_cot_16_4k_short_4eps
+name=llama3_1_8B_cot_short_16k_2eps
 accelerate launch \
   --mixed_precision bf16 \
   --num_machines 1 \
   --num_processes $NUM_GPUS \
   --use_deepspeed \
-  --main_process_port 29508 \
+  --main_process_port 29499 \
   --deepspeed_config_file configs/ds_configs/stage3_no_offloading_accelerate.conf \
   open_instruct/finetune.py \
   --wandb_entity seungjuhan3 \
@@ -27,7 +27,7 @@ accelerate launch \
   --lora_rank 64 \
   --lora_alpha 16 \
   --lora_dropout 0.05 \
-  --train_file /home/ubuntu/scalable-factuality/train/train_cot/final_short_reasoning_path_cont_v3_0_1-final_short_reasoning_path_anli.jsonl \
+  --train_file /home/ubuntu/scalable-factuality/train/train_cot/size_final_short_reasoning_path_cont_v3_0_1_8000-size_final_short_reasoning_path_anli_8000.jsonl \
   --max_seq_length 2048 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
