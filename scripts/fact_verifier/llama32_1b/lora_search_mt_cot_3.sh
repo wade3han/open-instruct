@@ -8,7 +8,7 @@ echo "Training llama model using $NUM_GPUS GPUs, $BATCH_SIZE_PER_GPU batch size 
 # but it will trade off speed.
 # sweep learning rate from 2e-5 to 1e-6
 
-name=llama32_1B_mt3_v2_alpha128_seed2
+name=llama32_1B_mt3_v2_alpha128_tokenfix_lr1e-4
 accelerate launch \
   --mixed_precision bf16 \
   --num_machines 1 \
@@ -17,7 +17,6 @@ accelerate launch \
   --main_process_port 29503 \
   --deepspeed_config_file configs/ds_configs/stage3_no_offloading_accelerate.conf \
   open_instruct/finetune.py \
-  --seed 2 \
   --wandb_entity seungjuhan3 \
   --wandb_project fact_verifier_controlled \
   --wandb_name $name \
@@ -32,7 +31,7 @@ accelerate launch \
   --max_seq_length 2048 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
-  --learning_rate 5e-5 \
+  --learning_rate 1e-4 \
   --lr_scheduler_type linear \
   --warmup_ratio 0.03 \
   --weight_decay 0. \
@@ -44,7 +43,7 @@ accelerate launch \
   --logging_steps 10 \
   --with_tracking
 
-name=llama32_1B_mt3_v2_alpha128_seed42
+name=llama32_1B_mt3_v2_alpha128_tokenfix_lr5e-5
 accelerate launch \
   --mixed_precision bf16 \
   --num_machines 1 \
@@ -53,7 +52,6 @@ accelerate launch \
   --main_process_port 29503 \
   --deepspeed_config_file configs/ds_configs/stage3_no_offloading_accelerate.conf \
   open_instruct/finetune.py \
-  --seed 42 \
   --wandb_entity seungjuhan3 \
   --wandb_project fact_verifier_controlled \
   --wandb_name $name \
@@ -68,7 +66,42 @@ accelerate launch \
   --max_seq_length 2048 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
-  --learning_rate 5e-5 \
+  --learning_rate 1e-5 \
+  --lr_scheduler_type linear \
+  --warmup_ratio 0.03 \
+  --weight_decay 0. \
+  --num_train_epochs 2 \
+  --output_dir $name \
+  --report_to wandb \
+  --eval_file /home/ubuntu/open-instruct-general/fact_verification_dev.jsonl \
+  --eval_steps 10000 \
+  --logging_steps 10 \
+  --with_tracking
+
+name=llama32_1B_mt3_v2_alpha128_tokenfix_lr1e-5
+accelerate launch \
+  --mixed_precision bf16 \
+  --num_machines 1 \
+  --num_processes $NUM_GPUS \
+  --use_deepspeed \
+  --main_process_port 29503 \
+  --deepspeed_config_file configs/ds_configs/stage3_no_offloading_accelerate.conf \
+  open_instruct/finetune.py \
+  --wandb_entity seungjuhan3 \
+  --wandb_project fact_verifier_controlled \
+  --wandb_name $name \
+  --model_name_or_path meta-llama/Llama-3.2-1B-Instruct \
+  --tokenizer_name meta-llama/Llama-3.2-1B-Instruct \
+  --use_slow_tokenizer \
+  --use_lora \
+  --lora_rank 64 \
+  --lora_alpha 128 \
+  --lora_dropout 0.05 \
+  --train_file /home/ubuntu/scalable-factuality/train/train/size_cont_v3_0_1_8000-size_anli_64k_8000.jsonl,/home/ubuntu/scalable-factuality/train/train_cot/size_final_v2_short_reasoning_path_cont_v3_0_1_8000-size_final_v2_short_reasoning_path_anli_8000.jsonl \
+  --max_seq_length 2048 \
+  --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
+  --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
+  --learning_rate 1e-5 \
   --lr_scheduler_type linear \
   --warmup_ratio 0.03 \
   --weight_decay 0. \
