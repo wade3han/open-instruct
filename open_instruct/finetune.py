@@ -741,7 +741,9 @@ def main(args: FlatArguments):
             model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=args.gradient_checkpointing)
 
         logger.info("Initializing LORA model...")
-        if args.model_name_or_path == "internlm/internlm2_5-7b-chat" or args.model_name_or_path == "/home/ubuntu/open-instruct-general/internlm_7B_v3_6_anli_filtered_2eps/temp":
+        if args.model_name_or_path == "internlm/internlm2_5-7b-chat" or \
+            args.model_name_or_path == "/home/ubuntu/open-instruct-general/internlm_7B_v3_6_anli_filtered_2eps/temp" or \
+            args.model_name_or_path == "internlm/internlm2_5-20b-chat": 
             target_modules = ["wqkv", "wo", "w1", "w2", "w3"]
         elif args.model_name_or_path == "microsoft/Phi-3-medium-4k-instruct":
             target_modules = ["o_proj", "qkv_proj", "gate_up_proj", "down_proj"]
