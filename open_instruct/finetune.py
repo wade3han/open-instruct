@@ -1182,20 +1182,20 @@ def main(args: FlatArguments):
             print(f"Submit jobs after model training is finished - Stderr:\n{stderr.decode()}")
             print(f"Submit jobs after model training is finished - process return code: {process.returncode}")
 
-    optimizer_state_dict = optimizer.state_dict()
-    torch.save(optimizer_state_dict, f"{args.output_dir}/optimizer.pt")
-    print(f"Optimizer state saved to {args.output_dir}/optimizer.pt")
+    # optimizer_state_dict = optimizer.state_dict()
+    # torch.save(optimizer_state_dict, f"{args.output_dir}/optimizer.pt")
+    # print(f"Optimizer state saved to {args.output_dir}/optimizer.pt")
 
-    # save the optimizer_idx_to_param_name.
-    param_id_name_dict = {id(p): n for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)}
-    optimizer_params = [p for p_group in optimizer.param_groups for p in p_group['params']]
+    # # save the optimizer_idx_to_param_name.
+    # param_id_name_dict = {id(p): n for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)}
+    # optimizer_params = [p for p_group in optimizer.param_groups for p in p_group['params']]
 
-    optimizer_model_param_dict = {}
-    for idx, param in enumerate(optimizer_params):
-        optimizer_model_param_dict[idx] = param_id_name_dict[id(param)]
+    # optimizer_model_param_dict = {}
+    # for idx, param in enumerate(optimizer_params):
+    #     optimizer_model_param_dict[idx] = param_id_name_dict[id(param)]
 
-    with open(f"{args.output_dir}/optimizer_map.json", "w") as f:
-        json.dump(optimizer_model_param_dict, f)
+    # with open(f"{args.output_dir}/optimizer_map.json", "w") as f:
+    #     json.dump(optimizer_model_param_dict, f)
 
     print(f"Model and tokenizer saved to {args.output_dir}")
 
