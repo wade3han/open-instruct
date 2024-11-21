@@ -26,7 +26,7 @@ accelerate launch \
   --use_slow_tokenizer \
   --use_lora \
   --lora_rank 64 \
-  --lora_alpha 16 \
+  --lora_alpha 128 \
   --lora_dropout 0.05 \
   --train_file /home/ubuntu/scalable-factuality/train/train/size_cont_v3_0_1_8000-size_anli_64k_8000.jsonl,/home/ubuntu/scalable-factuality/train/train_cot/dec_then_verify_cont_v3_0_1-dec_then_verify_anli.jsonl \
   --max_seq_length 2048 \
