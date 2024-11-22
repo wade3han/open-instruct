@@ -28,7 +28,7 @@ accelerate launch \
   --lora_rank 64 \
   --lora_alpha 128 \
   --lora_dropout 0.05 \
-  --train_file /home/ubuntu/scalable-factuality/train/train/cont_v3_0_1_train_step2-llama32_1B_dv_stepbystepv2_2eps-anli_train_step2-llama32_1B_dv_stepbystepv2_2eps.jsonl \ 
+  --train_file /home/ubuntu/scalable-factuality/train/train/cont_v3_0_1_train_step2-llama32_1B_dv_stepbystepv2_2eps-anli_train_step2-llama32_1B_dv_stepbystepv2_2eps.jsonl \
   --max_seq_length 2048 \
   --per_device_train_batch_size $BATCH_SIZE_PER_GPU \
   --gradient_accumulation_steps $GRADIENT_ACC_STEPS \
