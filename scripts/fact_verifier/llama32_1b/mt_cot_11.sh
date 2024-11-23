@@ -8,7 +8,7 @@ echo "Training llama model using $NUM_GPUS GPUs, $BATCH_SIZE_PER_GPU batch size 
 # but it will trade off speed.
 # sweep learning rate from 2e-5 to 1e-6
 
-name=llama32_1B_dv_stepbystep_anli_filtered_2eps
+name=llama32_1B_dv_stepbystep_anli_default_2eps
 accelerate launch \
   --mixed_precision bf16 \
   --num_machines 1 \
